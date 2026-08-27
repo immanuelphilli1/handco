@@ -1,0 +1,454 @@
+{
+  "categories": [
+    {
+      "id": "featured",
+      "label": "Featured",
+      "products": [
+        {
+          "id": "featured-1",
+          "name": "Monolith Bluetooth Speaker",
+          "subcategory": "Best Sellers",
+          "tag": "Best Seller",
+          "category": "ELECTRONICS",
+          "image": "/assets/featured/speaker.png",
+          "price": "AED 179.00",
+          "originalPrice": "AED 200.00",
+          "discount": "-18%",
+          "delivery": "Delivery in 5 days",
+          "rating": "4.7(3)"
+        },
+        {
+          "id": "featured-2",
+          "name": "QuantumX Arm Chair",
+          "subcategory": "Top Rated",
+          "tag": "Popular Choice",
+          "category": "FURNITURE",
+          "image": "/assets/featured/chair.png",
+          "price": "AED 2999.00",
+          "originalPrice": "AED 3550.00",
+          "discount": "-15%",
+          "delivery": "Delivery in 7 days",
+          "rating": "4.8(12)",
+          "showAddButton": true
+        },
+        {
+          "id": "featured-3",
+          "name": "UltraVision 4K OLED TV 55 inch",
+          "subcategory": "Deals",
+          "tag": "Popular Choice",
+          "category": "ELECTRONICS",
+          "image": "/assets/featured/headphones.png",
+          "price": "AED 1299.00",
+          "originalPrice": "AED 1599.00",
+          "discount": "-19%",
+          "delivery": "Delivery in 10 days",
+          "rating": "4.6(8)"
+        }
+      ]
+    },
+    {
+      "id": "new-releases",
+      "label": "New Releases",
+      "products": [
+        {
+          "id": "new-releases-1",
+          "name": "AeroSmart Wireless Earbuds",
+          "subcategory": "Latest Arrivals",
+          "tag": "New Arrival",
+          "category": "ELECTRONICS",
+          "image": "/assets/new-arrivals/earbuds.png",
+          "price": "AED 89.99",
+          "delivery": "Delivery in 5 days",
+          "rating": "4.7(3)",
+          "priceOrange": true,
+          "imageObjectPosition": "object-bottom"
+        },
+        {
+          "id": "new-releases-2",
+          "name": "PulseWave Gaming Keyboard RGB",
+          "subcategory": "Just Dropped",
+          "tag": "New Arrival",
+          "category": "ELECTRONICS",
+          "image": "/assets/new-arrivals/speaker.png",
+          "price": "AED 129.00",
+          "originalPrice": "AED 159.00",
+          "discount": "-19%",
+          "delivery": "Delivery in 3 days",
+          "rating": "4.5(6)"
+        },
+        {
+          "id": "new-releases-3",
+          "name": "Nexus Pro Laptop Stand",
+          "subcategory": "Coming Soon",
+          "tag": "New Arrival",
+          "category": "ELECTRONICS",
+          "image": "/assets/new-arrivals/speaker.png",
+          "price": "AED 79.00",
+          "originalPrice": "AED 99.00",
+          "discount": "-20%",
+          "delivery": "Delivery in 2 days",
+          "rating": "4.4(4)"
+        },
+        {
+          "id": "new-releases-4",
+          "name": "CloudComfort Ergonomic Chair",
+          "subcategory": "Fresh Picks",
+          "tag": "New Arrival",
+          "category": "FURNITURE",
+          "image": "/assets/new-arrivals/chair.png",
+          "price": "AED 899.00",
+          "originalPrice": "AED 1099.00",
+          "discount": "-18%",
+          "delivery": "Delivery in 7 days",
+          "rating": "4.8(9)",
+          "showAddButton": true
+        },
+        {
+          "id": "new-releases-5",
+          "name": "SoundForge Studio Headphones",
+          "subcategory": "Limited Edition",
+          "tag": "New Arrival",
+          "category": "ELECTRONICS",
+          "image": "/assets/featured/headphones.png",
+          "price": "AED 249.00",
+          "delivery": "Delivery in 4 days",
+          "rating": "4.6(5)",
+          "priceOrange": true
+        }
+      ]
+    },
+    {
+      "id": "electronics",
+      "label": "Electronics & Tech",
+      "products": [
+        {
+          "id": "electronics-1",
+          "name": "QuantumX Noise Cancelling Headphones",
+          "subcategory": "Headphones & Audio",
+          "tag": "Best Seller",
+          "category": "ELECTRONICS",
+          "image": "/assets/categories/electronics.png",
+          "price": "AED 299.00",
+          "originalPrice": "AED 350.00",
+          "discount": "-15%",
+          "delivery": "Delivery in 7 days",
+          "rating": "4.7(3)"
+        },
+        {
+          "id": "electronics-2",
+          "name": "SolarBeam Smartwatch Series 5",
+          "subcategory": "Wearables",
+          "tag": "Popular Choice",
+          "category": "ELECTRONICS",
+          "image": "/assets/new-arrivals/speaker.png",
+          "price": "AED 199.99",
+          "originalPrice": "AED 249.99",
+          "discount": "-20%",
+          "delivery": "Delivery in 5 days",
+          "rating": "4.6(9)"
+        },
+        {
+          "id": "electronics-3",
+          "name": "CrystalClear Webcam 4K",
+          "subcategory": "Webcams & Accessories",
+          "tag": "New Arrival",
+          "category": "ELECTRONICS",
+          "image": "/assets/featured/speaker.png",
+          "price": "AED 149.00",
+          "originalPrice": "AED 179.00",
+          "discount": "-17%",
+          "delivery": "Delivery in 4 days",
+          "rating": "4.5(5)"
+        }
+      ]
+    },
+    {
+      "id": "fashion",
+      "label": "Fashion & Accessories",
+      "products": [
+        {
+          "id": "fashion-1",
+          "name": "Classic Linen Blazer",
+          "subcategory": "Women's Dresses",
+          "tag": "Popular Choice",
+          "category": "FASHION",
+          "image": "/assets/categories/fashion.png",
+          "price": "AED 249.00",
+          "delivery": "Delivery in 5 days",
+          "rating": "4.3(7)"
+        },
+        {
+          "id": "fashion-2",
+          "name": "Everyday Crossbody Bag",
+          "subcategory": "Bags",
+          "tag": "Best Seller",
+          "category": "FASHION",
+          "image": "/assets/categories/accessories.png",
+          "price": "AED 119.00",
+          "originalPrice": "AED 149.00",
+          "discount": "-20%",
+          "delivery": "Delivery in 3 days",
+          "rating": "4.8(14)"
+        },
+        {
+          "id": "fashion-3",
+          "name": "Premium Cotton Tee Pack",
+          "subcategory": "Casual Wear",
+          "tag": "New Arrival",
+          "category": "FASHION",
+          "image": "/assets/categories/fashion.png",
+          "price": "AED 89.00",
+          "delivery": "Delivery in 2 days",
+          "rating": "4.2(3)"
+        }
+      ]
+    },
+    {
+      "id": "home-garden",
+      "label": "Home & Garden",
+      "products": [
+        {
+          "id": "home-garden-1",
+          "name": "Indoor Herb Garden Kit",
+          "subcategory": "Plants & Seeds",
+          "tag": "New Arrival",
+          "category": "HOME & GARDEN",
+          "image": "/assets/categories/decor.png",
+          "price": "AED 159.00",
+          "delivery": "Delivery in 6 days",
+          "rating": "4.6(11)"
+        },
+        {
+          "id": "home-garden-2",
+          "name": "Smart Watering Planter",
+          "subcategory": "Planters",
+          "tag": "Popular Choice",
+          "category": "HOME & GARDEN",
+          "image": "/assets/categories/decor.png",
+          "price": "AED 99.00",
+          "delivery": "Delivery in 4 days",
+          "rating": "4.4(6)"
+        },
+        {
+          "id": "home-garden-3",
+          "name": "Balcony Lounge Set",
+          "subcategory": "Outdoor Furniture",
+          "tag": "Best Seller",
+          "category": "HOME & GARDEN",
+          "image": "/assets/categories/furniture.png",
+          "price": "AED 1899.00",
+          "originalPrice": "AED 2199.00",
+          "discount": "-14%",
+          "delivery": "Delivery in 10 days",
+          "rating": "4.7(4)"
+        }
+      ]
+    },
+    {
+      "id": "decor",
+      "label": "Decor",
+      "products": [
+        {
+          "id": "decor-1",
+          "name": "Ceramic Vase Trio",
+          "subcategory": "Vases",
+          "tag": "Popular Choice",
+          "category": "DECOR",
+          "image": "/assets/categories/decor.png",
+          "price": "AED 79.00",
+          "delivery": "Delivery in 5 days",
+          "rating": "4.5(8)"
+        },
+        {
+          "id": "decor-2",
+          "name": "Ambient Floor Lamp",
+          "subcategory": "Lamps & Lighting",
+          "tag": "New Arrival",
+          "category": "DECOR",
+          "image": "/assets/categories/decor.png",
+          "price": "AED 349.00",
+          "originalPrice": "AED 399.00",
+          "discount": "-13%",
+          "delivery": "Delivery in 7 days",
+          "rating": "4.6(5)"
+        },
+        {
+          "id": "decor-3",
+          "name": "Minimal Wall Art Set",
+          "subcategory": "Wall Art",
+          "tag": "Best Seller",
+          "category": "DECOR",
+          "image": "/assets/categories/decor.png",
+          "price": "AED 129.00",
+          "delivery": "Delivery in 3 days",
+          "rating": "4.4(9)"
+        }
+      ]
+    },
+    {
+      "id": "furniture",
+      "label": "Furniture",
+      "products": [
+        {
+          "id": "furniture-1",
+          "name": "Oak Dining Table",
+          "subcategory": "Dining Tables",
+          "tag": "Best Seller",
+          "category": "FURNITURE",
+          "image": "/assets/categories/furniture.png",
+          "price": "AED 2499.00",
+          "delivery": "Delivery in 12 days",
+          "rating": "4.8(6)"
+        },
+        {
+          "id": "furniture-2",
+          "name": "Cloud Comfort Sofa",
+          "subcategory": "Sofas",
+          "tag": "Popular Choice",
+          "category": "FURNITURE",
+          "image": "/assets/new-arrivals/chair.png",
+          "price": "AED 3999.00",
+          "originalPrice": "AED 4499.00",
+          "discount": "-11%",
+          "delivery": "Delivery in 14 days",
+          "rating": "4.7(10)",
+          "showAddButton": true
+        },
+        {
+          "id": "furniture-3",
+          "name": "Compact Study Desk",
+          "subcategory": "Desks",
+          "tag": "New Arrival",
+          "category": "FURNITURE",
+          "image": "/assets/categories/furniture.png",
+          "price": "AED 699.00",
+          "delivery": "Delivery in 8 days",
+          "rating": "4.5(4)"
+        }
+      ]
+    },
+    {
+      "id": "accessories",
+      "label": "Accessories",
+      "products": [
+        {
+          "id": "accessories-1",
+          "name": "Leather Watch Strap",
+          "subcategory": "Watch Straps",
+          "tag": "Popular Choice",
+          "category": "ACCESSORIES",
+          "image": "/assets/categories/accessories.png",
+          "price": "AED 59.00",
+          "delivery": "Delivery in 3 days",
+          "rating": "4.6(12)"
+        },
+        {
+          "id": "accessories-2",
+          "name": "Travel Organizer Set",
+          "subcategory": "Travel Gear",
+          "tag": "New Arrival",
+          "category": "ACCESSORIES",
+          "image": "/assets/categories/accessories.png",
+          "price": "AED 89.00",
+          "originalPrice": "AED 110.00",
+          "discount": "-19%",
+          "delivery": "Delivery in 4 days",
+          "rating": "4.4(7)"
+        },
+        {
+          "id": "accessories-3",
+          "name": "Wireless Charging Pad",
+          "subcategory": "Tech Accessories",
+          "tag": "Best Seller",
+          "category": "ACCESSORIES",
+          "image": "/assets/categories/electronics.png",
+          "price": "AED 129.00",
+          "delivery": "Delivery in 2 days",
+          "rating": "4.7(15)"
+        }
+      ]
+    },
+    {
+      "id": "construction",
+      "label": "Construction & Tools",
+      "products": [
+        {
+          "id": "construction-1",
+          "name": "Pro Drill Driver Kit",
+          "subcategory": "Power Tools",
+          "tag": "Best Seller",
+          "category": "CONSTRUCTION",
+          "image": "/assets/categories/electronics.png",
+          "price": "AED 499.00",
+          "delivery": "Delivery in 5 days",
+          "rating": "4.6(8)"
+        },
+        {
+          "id": "construction-2",
+          "name": "Heavy Duty Tool Box",
+          "subcategory": "Tool Storage",
+          "tag": "Popular Choice",
+          "category": "CONSTRUCTION",
+          "image": "/assets/categories/furniture.png",
+          "price": "AED 199.00",
+          "originalPrice": "AED 249.00",
+          "discount": "-20%",
+          "delivery": "Delivery in 6 days",
+          "rating": "4.5(5)"
+        },
+        {
+          "id": "construction-3",
+          "name": "Laser Level Measure",
+          "subcategory": "Measuring Tools",
+          "tag": "New Arrival",
+          "category": "CONSTRUCTION",
+          "image": "/assets/categories/electronics.png",
+          "price": "AED 349.00",
+          "delivery": "Delivery in 4 days",
+          "rating": "4.3(3)"
+        }
+      ]
+    },
+    {
+      "id": "energy",
+      "label": "Energy & Power",
+      "products": [
+        {
+          "id": "energy-1",
+          "name": "Portable Power Station",
+          "subcategory": "Power Stations",
+          "tag": "Best Seller",
+          "category": "ENERGY",
+          "image": "/assets/categories/electronics.png",
+          "price": "AED 899.00",
+          "originalPrice": "AED 999.00",
+          "discount": "-10%",
+          "delivery": "Delivery in 7 days",
+          "rating": "4.7(6)"
+        },
+        {
+          "id": "energy-2",
+          "name": "Solar Panel Starter Kit",
+          "subcategory": "Solar Panels",
+          "tag": "New Arrival",
+          "category": "ENERGY",
+          "image": "/assets/categories/electronics.png",
+          "price": "AED 1299.00",
+          "delivery": "Delivery in 10 days",
+          "rating": "4.5(4)"
+        },
+        {
+          "id": "energy-3",
+          "name": "Smart Power Strip",
+          "subcategory": "Smart Power Strips",
+          "tag": "Popular Choice",
+          "category": "ENERGY",
+          "image": "/assets/categories/electronics.png",
+          "price": "AED 79.00",
+          "delivery": "Delivery in 3 days",
+          "rating": "4.4(9)"
+        }
+      ]
+    }
+  ]
+}

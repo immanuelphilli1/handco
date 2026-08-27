@@ -1,0 +1,310 @@
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type TransitionEvent,
+} from 'react'
+import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
+import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
+import { newArrivalProducts, type Product } from '../data/products'
+import { ProductCard } from './ProductCard'
+
+const AUTO_PLAY_INTERVAL_MS = 8000
+const PRODUCT_COUNT = newArrivalProducts.length
+const MOBILE_PRODUCT_COUNT = 5
+const DESKTOP_ITEMS_PER_VIEW = 4
+const DESKTOP_MEDIA_QUERY = '(min-width: 1024px)'
+const TRANSITION_MS = 700
+
+const mobileProducts = newArrivalProducts.slice(0, MOBILE_PRODUCT_COUNT)
+
+const carouselArrowButton =
+  'group flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-3 transition-colors hover:bg-orange-light active:bg-orange-light'
+const carouselArrowIcon =
+  'size-5 text-text-secondary transition-colors group-hover:text-primary-orange'
+
+function buildLoopedProducts(products: Product[], cloneCount: number) {
+  const prefix = products.slice(-cloneCount)
+  const suffix = products.slice(0, cloneCount)
+
+  return [...prefix, ...products, ...suffix]
+}
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(DESKTOP_MEDIA_QUERY).matches,
+  )
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(DESKTOP_MEDIA_QUERY)
+    const update = () => setIsDesktop(mediaQuery.matches)
+
+    update()
+    mediaQuery.addEventListener('change', update)
+
+    return () => mediaQuery.removeEventListener('change', update)
+  }, [])
+
+  return isDesktop
+}
+
+type NewArrivalsSectionProps = {
+  onProductSelect?: (product: Product) => void
+}
+
+export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps) {
+  const isDesktop = useIsDesktop()
+  const trackRef = useRef<HTMLDivElement>(null)
+  const slideIndexRef = useRef(DESKTOP_ITEMS_PER_VIEW)
+  const isAnimatingRef = useRef(false)
+  const resetTimeoutRef = useRef<number | null>(null)
+
+  const [slideIndex, setSlideIndexState] = useState(DESKTOP_ITEMS_PER_VIEW)
+  const [slideStep, setSlideStep] = useState(0)
+  const [isPaused, setIsPaused] = useState(false)
+  const [enableTransition, setEnableTransition] = useState(true)
+
+  const startIndex = DESKTOP_ITEMS_PER_VIEW
+  const resetEndIndex = startIndex + PRODUCT_COUNT
+  const resetStartIndex = startIndex + PRODUCT_COUNT - 1
+
+  const loopedProducts = useMemo(
+    () => buildLoopedProducts(newArrivalProducts, DESKTOP_ITEMS_PER_VIEW),
+    [],
+  )
+
+  const setSlideIndex = useCallback((nextIndex: number | ((index: number) => number)) => {
+    setSlideIndexState((current) => {
+      const resolved = typeof nextIndex === 'function' ? nextIndex(current) : nextIndex
+      slideIndexRef.current = resolved
+      return resolved
+    })
+  }, [])
+
+  const activeProductIndex =
+    (((slideIndex - startIndex) % PRODUCT_COUNT) + PRODUCT_COUNT) % PRODUCT_COUNT
+
+  const clearResetTimeout = useCallback(() => {
+    if (resetTimeoutRef.current !== null) {
+      window.clearTimeout(resetTimeoutRef.current)
+      resetTimeoutRef.current = null
+    }
+  }, [])
+
+  const jumpWithoutTransition = useCallback(
+    (nextIndex: number) => {
+      clearResetTimeout()
+      isAnimatingRef.current = false
+      setEnableTransition(false)
+      setSlideIndex(nextIndex)
+    },
+    [clearResetTimeout, setSlideIndex],
+  )
+
+  const normalizeSlideIndex = useCallback(() => {
+    const currentIndex = slideIndexRef.current
+
+    if (currentIndex >= resetEndIndex) {
+      jumpWithoutTransition(startIndex)
+      return true
+    }
+
+    if (currentIndex < startIndex) {
+      jumpWithoutTransition(resetStartIndex)
+      return true
+    }
+
+    return false
+  }, [jumpWithoutTransition, resetEndIndex, resetStartIndex, startIndex])
+
+  const scheduleResetFallback = useCallback(() => {
+    clearResetTimeout()
+    resetTimeoutRef.current = window.setTimeout(() => {
+      normalizeSlideIndex()
+    }, TRANSITION_MS + 50)
+  }, [clearResetTimeout, normalizeSlideIndex])
+
+  const measureSlideStep = useCallback(() => {
+    const track = trackRef.current
+    const firstSlide = track?.firstElementChild
+
+    if (!track || !(firstSlide instanceof HTMLElement)) return
+
+    const styles = window.getComputedStyle(track)
+    const gap = Number.parseFloat(styles.gap || styles.columnGap || '8') || 8
+    setSlideStep(firstSlide.offsetWidth + gap)
+  }, [])
+
+  const beginSlide = useCallback(
+    (direction: 'next' | 'prev') => {
+      if (isAnimatingRef.current) return
+
+      isAnimatingRef.current = true
+      setEnableTransition(true)
+      setSlideIndex((index) => (direction === 'next' ? index + 1 : index - 1))
+      scheduleResetFallback()
+    },
+    [scheduleResetFallback, setSlideIndex],
+  )
+
+  const showPreviousSlide = useCallback(() => {
+    beginSlide('prev')
+  }, [beginSlide])
+
+  const showNextSlide = useCallback(() => {
+    beginSlide('next')
+  }, [beginSlide])
+
+  const goToProduct = useCallback(
+    (productIndex: number) => {
+      if (isAnimatingRef.current) return
+
+      clearResetTimeout()
+      isAnimatingRef.current = false
+      setEnableTransition(true)
+      setSlideIndex(startIndex + productIndex)
+    },
+    [clearResetTimeout, setSlideIndex, startIndex],
+  )
+
+  const handleTransitionEnd = useCallback(
+    (event: TransitionEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget || event.propertyName !== 'transform') return
+
+      clearResetTimeout()
+      isAnimatingRef.current = false
+
+      if (normalizeSlideIndex()) return
+
+      setEnableTransition(true)
+    },
+    [clearResetTimeout, normalizeSlideIndex],
+  )
+
+  useEffect(() => {
+    if (!isDesktop) return
+
+    measureSlideStep()
+
+    const track = trackRef.current
+    if (!track) return
+
+    const observer = new ResizeObserver(measureSlideStep)
+    observer.observe(track)
+
+    return () => observer.disconnect()
+  }, [isDesktop, measureSlideStep])
+
+  useEffect(() => {
+    if (!isDesktop || enableTransition) return
+
+    const frameId = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => setEnableTransition(true))
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [enableTransition, isDesktop, slideIndex])
+
+  useEffect(() => {
+    if (!isDesktop || isPaused) return
+
+    const intervalId = window.setInterval(showNextSlide, AUTO_PLAY_INTERVAL_MS)
+
+    return () => window.clearInterval(intervalId)
+  }, [isDesktop, isPaused, showNextSlide])
+
+  useEffect(() => clearResetTimeout, [clearResetTimeout])
+
+  return (
+    <section className="overflow-x-clip border-b border-border-primary px-4 lg:px-16">
+      <div className="flex flex-col gap-2 py-4 lg:gap-14 lg:py-10">
+        <div className="flex items-center">
+          <h2 className="flex-1 text-xl font-medium leading-6 tracking-[-0.4px] text-text-primary lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
+            New Arrivals
+          </h2>
+          {isDesktop ? (
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={showPreviousSlide}
+                className={carouselArrowButton}
+                aria-label="Previous products"
+              >
+                <ArrowLeftSLineIcon className={carouselArrowIcon} aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={showNextSlide}
+                className={carouselArrowButton}
+                aria-label="Next products"
+              >
+                <ArrowRightSLineIcon className={carouselArrowIcon} aria-hidden />
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        {isDesktop ? (
+          <>
+            <div
+              className="overflow-hidden"
+              onMouseEnter={() => setIsPaused(true)}
+              onMouseLeave={() => setIsPaused(false)}
+            >
+              <div
+                ref={trackRef}
+                onTransitionEnd={handleTransitionEnd}
+                className={`flex gap-2 will-change-transform ${enableTransition ? 'transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]' : ''}`}
+                style={{
+                  transform: slideStep ? `translate3d(-${slideIndex * slideStep}px, 0, 0)` : undefined,
+                }}
+              >
+                {loopedProducts.map((product, index) => (
+                  <div
+                    key={`${product.name}-${product.category}-${index}`}
+                    className="flex w-[calc((100%-1.5rem)/4)] min-w-0 shrink-0"
+                  >
+                    <ProductCard
+                      product={product}
+                      enableAddButton
+                      onClick={onProductSelect ? () => onProductSelect(product) : undefined}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 px-8 py-2">
+              {newArrivalProducts.map((product, index) => (
+                <button
+                  key={`${product.name}-${product.category}-${index}`}
+                  type="button"
+                  onClick={() => goToProduct(index)}
+                  aria-label={`Go to ${product.name}`}
+                  className={`rounded-full transition-[width,background-color] duration-300 ${
+                    index === activeProductIndex
+                      ? 'h-2 w-8 bg-primary-orange'
+                      : 'size-2 bg-bg-tertiary hover:bg-border-secondary'
+                  }`}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="grid grid-cols-2 items-stretch gap-2">
+            {mobileProducts.map((product, index) => (
+              <ProductCard
+                key={`${product.name}-${product.category}-${index}`}
+                product={product}
+                enableAddButton
+                onClick={onProductSelect ? () => onProductSelect(product) : undefined}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
