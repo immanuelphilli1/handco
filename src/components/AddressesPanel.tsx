@@ -71,7 +71,7 @@ function AddressCard({
           <AddressDefaultToggle isDefault={address.isDefault} onSelect={onSetDefault} />
         </div>
 
-        <div className="flex shrink-0 items-center gap-6 lg:gap-0 xl:gap-6">
+        <div className="flex shrink-0 items-center gap-0 xl:gap-6">
           <button
             type="button"
             onClick={onDelete}
