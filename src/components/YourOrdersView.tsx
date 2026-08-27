@@ -55,14 +55,9 @@ import EditBoxLineIcon from 'remixicon-react/EditBoxLineIcon'
 import LockFillIcon from 'remixicon-react/LockFillIcon'
 import ShieldCheckFillIcon from 'remixicon-react/ShieldCheckFillIcon'
 
-export type AccountSection =
-  | 'orders'
-  | 'reviews'
-  | 'profile'
-  | 'history'
-  | 'addresses'
-  | 'payments'
-  | 'notifications'
+import type { AccountSection } from '../data/accountRoutes'
+
+export type { AccountSection } from '../data/accountRoutes'
 
 type YourOrdersViewProps = {
   onGoHome: () => void

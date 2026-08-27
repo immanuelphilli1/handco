@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { images } from '../assets/images'
 import { AccountMenu } from './AccountMenu'
 import { CategoriesModal } from './CategoriesModal'
 import { SignInModal } from './SignInModal'
+import { getAccountPath, type AccountSection } from '../data/accountRoutes'
 import MapPinLineIcon from 'remixicon-react/MapPinLineIcon'
 import LifebuoyLineIcon from 'remixicon-react/LifebuoyLineIcon'
 import GlobalLineIcon from 'remixicon-react/GlobalLineIcon'
@@ -27,13 +29,6 @@ type NavProps = {
   onToggleCategories: () => void
   onCloseCategories: () => void
   onSubcategorySelect: (selection: CategoryListingSelection) => void
-  onOpenYourOrders?: () => void
-  onOpenYourReviews?: () => void
-  onOpenYourProfile?: () => void
-  onOpenBrowsingHistory?: () => void
-  onOpenAddresses?: () => void
-  onOpenPaymentMethods?: () => void
-  onOpenNotifications?: () => void
   onOpenCart?: () => void
   onOpenWishlist?: () => void
   cartItemCount?: number
@@ -50,13 +45,6 @@ export function Nav({
   onToggleCategories,
   onCloseCategories,
   onSubcategorySelect,
-  onOpenYourOrders,
-  onOpenYourReviews,
-  onOpenYourProfile,
-  onOpenBrowsingHistory,
-  onOpenAddresses,
-  onOpenPaymentMethods,
-  onOpenNotifications,
   onOpenCart,
   onOpenWishlist,
   cartItemCount = 0,
@@ -66,6 +54,7 @@ export function Nav({
   onSignedIn,
   onSignOut,
 }: NavProps) {
+  const navigate = useNavigate()
   const headerRef = useRef<HTMLElement>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
@@ -74,6 +63,15 @@ export function Nav({
   const desktopAccountRef = useRef<HTMLDivElement>(null)
 
   const closeAccountMenu = useCallback(() => setIsAccountMenuOpen(false), [])
+
+  const openAccountSection = useCallback(
+    (section: AccountSection) => {
+      closeAccountMenu()
+      navigate(getAccountPath(section))
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    },
+    [closeAccountMenu, navigate],
+  )
 
   const toggleCategories = () => {
     onToggleCategories()
@@ -301,13 +299,13 @@ export function Nav({
                       userFullName={userFullName}
                       onClose={closeAccountMenu}
                       onSignOut={onSignOut}
-                      onYourOrdersClick={onOpenYourOrders}
-                      onYourReviewsClick={onOpenYourReviews}
-                      onYourProfileClick={onOpenYourProfile}
-                      onBrowsingHistoryClick={onOpenBrowsingHistory}
-                      onAddressesClick={onOpenAddresses}
-                      onPaymentMethodsClick={onOpenPaymentMethods}
-                      onNotificationsClick={onOpenNotifications}
+                      onYourOrdersClick={() => openAccountSection('orders')}
+                      onYourReviewsClick={() => openAccountSection('reviews')}
+                      onYourProfileClick={() => openAccountSection('profile')}
+                      onBrowsingHistoryClick={() => openAccountSection('history')}
+                      onAddressesClick={() => openAccountSection('addresses')}
+                      onPaymentMethodsClick={() => openAccountSection('payments')}
+                      onNotificationsClick={() => openAccountSection('notifications')}
                     />
                   ) : null}
                 </div>
@@ -394,13 +392,13 @@ export function Nav({
                     userFullName={userFullName}
                     onClose={closeAccountMenu}
                     onSignOut={onSignOut}
-                    onYourOrdersClick={onOpenYourOrders}
-                    onYourReviewsClick={onOpenYourReviews}
-                    onYourProfileClick={onOpenYourProfile}
-                    onBrowsingHistoryClick={onOpenBrowsingHistory}
-                    onAddressesClick={onOpenAddresses}
-                    onPaymentMethodsClick={onOpenPaymentMethods}
-                    onNotificationsClick={onOpenNotifications}
+                    onYourOrdersClick={() => openAccountSection('orders')}
+                    onYourReviewsClick={() => openAccountSection('reviews')}
+                    onYourProfileClick={() => openAccountSection('profile')}
+                    onBrowsingHistoryClick={() => openAccountSection('history')}
+                    onAddressesClick={() => openAccountSection('addresses')}
+                    onPaymentMethodsClick={() => openAccountSection('payments')}
+                    onNotificationsClick={() => openAccountSection('notifications')}
                   />
                 ) : null}
               </div>

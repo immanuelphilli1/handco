@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { BackToTopButton } from '../components/BackToTopButton'
 import { CategoryGridSection } from '../components/CategoryGridSection'
 import { CategoryListingView } from '../components/CategoryListingView'
@@ -10,16 +11,16 @@ import { HeroSection } from '../components/HeroSection'
 import { Nav } from '../components/Nav'
 import { NewArrivalsSection } from '../components/NewArrivalsSection'
 import { PromoBannerSection } from '../components/PromoBannerSection'
-import { YourOrdersView, type AccountSection } from '../components/YourOrdersView'
 import { CartView } from '../components/CartView'
 import { CheckoutView } from '../components/CheckoutView'
 import { OrderCompletedView } from '../components/OrderCompletedView'
 import { WishlistView } from '../components/WishlistView'
-import { ShopProvider, useShop } from '../context/ShopContext'
-import { defaultSignedInUser, type AuthUser } from '../data/auth'
+import { useShop } from '../context/ShopContext'
+import type { AuthUser } from '../data/auth'
 import type { CategoryListingSelection } from '../data/categoryListing'
 import { allCategoriesListingSelection } from '../data/categoryListing'
 import type { SidebarCategoryId } from '../data/categoriesModal'
+import type { HomeNavigationState } from '../data/navigation'
 import {
   buildFeaturedProductDetailContext,
   buildHomeProductDetailContext,
@@ -29,27 +30,58 @@ import {
 } from '../data/productDetail'
 import type { Product } from '../data/products'
 
-export type CartStep = 'cart' | 'checkout' | 'completed'
+export type { CartStep } from '../data/navigation'
 
-export function HomePage() {
-  return (
-    <ShopProvider>
-      <HomePageContent />
-    </ShopProvider>
-  )
+type HomePageProps = {
+  authUser: AuthUser | null
+  onSignedIn: (email: string) => void
+  onSignOut: () => void
 }
 
-function HomePageContent() {
+export function HomePage({ authUser, onSignedIn, onSignOut }: HomePageProps) {
   const { cartItems, cartItemCount, setCartItems, clearCart } = useShop()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false)
   const [categoriesTargetId, setCategoriesTargetId] = useState<SidebarCategoryId>('featured')
   const [categoryListing, setCategoryListing] = useState<CategoryListingSelection | null>(null)
   const [productDetail, setProductDetail] = useState<ProductDetailContext | null>(null)
-  const [yourOrdersOpen, setYourOrdersOpen] = useState(false)
-  const [accountSection, setAccountSection] = useState<AccountSection>('orders')
-  const [cartStep, setCartStep] = useState<CartStep | null>(null)
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null)
+  const [cartStep, setCartStep] = useState<HomeNavigationState['cartStep'] | null>(null)
   const [wishlistOpen, setWishlistOpen] = useState(false)
+
+  useEffect(() => {
+    const state = location.state as HomeNavigationState | null
+    if (!state) return
+
+    if (state.categoryListing) {
+      setCategoryListing(state.categoryListing)
+      setProductDetail(null)
+      setCartStep(null)
+      setWishlistOpen(false)
+    }
+
+    if (state.cartStep) {
+      setCategoryListing(null)
+      setProductDetail(null)
+      setCartStep(state.cartStep)
+      setWishlistOpen(false)
+    }
+
+    if (state.wishlistOpen) {
+      setCategoryListing(null)
+      setProductDetail(null)
+      setCartStep(null)
+      setWishlistOpen(true)
+    }
+
+    if (state.openCategories) {
+      setCategoriesTargetId(state.categoriesTargetId ?? 'featured')
+      setIsCategoriesOpen(true)
+    }
+
+    navigate('.', { replace: true, state: null })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [location.key, navigate])
 
   const openCategories = useCallback((categoryId: SidebarCategoryId = 'featured') => {
     setCategoriesTargetId(categoryId)
@@ -71,7 +103,6 @@ function HomePageContent() {
   const handleSubcategorySelect = useCallback((selection: CategoryListingSelection) => {
     setCategoryListing(selection)
     setProductDetail(null)
-    setYourOrdersOpen(false)
     setCartStep(null)
     setWishlistOpen(false)
     setIsCategoriesOpen(false)
@@ -85,7 +116,6 @@ function HomePageContent() {
   const handleGoHome = useCallback(() => {
     setCategoryListing(null)
     setProductDetail(null)
-    setYourOrdersOpen(false)
     setCartStep(null)
     setWishlistOpen(false)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -115,74 +145,9 @@ function HomePageContent() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
-  const handleOpenYourOrders = useCallback(() => {
-    setCategoryListing(null)
-    setProductDetail(null)
-    setWishlistOpen(false)
-    setAccountSection('orders')
-    setYourOrdersOpen(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
-
-  const handleOpenYourReviews = useCallback(() => {
-    setCategoryListing(null)
-    setProductDetail(null)
-    setWishlistOpen(false)
-    setAccountSection('reviews')
-    setYourOrdersOpen(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
-
-  const handleOpenYourProfile = useCallback(() => {
-    setCategoryListing(null)
-    setProductDetail(null)
-    setWishlistOpen(false)
-    setAccountSection('profile')
-    setYourOrdersOpen(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
-
-  const handleOpenBrowsingHistory = useCallback(() => {
-    setCategoryListing(null)
-    setProductDetail(null)
-    setWishlistOpen(false)
-    setAccountSection('history')
-    setYourOrdersOpen(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
-
-  const handleOpenAddresses = useCallback(() => {
-    setCategoryListing(null)
-    setProductDetail(null)
-    setWishlistOpen(false)
-    setAccountSection('addresses')
-    setYourOrdersOpen(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
-
-  const handleOpenPaymentMethods = useCallback(() => {
-    setCategoryListing(null)
-    setProductDetail(null)
-    setWishlistOpen(false)
-    setAccountSection('payments')
-    setYourOrdersOpen(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
-
-  const handleOpenNotifications = useCallback(() => {
-    setCategoryListing(null)
-    setProductDetail(null)
-    setWishlistOpen(false)
-    setAccountSection('notifications')
-    setYourOrdersOpen(true)
-    setCartStep(null)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
-
   const handleOpenCart = useCallback(() => {
     setCategoryListing(null)
     setProductDetail(null)
-    setYourOrdersOpen(false)
     setWishlistOpen(false)
     setCartStep('cart')
     setIsCategoriesOpen(false)
@@ -192,7 +157,6 @@ function HomePageContent() {
   const handleOpenWishlist = useCallback(() => {
     setCategoryListing(null)
     setProductDetail(null)
-    setYourOrdersOpen(false)
     setCartStep(null)
     setWishlistOpen(true)
     setIsCategoriesOpen(false)
@@ -225,15 +189,6 @@ function HomePageContent() {
     [productDetail],
   )
 
-  const handleSignedIn = useCallback((email: string) => {
-    setAuthUser({ ...defaultSignedInUser, email })
-  }, [])
-
-  const handleSignOut = useCallback(() => {
-    setAuthUser(null)
-    setYourOrdersOpen(false)
-  }, [])
-
   return (
     <>
       <Nav
@@ -242,21 +197,14 @@ function HomePageContent() {
         onToggleCategories={toggleCategories}
         onCloseCategories={closeCategories}
         onSubcategorySelect={handleSubcategorySelect}
-        onOpenYourOrders={handleOpenYourOrders}
-        onOpenYourReviews={handleOpenYourReviews}
-        onOpenYourProfile={handleOpenYourProfile}
-        onOpenBrowsingHistory={handleOpenBrowsingHistory}
-        onOpenAddresses={handleOpenAddresses}
-        onOpenPaymentMethods={handleOpenPaymentMethods}
-        onOpenNotifications={handleOpenNotifications}
         onOpenCart={handleOpenCart}
         onOpenWishlist={handleOpenWishlist}
         cartItemCount={cartItemCount}
         isSignedIn={authUser !== null}
         userDisplayName={authUser?.displayName}
         userFullName={authUser?.fullName}
-        onSignedIn={handleSignedIn}
-        onSignOut={handleSignOut}
+        onSignedIn={onSignedIn}
+        onSignOut={onSignOut}
       />
       <div className="mx-auto w-full min-w-0 max-w-360 overflow-x-clip bg-bg-primary">
         {productDetail ? (
@@ -306,17 +254,6 @@ function HomePageContent() {
                 selection={categoryListing}
                 onGoHome={handleGoHome}
                 onProductSelect={handleProductSelect}
-              />
-            </main>
-            <Footer />
-          </>
-        ) : yourOrdersOpen ? (
-          <>
-            <main>
-              <YourOrdersView
-                onGoHome={handleGoHome}
-                section={accountSection}
-                onSectionChange={setAccountSection}
               />
             </main>
             <Footer />
