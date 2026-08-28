@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BackToTopButton } from '../components/BackToTopButton'
-import { CategoryGridSection } from '../components/CategoryGridSection'
+// import { CategoryGridSection } from '../components/CategoryGridSection'
 import { CategoryListingView } from '../components/CategoryListingView'
 import { ProductDetailView } from '../components/ProductDetailView'
 import { FeaturedItemsSection } from '../components/FeaturedItemsSection'
@@ -266,7 +266,7 @@ export function HomePage({ authUser, onSignedIn, onSignOut }: HomePageProps) {
                 onShopAllCategories={handleOpenAllCategories}
               />
               <FeaturesSection />
-              <CategoryGridSection onOpenCategories={openCategories} />
+              {/* <CategoryGridSection onOpenCategories={openCategories} /> */}
               <NewArrivalsSection onProductSelect={handleNewArrivalProductSelect} />
               <FeaturedItemsSection onProductSelect={handleFeaturedProductSelect} />
               <PromoBannerSection onShopAllCategories={handleOpenAllCategories} />
