@@ -25,6 +25,7 @@ export function BackToTopButton() {
 
   return (
     <button
+      /* Hidden on mobile — bottom tab bar covers the corner */
       type="button"
       onClick={scrollToTop}
       aria-label="Back to top"

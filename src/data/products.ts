@@ -57,6 +57,32 @@ export const featuredProducts: Product[] = getProductsByCategoryId('featured')
 
 export const newArrivalProducts: Product[] = getProductsByCategoryId('new-releases')
 
+export function getHomeFeaturedProducts(): Product[] {
+  const seen = new Set<string>()
+  const result: Product[] = []
+
+  const addProducts = (products: Product[]) => {
+    for (const product of products) {
+      if (result.length >= 10) return
+      if (seen.has(product.id)) continue
+      seen.add(product.id)
+      result.push(product)
+    }
+  }
+
+  addProducts(featuredProducts)
+  addProducts(newArrivalProducts)
+  addProducts(allProducts)
+
+  let fillIndex = 0
+  while (result.length < 10 && featuredProducts.length > 0) {
+    result.push(featuredProducts[fillIndex % featuredProducts.length])
+    fillIndex += 1
+  }
+
+  return result.slice(0, 10)
+}
+
 export function getProductKey(product: Pick<Product, 'id'>): string {
   return product.id
 }

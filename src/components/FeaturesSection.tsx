@@ -6,42 +6,50 @@ const features = [
     title: 'Fast delivery',
     subtitle: '2-day Shipping available',
     icon: images.features.delivery,
-    bgClass: 'bg-orange-light',
   },
   {
-    title: 'Quality Assured',
-    subtitle: '30-days Returns',
+    title: 'Secure Payments',
+    subtitle: '100% Secure Checkout',
     icon: images.features.quality,
-    bgClass: 'bg-red-light',
   },
   {
     title: '24/7 Support',
     subtitle: 'Dedicated trade desk',
     icon: images.features.support,
-    bgClass: 'bg-green-light',
+  },
+  {
+    title: 'Easy Returns',
+    subtitle: '30 days return policy',
+    icon: images.features.support,
   },
 ]
 
 export function FeaturesSection() {
   return (
-    <section className="border-b border-border-primary px-4 lg:px-16">
-      <div className="flex flex-col gap-2 py-4 lg:flex-row lg:gap-6 lg:py-6">
-        {features.map((feature) => (
-          <div
-            key={feature.title}
-            className={`flex items-center gap-4 overflow-hidden rounded-[12px] px-6 py-6 lg:flex-1 lg:px-8 ${feature.bgClass}`}
-          >
-            <Icon src={feature.icon} className="size-12 shrink-0" />
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <p className="text-xl font-semibold tracking-[-0.4px] text-text-secondary">
-                {feature.title}
-              </p>
-              <p className="text-base font-medium tracking-[-0.32px] text-text-secondary">
-                {feature.subtitle}
-              </p>
-            </div>
+    <section className="hidden px-4 lg:block lg:px-16">
+      <div className="py-2">
+        <div className="overflow-hidden rounded-2xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            {features.map((feature, index) => (
+              <div
+                key={feature.title}
+                className={`flex items-center gap-4 bg-bg-secondary px-6 py-6 lg:gap-4.25 lg:px-8 lg:py-6 ${
+                  index < features.length - 1 ? 'lg:border-r lg:border-border-primary' : ''
+                }`}
+              >
+                <Icon src={feature.icon} className="size-12 shrink-0" />
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <p className="text-xl font-semibold tracking-[-0.4px] text-text-secondary">
+                    {feature.title}
+                  </p>
+                  <p className="text-base font-medium tracking-[-0.32px] text-text-secondary">
+                    {feature.subtitle}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </section>
   )

@@ -9,6 +9,7 @@ import {
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import { newArrivalProducts, type Product } from '../data/products'
+import { CarouselDots } from './CarouselDots'
 import { ProductCard } from './ProductCard'
 
 const AUTO_PLAY_INTERVAL_MS = 8000
@@ -56,6 +57,8 @@ type NewArrivalsSectionProps = {
 
 export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps) {
   const isDesktop = useIsDesktop()
+  const mobileTrackRef = useRef<HTMLDivElement>(null)
+  const [mobileActiveIndex, setMobileActiveIndex] = useState(0)
   const trackRef = useRef<HTMLDivElement>(null)
   const slideIndexRef = useRef(DESKTOP_ITEMS_PER_VIEW)
   const isAnimatingRef = useRef(false)
@@ -217,11 +220,39 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
 
   useEffect(() => clearResetTimeout, [clearResetTimeout])
 
+  const handleMobileScroll = useCallback(() => {
+    const track = mobileTrackRef.current
+    const firstSlide = track?.firstElementChild
+
+    if (!track || !(firstSlide instanceof HTMLElement)) return
+
+    const styles = window.getComputedStyle(track)
+    const gap = Number.parseFloat(styles.gap || styles.columnGap || '8') || 8
+    const step = firstSlide.offsetWidth + gap
+    if (!step) return
+
+    setMobileActiveIndex(Math.min(Math.round(track.scrollLeft / step), mobileProducts.length - 1))
+  }, [])
+
+  const scrollToMobileProduct = useCallback((index: number) => {
+    const track = mobileTrackRef.current
+    const firstSlide = track?.firstElementChild
+
+    if (!track || !(firstSlide instanceof HTMLElement)) return
+
+    const styles = window.getComputedStyle(track)
+    const gap = Number.parseFloat(styles.gap || styles.columnGap || '8') || 8
+    const step = firstSlide.offsetWidth + gap
+
+    track.scrollTo({ left: step * index, behavior: 'smooth' })
+    setMobileActiveIndex(index)
+  }, [])
+
   return (
     <section className="overflow-x-clip border-b border-border-primary px-4 lg:px-16">
-      <div className="flex flex-col gap-2 py-4 lg:gap-14 lg:py-10">
+      <div className="flex flex-col gap-2 py-4 lg:gap-4 lg:py-6">
         <div className="flex items-center">
-          <h2 className="flex-1 text-xl font-medium leading-6 tracking-[-0.4px] text-text-primary lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
+          <h2 className="flex-1 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary lg:text-2xl lg:leading-8 lg:tracking-[-0.48px]">
             New Arrivals
           </h2>
           {isDesktop ? (
@@ -293,16 +324,32 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
             </div>
           </>
         ) : (
-          <div className="grid grid-cols-2 items-stretch gap-2">
-            {mobileProducts.map((product, index) => (
-              <ProductCard
-                key={`${product.name}-${product.category}-${index}`}
-                product={product}
-                enableAddButton
-                onClick={onProductSelect ? () => onProductSelect(product) : undefined}
-              />
-            ))}
-          </div>
+          <>
+            <div
+              ref={mobileTrackRef}
+              onScroll={handleMobileScroll}
+              className="flex gap-2 overflow-x-auto scroll-smooth snap-x snap-mandatory [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden"
+            >
+              {mobileProducts.map((product, index) => (
+                <div
+                  key={`${product.name}-${product.category}-${index}`}
+                  className="w-[calc((100%-8px)/2)] shrink-0 snap-start"
+                >
+                  <ProductCard
+                    product={product}
+                    enableAddButton
+                    onClick={onProductSelect ? () => onProductSelect(product) : undefined}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <CarouselDots
+              count={mobileProducts.length}
+              activeIndex={mobileActiveIndex}
+              onSelect={scrollToMobileProduct}
+            />
+          </>
         )}
       </div>
     </section>

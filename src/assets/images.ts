@@ -119,4 +119,8 @@ export const images = {
   orders: {
     empty: "/assets/orders/empty-orders.svg",
   },
+  about: {
+    hero: "/assets/about/hero.png",
+    shoppingCart: "/assets/about/shopping-cart.png",
+  },
 } as const

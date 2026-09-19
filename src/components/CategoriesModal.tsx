@@ -187,55 +187,11 @@ export function CategoriesModal({
   onSubcategorySelect,
 }: CategoriesModalProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const isScrollingToSection = useRef(false)
   const [selectedId, setSelectedId] = useState<SidebarCategoryId>('featured')
-  const [activeId, setActiveId] = useState<SidebarCategoryId>('featured')
   const [mobileView, setMobileView] = useState<MobileView>('list')
 
   const sections = categoryPanelContent[selectedId]
   const selectedCategory = sidebarCategories.find((category) => category.id === selectedId)
-
-  const scrollToSection = useCallback((categoryId: SidebarCategoryId) => {
-    const container = scrollContainerRef.current
-    const section = container?.querySelector<HTMLElement>(`[data-section-id="${categoryId}"]`)
-    if (!container || !section) return
-
-    isScrollingToSection.current = true
-    const containerTop = container.getBoundingClientRect().top
-    const sectionTop = section.getBoundingClientRect().top
-    container.scrollTo({
-      top: container.scrollTop + (sectionTop - containerTop),
-      behavior: 'smooth',
-    })
-
-    window.setTimeout(() => {
-      isScrollingToSection.current = false
-    }, 400)
-  }, [])
-
-  const handleDesktopCategorySelect = useCallback(
-    (categoryId: SidebarCategoryId) => {
-      if (categoryId === 'all-categories') {
-        onSubcategorySelect(allCategoriesListingSelection)
-        return
-      }
-
-      const sectionExists = sections.some(
-        (section) => categoryIdByTitle[section.title] === categoryId,
-      )
-
-      setActiveId(categoryId)
-
-      if (sectionExists) {
-        scrollToSection(categoryId)
-        return
-      }
-
-      setSelectedId(categoryId)
-      scrollContainerRef.current?.scrollTo({ top: 0 })
-    },
-    [onSubcategorySelect, scrollToSection, sections],
-  )
 
   const handleMobileCategorySelect = useCallback(
     (categoryId: SidebarCategoryId) => {
@@ -245,7 +201,6 @@ export function CategoriesModal({
       }
 
       setSelectedId(categoryId)
-      setActiveId(categoryId)
       setMobileView('detail')
     },
     [onSubcategorySelect],
@@ -259,7 +214,6 @@ export function CategoriesModal({
     if (!isOpen) return
 
     setSelectedId(initialCategoryId)
-    setActiveId(initialCategoryId)
     setMobileView(
       window.matchMedia('(max-width: 1023px)').matches && initialCategoryId !== 'featured'
         ? 'detail'
@@ -300,56 +254,6 @@ export function CategoriesModal({
     }
   }, [isOpen, mobileView, onClose])
 
-  useEffect(() => {
-    const container = scrollContainerRef.current
-    if (!container || !isOpen) return
-
-    const sectionElements = container.querySelectorAll('[data-section-id]')
-    if (sectionElements.length === 0) return
-
-    const visibleSections = new Map<string, number>()
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (isScrollingToSection.current) return
-
-        entries.forEach((entry) => {
-          const id = entry.target.getAttribute('data-section-id')
-          if (!id) return
-
-          if (entry.isIntersecting) {
-            visibleSections.set(id, entry.intersectionRatio)
-          } else {
-            visibleSections.delete(id)
-          }
-        })
-
-        if (visibleSections.size === 0) return
-
-        let bestId: SidebarCategoryId | null = null
-        let bestRatio = 0
-
-        visibleSections.forEach((ratio, id) => {
-          if (ratio >= bestRatio) {
-            bestRatio = ratio
-            bestId = id as SidebarCategoryId
-          }
-        })
-
-        if (bestId) setActiveId(bestId)
-      },
-      {
-        root: container,
-        rootMargin: '-10% 0px -55% 0px',
-        threshold: [0, 0.1, 0.25, 0.5, 0.75, 1],
-      },
-    )
-
-    sectionElements.forEach((element) => observer.observe(element))
-
-    return () => observer.disconnect()
-  }, [isOpen, selectedId, sections])
-
   if (!isOpen) return null
 
   return (
@@ -357,7 +261,7 @@ export function CategoriesModal({
       <button
         type="button"
         aria-label="Close categories"
-        className="fixed inset-0 z-40 bg-linear-to-b from-transparent via-[rgba(0,6,7,0.0)] to-[rgba(0,6,7,0.7)]"
+        className="fixed inset-x-0 bottom-0 top-(--nav-height,8rem) z-40 bg-[rgba(0,6,7,0.7)]"
         onClick={onClose}
       />
 
@@ -366,26 +270,12 @@ export function CategoriesModal({
         aria-modal="true"
         aria-label="Categories"
         className="absolute inset-x-0 top-full z-50 max-h-[calc(100dvh-178px)] overflow-hidden bg-bg-primary shadow-lg lg:max-h-175 lg:px-16 lg:py-4"
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="mx-auto flex h-full max-h-[inherit] w-full max-w-360 overflow-hidden lg:max-h-167">
-          <nav className="hidden w-72 shrink-0 flex-col overflow-y-auto p-2 lg:flex">
-            {sidebarCategories.map((category) => {
-              const isActive = category.id === activeId
-
-              return (
-                <CategoryLinkButton
-                  key={category.id}
-                  category={category}
-                  isActive={isActive}
-                  onClick={() => handleDesktopCategorySelect(category.id)}
-                />
-              )
-            })}
-          </nav>
-
           <div
             ref={scrollContainerRef}
-            className="hidden min-w-0 flex-1 overflow-y-auto border-border-primary p-4 lg:block lg:border-l"
+            className="hidden min-w-0 flex-1 overflow-y-auto p-4 lg:block"
           >
             <CategorySections sections={sections} onSubcategorySelect={onSubcategorySelect} />
           </div>

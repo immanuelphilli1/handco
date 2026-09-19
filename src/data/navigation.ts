@@ -9,4 +9,5 @@ export type HomeNavigationState = {
   wishlistOpen?: boolean
   openCategories?: boolean
   categoriesTargetId?: SidebarCategoryId
+  productId?: string
 }

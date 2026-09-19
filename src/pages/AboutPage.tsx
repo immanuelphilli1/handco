@@ -1,40 +1,27 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { AboutPageContent } from '../components/AboutPageContent'
 import { BackToTopButton } from '../components/BackToTopButton'
 import { Footer } from '../components/Footer'
 import { Nav } from '../components/Nav'
-import { YourOrdersView } from '../components/YourOrdersView'
 import { useShop } from '../context/ShopContext'
 import type { AuthUser } from '../data/auth'
-import {
-  getAccountPath,
-  parseAccountSection,
-  type AccountSection,
-} from '../data/accountRoutes'
 import type { CategoryListingSelection } from '../data/categoryListing'
 import type { SidebarCategoryId } from '../data/categoriesModal'
 import type { HomeNavigationState } from '../data/navigation'
+import type { Product } from '../data/products'
 
-type AccountPageProps = {
+type AboutPageProps = {
   authUser: AuthUser | null
   onSignedIn: (email: string) => void
   onSignOut: () => void
 }
 
-export function AccountPage({ authUser, onSignedIn, onSignOut }: AccountPageProps) {
-  const { section: sectionParam } = useParams()
+export function AboutPage({ authUser, onSignedIn, onSignOut }: AboutPageProps) {
   const navigate = useNavigate()
   const { cartItemCount } = useShop()
-  const section = parseAccountSection(sectionParam)
-
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false)
   const [categoriesTargetId, setCategoriesTargetId] = useState<SidebarCategoryId>('featured')
-
-  useEffect(() => {
-    if (sectionParam && !section) {
-      navigate(getAccountPath('orders'), { replace: true })
-    }
-  }, [navigate, section, sectionParam])
 
   const toggleCategories = useCallback(() => {
     setIsCategoriesOpen((open) => {
@@ -68,10 +55,9 @@ export function AccountPage({ authUser, onSignedIn, onSignOut }: AccountPageProp
     navigate('/')
   }, [navigate])
 
-  const handleSectionChange = useCallback(
-    (nextSection: AccountSection) => {
-      navigate(getAccountPath(nextSection))
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+  const handleProductSelect = useCallback(
+    (product: Product) => {
+      navigate('/', { state: { productId: product.id } satisfies HomeNavigationState })
     },
     [navigate],
   )
@@ -80,10 +66,6 @@ export function AccountPage({ authUser, onSignedIn, onSignOut }: AccountPageProp
     onSignOut()
     navigate('/')
   }, [navigate, onSignOut])
-
-  if (!section) {
-    return <Navigate to={getAccountPath('orders')} replace />
-  }
 
   return (
     <>
@@ -101,17 +83,10 @@ export function AccountPage({ authUser, onSignedIn, onSignOut }: AccountPageProp
         userFullName={authUser?.fullName}
         onSignedIn={onSignedIn}
         onSignOut={handleSignOut}
-        mobileActiveTab="account"
         onMobileHome={handleGoHome}
       />
       <div className="mx-auto w-full min-w-0 max-w-360 overflow-x-clip bg-bg-primary">
-        <main>
-          <YourOrdersView
-            section={section}
-            onGoHome={handleGoHome}
-            onSectionChange={handleSectionChange}
-          />
-        </main>
+        <AboutPageContent onGoHome={handleGoHome} onProductSelect={handleProductSelect} />
         <Footer />
       </div>
       <BackToTopButton />

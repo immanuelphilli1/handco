@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BackToTopButton } from '../components/BackToTopButton'
-// import { CategoryGridSection } from '../components/CategoryGridSection'
+import { CategoryGridSection } from '../components/CategoryGridSection'
 import { CategoryListingView } from '../components/CategoryListingView'
 import { ProductDetailView } from '../components/ProductDetailView'
 import { FeaturedItemsSection } from '../components/FeaturedItemsSection'
@@ -9,6 +9,7 @@ import { FeaturesSection } from '../components/FeaturesSection'
 import { Footer } from '../components/Footer'
 import { HeroSection } from '../components/HeroSection'
 import { Nav } from '../components/Nav'
+import type { MobileNavTab } from '../components/MobileAppNavigation'
 import { NewArrivalsSection } from '../components/NewArrivalsSection'
 import { PromoBannerSection } from '../components/PromoBannerSection'
 import { CartView } from '../components/CartView'
@@ -28,7 +29,7 @@ import {
   buildWishlistProductDetailContext,
   type ProductDetailContext,
 } from '../data/productDetail'
-import type { Product } from '../data/products'
+import { getProductById, type Product } from '../data/products'
 
 export type { CartStep } from '../data/navigation'
 
@@ -44,6 +45,7 @@ export function HomePage({ authUser, onSignedIn, onSignOut }: HomePageProps) {
   const navigate = useNavigate()
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false)
   const [categoriesTargetId, setCategoriesTargetId] = useState<SidebarCategoryId>('featured')
+  const [categoriesTargetLabel, setCategoriesTargetLabel] = useState('Featured')
   const [categoryListing, setCategoryListing] = useState<CategoryListingSelection | null>(null)
   const [productDetail, setProductDetail] = useState<ProductDetailContext | null>(null)
   const [cartStep, setCartStep] = useState<HomeNavigationState['cartStep'] | null>(null)
@@ -79,19 +81,34 @@ export function HomePage({ authUser, onSignedIn, onSignOut }: HomePageProps) {
       setIsCategoriesOpen(true)
     }
 
+    if (state.productId) {
+      const product = getProductById(state.productId)
+      if (product) {
+        setCategoryListing(null)
+        setCartStep(null)
+        setWishlistOpen(false)
+        setProductDetail(buildHomeProductDetailContext(product))
+      }
+    }
+
     navigate('.', { replace: true, state: null })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [location.key, navigate])
 
-  const openCategories = useCallback((categoryId: SidebarCategoryId = 'featured') => {
-    setCategoriesTargetId(categoryId)
-    setIsCategoriesOpen(true)
-  }, [])
+  const openCategories = useCallback(
+    (categoryId: SidebarCategoryId = 'featured', label = 'Featured') => {
+      setCategoriesTargetId(categoryId)
+      setCategoriesTargetLabel(label)
+      setIsCategoriesOpen(true)
+    },
+    [],
+  )
 
   const toggleCategories = useCallback(() => {
     setIsCategoriesOpen((open) => {
       if (open) return false
       setCategoriesTargetId('featured')
+      setCategoriesTargetLabel('Featured')
       return true
     })
   }, [])
@@ -189,6 +206,14 @@ export function HomePage({ authUser, onSignedIn, onSignOut }: HomePageProps) {
     [productDetail],
   )
 
+  const mobileActiveTab: MobileNavTab = cartStep
+    ? 'cart'
+    : wishlistOpen
+      ? 'favourite'
+      : categoryListing || productDetail
+        ? 'categories'
+        : 'home'
+
   return (
     <>
       <Nav
@@ -205,6 +230,13 @@ export function HomePage({ authUser, onSignedIn, onSignOut }: HomePageProps) {
         userFullName={authUser?.fullName}
         onSignedIn={onSignedIn}
         onSignOut={onSignOut}
+        mobileActiveTab={mobileActiveTab}
+        onMobileHome={handleGoHome}
+        showCategoryLinksBar={
+          !productDetail && !cartStep && !wishlistOpen && !categoryListing
+        }
+        onOpenCategories={openCategories}
+        activeCategoryLabel={categoriesTargetLabel}
       />
       <div className="mx-auto w-full min-w-0 max-w-360 overflow-x-clip bg-bg-primary">
         {productDetail ? (
@@ -261,12 +293,9 @@ export function HomePage({ authUser, onSignedIn, onSignOut }: HomePageProps) {
         ) : (
           <>
             <main>
-              <HeroSection
-                onOpenCategories={openCategories}
-                onShopAllCategories={handleOpenAllCategories}
-              />
+              <HeroSection />
               <FeaturesSection />
-              {/* <CategoryGridSection onOpenCategories={openCategories} /> */}
+              <CategoryGridSection onOpenCategories={openCategories} />
               <NewArrivalsSection onProductSelect={handleNewArrivalProductSelect} />
               <FeaturedItemsSection onProductSelect={handleFeaturedProductSelect} />
               <PromoBannerSection onShopAllCategories={handleOpenAllCategories} />

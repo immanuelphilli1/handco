@@ -1,43 +1,61 @@
+import { Link } from 'react-router-dom'
 import { images } from '../assets/images'
 import { Icon } from './Icon'
 
+type FooterLink = {
+  label: string
+  href?: string
+}
+
 type FooterColumn = {
   heading: string
-  links: string[]
+  links: FooterLink[]
 }
 
 const footerColumns: FooterColumn[] = [
   {
     heading: 'COMPANY',
-    links: ['About H&CO.', 'Affiliate, Partnership & Influencer Program', 'Press Releases'],
+    links: [
+      { label: 'About H&CO.', href: '/about' },
+      { label: 'Affiliate, Partnership & Influencer Program' },
+      { label: 'Press Releases' },
+    ],
   },
   {
     heading: 'MARKET PLACE',
     links: [
-      'Electronics & Tech',
-      'Fashion & Accessories',
-      'Home & Garden',
-      'Construction & Tools',
-      'Energy & Power',
+      { label: 'Electronics & Tech' },
+      { label: 'Fashion & Accessories' },
+      { label: 'Home & Garden' },
+      { label: 'Construction & Tools' },
+      { label: 'Energy & Power' },
     ],
   },
   {
     heading: 'SOURCE ON H&CO.',
-    links: ['Trending Products', 'Request Quotation', 'Connect with Agent'],
+    links: [
+      { label: 'Trending Products' },
+      { label: 'Request Quotation' },
+      { label: 'Connect with Agent' },
+    ],
   },
   {
     heading: 'TERMS',
     links: [
-      'Warranty',
-      'Shipping & Delivery',
-      'Return & Refund Policy',
-      'Terms & Conditions',
-      'Privacy Policy',
+      { label: 'Warranty', href: '/warranty' },
+      { label: 'Shipping & Delivery', href: '/shipping-delivery' },
+      { label: 'Return & Refund Policy', href: '/return-refund' },
+      { label: 'Terms & Conditions' },
+      { label: 'Privacy Policy', href: '/privacy-policy' },
     ],
   },
   {
     heading: 'CUSTOMER SUPPORT',
-    links: ['Live Chat', 'Secured Payments', 'Intellectual Property'],
+    links: [
+      { label: 'Live Chat' },
+      { label: 'Secured Payments', href: '/secure-payments' },
+      { label: 'Intellectual Property', href: '/intellectual-property' },
+    ],
   },
 ]
 
@@ -101,13 +119,22 @@ export function Footer() {
                 </p>
                 <ul className="flex flex-col">
                   {column.links.map((link) => (
-                    <li key={link}>
-                      <a
-                        href="#"
-                        className="block py-2 text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary"
-                      >
-                        {link}
-                      </a>
+                    <li key={link.label}>
+                      {link.href ? (
+                        <Link
+                          to={link.href}
+                          className="block py-2 text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary"
+                        >
+                          {link.label}
+                        </Link>
+                      ) : (
+                        <a
+                          href="#"
+                          className="block py-2 text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary"
+                        >
+                          {link.label}
+                        </a>
+                      )}
                     </li>
                   ))}
                 </ul>

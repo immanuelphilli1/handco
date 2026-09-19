@@ -116,6 +116,7 @@ export const categoryIdByTitle = Object.fromEntries(
 
 export const categoryIdByLabel: Record<string, SidebarCategoryId> = {
   ...categoryIdByTitle,
+  Featured: 'featured',
   'Best Sellers': 'featured',
 }
 

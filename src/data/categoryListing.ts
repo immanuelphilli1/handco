@@ -27,6 +27,15 @@ export const deliveryFilterOptions = [
 
 export const collapsedFilterSections = ['Brand', 'Color', 'Seller']
 
+export const screenSizeFilterOptions = [
+  '75 Inches',
+  '52 Inches',
+  '45 Inches',
+  '32 Inches',
+]
+
+export const mobileCollapsedFilterSections = ['Color', 'Connectivity', 'Storage']
+
 export function getListingProducts(
   selection: CategoryListingSelection,
   activeSubcategory?: string,
