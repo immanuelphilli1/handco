@@ -1,4 +1,5 @@
 import { getHomeFeaturedProducts, type Product } from '../data/products'
+import { getProductPath } from '../data/shopRoutes'
 import { ProductCard } from './ProductCard'
 
 type FeaturedItemsSectionProps = {
@@ -20,6 +21,7 @@ export function FeaturedItemsSection({ onProductSelect }: FeaturedItemsSectionPr
               key={`${product.id}-${index}`}
               product={product}
               enableAddButton
+              to={getProductPath(product.id, { from: 'featured' })}
               onClick={onProductSelect ? () => onProductSelect(product) : undefined}
             />
           ))}

@@ -13,7 +13,12 @@ import {
 } from '../data/accountRoutes'
 import type { CategoryListingSelection } from '../data/categoryListing'
 import type { SidebarCategoryId } from '../data/categoriesModal'
-import type { HomeNavigationState } from '../data/navigation'
+import {
+  getCartPath,
+  getCategoryPathFromSelection,
+  getHomePath,
+  getWishlistPath,
+} from '../data/shopRoutes'
 
 type AccountPageProps = {
   authUser: AuthUser | null
@@ -51,21 +56,21 @@ export function AccountPage({ authUser, onSignedIn, onSignOut }: AccountPageProp
   const handleSubcategorySelect = useCallback(
     (selection: CategoryListingSelection) => {
       setIsCategoriesOpen(false)
-      navigate('/', { state: { categoryListing: selection } satisfies HomeNavigationState })
+      navigate(getCategoryPathFromSelection(selection))
     },
     [navigate],
   )
 
   const handleOpenCart = useCallback(() => {
-    navigate('/', { state: { cartStep: 'cart' } satisfies HomeNavigationState })
+    navigate(getCartPath())
   }, [navigate])
 
   const handleOpenWishlist = useCallback(() => {
-    navigate('/', { state: { wishlistOpen: true } satisfies HomeNavigationState })
+    navigate(getWishlistPath())
   }, [navigate])
 
   const handleGoHome = useCallback(() => {
-    navigate('/')
+    navigate(getHomePath())
   }, [navigate])
 
   const handleSectionChange = useCallback(
@@ -78,7 +83,7 @@ export function AccountPage({ authUser, onSignedIn, onSignOut }: AccountPageProp
 
   const handleSignOut = useCallback(() => {
     onSignOut()
-    navigate('/')
+    navigate(getHomePath())
   }, [navigate, onSignOut])
 
   if (!section) {

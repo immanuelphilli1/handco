@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { Link } from 'react-router-dom'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import CloseFillIcon from 'remixicon-react/CloseFillIcon'
 import EyeLineIcon from 'remixicon-react/EyeLineIcon'
@@ -75,12 +76,26 @@ function AppleIcon() {
   )
 }
 
-function LegalNotice() {
+function LegalNotice({ onLinkClick }: { onLinkClick: () => void }) {
   return (
     <p className="text-center text-base font-medium leading-5 tracking-[-0.32px] text-text-secondary">
       By continuing, you agree to our{' '}
-      <span className="underline">Terms of Use</span> and{' '}
-      <span className="underline">Privacy Policy</span>.
+      <a
+        href="#"
+        onClick={(event) => event.preventDefault()}
+        className="underline hover:text-text-primary"
+      >
+        Terms of Use
+      </a>{' '}
+      and{' '}
+      <Link
+        to="/privacy-policy"
+        onClick={onLinkClick}
+        className="underline hover:text-text-primary"
+      >
+        Privacy Policy
+      </Link>
+      .
     </p>
   )
 }
@@ -272,7 +287,7 @@ export function SignInModal({ isOpen, onClose, onSignedIn }: SignInModalProps) {
           ) : null}
 
           <div className="p-6">
-            <LegalNotice />
+            <LegalNotice onLinkClick={handleClose} />
             <span className="sr-only">{signInLegalCopy}</span>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import InformationLineIcon from 'remixicon-react/InformationLineIcon'
 import LockFillIcon from 'remixicon-react/LockFillIcon'
 import ShieldCheckFillIcon from 'remixicon-react/ShieldCheckFillIcon'
@@ -63,8 +64,14 @@ export function OrderSummaryPanel({ mode, onPrimaryAction }: OrderSummaryPanelPr
             {mode === 'checkout' ? (
               <>
                 By submitting your order, you agree to our{' '}
-                <span className="text-[#2b7fff]">Terms of Use </span>
-                and <span className="text-[#2b7fff]">Privacy Policy</span>.
+                <a href="#" className="text-[#2b7fff] hover:underline">
+                  Terms of Use
+                </a>{' '}
+                and{' '}
+                <Link to="/privacy-policy" className="text-[#2b7fff] hover:underline">
+                  Privacy Policy
+                </Link>
+                .
               </>
             ) : (
               cartOrderSummary.paymentNote

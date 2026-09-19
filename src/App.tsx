@@ -37,6 +37,76 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/products/:productId"
+        element={
+          <HomePage
+            authUser={authUser}
+            onSignedIn={handleSignedIn}
+            onSignOut={handleSignOut}
+          />
+        }
+      />
+      <Route
+        path="/categories"
+        element={
+          <HomePage
+            authUser={authUser}
+            onSignedIn={handleSignedIn}
+            onSignOut={handleSignOut}
+          />
+        }
+      />
+      <Route
+        path="/categories/:categoryId"
+        element={
+          <HomePage
+            authUser={authUser}
+            onSignedIn={handleSignedIn}
+            onSignOut={handleSignOut}
+          />
+        }
+      />
+      <Route
+        path="/cart"
+        element={
+          <HomePage
+            authUser={authUser}
+            onSignedIn={handleSignedIn}
+            onSignOut={handleSignOut}
+          />
+        }
+      />
+      <Route
+        path="/checkout"
+        element={
+          <HomePage
+            authUser={authUser}
+            onSignedIn={handleSignedIn}
+            onSignOut={handleSignOut}
+          />
+        }
+      />
+      <Route
+        path="/order-complete"
+        element={
+          <HomePage
+            authUser={authUser}
+            onSignedIn={handleSignedIn}
+            onSignOut={handleSignOut}
+          />
+        }
+      />
+      <Route
+        path="/wishlist"
+        element={
+          <HomePage
+            authUser={authUser}
+            onSignedIn={handleSignedIn}
+            onSignOut={handleSignOut}
+          />
+        }
+      />
+      <Route
         path="/about"
         element={
           <AboutPage

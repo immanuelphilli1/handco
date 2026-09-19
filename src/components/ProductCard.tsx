@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import AddLineIcon from 'remixicon-react/AddLineIcon'
 import HeartFillIcon from 'remixicon-react/HeartFillIcon'
 import HeartLineIcon from 'remixicon-react/HeartLineIcon'
@@ -8,6 +9,7 @@ import type { Product } from '../data/products'
 type ProductCardProps = {
   product: Product
   enableAddButton?: boolean
+  to?: string
   onClick?: () => void
   isLiked?: boolean
   onLikedChange?: (liked: boolean) => void
@@ -20,6 +22,7 @@ type ProductCardProps = {
 export function ProductCard({
   product,
   enableAddButton = false,
+  to,
   onClick,
   isLiked: controlledIsLiked,
   onLikedChange,
@@ -61,25 +64,12 @@ export function ProductCard({
     onClick?.()
   }
 
-  return (
-    <article
-      className={`group/card flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden rounded-[12px] border border-border-primary p-2 ${
-        onClick ? 'cursor-pointer' : ''
-      }`}
-      onClick={onClick ? handleCardClick : undefined}
-      onKeyDown={
-        onClick
-          ? (event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                handleCardClick()
-              }
-            }
-          : undefined
-      }
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
-    >
+  const cardClassName = `group/card flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden rounded-[12px] border border-border-primary p-2 ${
+    onClick || to ? 'cursor-pointer' : ''
+  }`
+
+  const cardContent = (
+    <>
       <div className="relative flex aspect-square w-full flex-col justify-between overflow-hidden rounded-lg">
         <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg">
           <div className="absolute inset-0 rounded-lg bg-[#1da1f2]" />
@@ -155,41 +145,72 @@ export function ProductCard({
         <p className="line-clamp-2 min-h-10 text-base font-semibold tracking-[-0.32px] text-text-primary">
           {name}
         </p>
-        <div className="mt-auto flex items-end gap-4">
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <div className="flex min-h-7 flex-wrap items-center gap-2">
-              <p
-                className={`truncate text-xl font-semibold tracking-[-0.4px] ${
-                  priceOrange || selectionMode ? 'text-primary-orange' : 'text-text-primary'
-                }`}
-              >
-                {price}
-              </p>
-              {originalPrice && (
-                <p className="text-base font-medium tracking-[-0.32px] text-text-tertiary line-through">
-                  {originalPrice}
-                </p>
-              )}
-              {discount && (
-                <span className="rounded-full bg-red-light px-2 py-1 text-xs font-medium tracking-[-0.24px] text-primary-red">
-                  {discount}
-                </span>
-              )}
-            </div>
-            <p className="text-sm font-medium tracking-[-0.28px] text-primary-green">{delivery}</p>
-          </div>
-          {shouldShowAddButton && (
-            <button
-              type="button"
-              onClick={handleAddToCart}
-              className="flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary-orange transition-[opacity,background-color] duration-300 hover:bg-primary-orange/80 lg:pointer-events-none lg:opacity-0 lg:group-hover/card:pointer-events-auto lg:group-hover/card:opacity-100"
-              aria-label="Add to cart"
+        <div className="mt-auto flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p
+              className={`text-base font-semibold tracking-[-0.32px] sm:text-xl sm:tracking-[-0.4px] ${
+                priceOrange || selectionMode ? 'text-primary-orange' : 'text-text-primary'
+              }`}
             >
-              <AddLineIcon className="size-6 text-text-inverse" aria-hidden />
-            </button>
-          )}
+              {price}
+            </p>
+            {originalPrice && (
+              <p className="text-sm font-medium tracking-[-0.28px] text-text-tertiary line-through sm:text-base sm:tracking-[-0.32px]">
+                {originalPrice}
+              </p>
+            )}
+            {discount && (
+              <span className="rounded-full bg-red-light px-2 py-1 text-xs font-medium tracking-[-0.24px] text-primary-red">
+                {discount}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <p className="min-w-0 text-sm font-medium tracking-[-0.28px] text-primary-green">
+              {delivery}
+            </p>
+            {shouldShowAddButton && (
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                className="flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary-orange transition-[opacity,background-color] duration-300 hover:bg-primary-orange/80 lg:pointer-events-none lg:opacity-0 lg:group-hover/card:pointer-events-auto lg:group-hover/card:opacity-100"
+                aria-label="Add to cart"
+              >
+                <AddLineIcon className="size-6 text-text-inverse" aria-hidden />
+              </button>
+            )}
+          </div>
         </div>
       </div>
+    </>
+  )
+
+  if (to) {
+    return (
+      <Link to={to} onClick={handleCardClick} className={cardClassName}>
+        {cardContent}
+      </Link>
+    )
+  }
+
+  return (
+    <article
+      className={cardClassName}
+      onClick={onClick ? handleCardClick : undefined}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                handleCardClick()
+              }
+            }
+          : undefined
+      }
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
+      {cardContent}
     </article>
   )
 }

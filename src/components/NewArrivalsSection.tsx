@@ -9,6 +9,7 @@ import {
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import { newArrivalProducts, type Product } from '../data/products'
+import { getProductPath } from '../data/shopRoutes'
 import { CarouselDots } from './CarouselDots'
 import { ProductCard } from './ProductCard'
 
@@ -300,6 +301,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
                     <ProductCard
                       product={product}
                       enableAddButton
+                      to={getProductPath(product.id, { from: 'home' })}
                       onClick={onProductSelect ? () => onProductSelect(product) : undefined}
                     />
                   </div>
@@ -338,6 +340,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
                   <ProductCard
                     product={product}
                     enableAddButton
+                    to={getProductPath(product.id, { from: 'home' })}
                     onClick={onProductSelect ? () => onProductSelect(product) : undefined}
                   />
                 </div>

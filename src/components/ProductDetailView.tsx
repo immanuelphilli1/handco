@@ -20,6 +20,7 @@ import {
   type ProductReview,
 } from '../data/productDetail'
 import type { Product } from '../data/products'
+import { getProductPath } from '../data/shopRoutes'
 import { ProductCard } from './ProductCard'
 
 type ProductDetailViewProps = {
@@ -617,6 +618,10 @@ export function ProductDetailView({
               key={relatedProduct.id}
               product={relatedProduct}
               enableAddButton
+              to={getProductPath(relatedProduct.id, {
+                categoryId: selection.categoryId,
+                subcategory: selection.subcategoryLabel,
+              })}
               onClick={() => onProductSelect(relatedProduct)}
             />
           ))}

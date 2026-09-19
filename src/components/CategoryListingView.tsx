@@ -4,6 +4,7 @@ import {
   type CategoryListingSelection,
 } from '../data/categoryListing'
 import type { Product } from '../data/products'
+import { getProductPath } from '../data/shopRoutes'
 import {
   ListingFiltersSidebar,
   MobileFiltersSheet,
@@ -115,6 +116,10 @@ export function CategoryListingView({
                   key={product.id}
                   product={product}
                   enableAddButton
+                  to={getProductPath(product.id, {
+                    categoryId: selection.categoryId,
+                    subcategory: selection.subcategoryLabel,
+                  })}
                   onClick={() => onProductSelect(product)}
                 />
               ))}

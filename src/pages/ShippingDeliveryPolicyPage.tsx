@@ -8,7 +8,12 @@ import { useShop } from '../context/ShopContext'
 import type { AuthUser } from '../data/auth'
 import type { CategoryListingSelection } from '../data/categoryListing'
 import type { SidebarCategoryId } from '../data/categoriesModal'
-import type { HomeNavigationState } from '../data/navigation'
+import {
+  getCartPath,
+  getCategoryPathFromSelection,
+  getHomePath,
+  getWishlistPath,
+} from '../data/shopRoutes'
 
 type ShippingDeliveryPolicyPageProps = {
   authUser: AuthUser | null
@@ -41,26 +46,26 @@ export function ShippingDeliveryPolicyPage({
   const handleSubcategorySelect = useCallback(
     (selection: CategoryListingSelection) => {
       setIsCategoriesOpen(false)
-      navigate('/', { state: { categoryListing: selection } satisfies HomeNavigationState })
+      navigate(getCategoryPathFromSelection(selection))
     },
     [navigate],
   )
 
   const handleOpenCart = useCallback(() => {
-    navigate('/', { state: { cartStep: 'cart' } satisfies HomeNavigationState })
+    navigate(getCartPath())
   }, [navigate])
 
   const handleOpenWishlist = useCallback(() => {
-    navigate('/', { state: { wishlistOpen: true } satisfies HomeNavigationState })
+    navigate(getWishlistPath())
   }, [navigate])
 
   const handleGoHome = useCallback(() => {
-    navigate('/')
+    navigate(getHomePath())
   }, [navigate])
 
   const handleSignOut = useCallback(() => {
     onSignOut()
-    navigate('/')
+    navigate(getHomePath())
   }, [navigate, onSignOut])
 
   return (

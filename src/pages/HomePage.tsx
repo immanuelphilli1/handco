@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { BackToTopButton } from '../components/BackToTopButton'
 import { CategoryGridSection } from '../components/CategoryGridSection'
 import { CategoryListingView } from '../components/CategoryListingView'
@@ -21,15 +21,19 @@ import type { AuthUser } from '../data/auth'
 import type { CategoryListingSelection } from '../data/categoryListing'
 import { allCategoriesListingSelection } from '../data/categoryListing'
 import type { SidebarCategoryId } from '../data/categoriesModal'
-import type { HomeNavigationState } from '../data/navigation'
+import type { CartStep } from '../data/navigation'
+import type { Product } from '../data/products'
 import {
-  buildFeaturedProductDetailContext,
-  buildHomeProductDetailContext,
-  buildProductDetailContext,
-  buildWishlistProductDetailContext,
-  type ProductDetailContext,
-} from '../data/productDetail'
-import { getProductById, type Product } from '../data/products'
+  getCartPath,
+  getCategoryPathFromSelection,
+  getCheckoutPath,
+  getHomePath,
+  getOrderCompletePath,
+  getProductPath,
+  getWishlistPath,
+  parseCategoryRoute,
+  parseProductRoute,
+} from '../data/shopRoutes'
 
 export type { CartStep } from '../data/navigation'
 
@@ -43,57 +47,46 @@ export function HomePage({ authUser, onSignedIn, onSignOut }: HomePageProps) {
   const { cartItems, cartItemCount, setCartItems, clearCart } = useShop()
   const location = useLocation()
   const navigate = useNavigate()
+  const params = useParams()
+  const [searchParams] = useSearchParams()
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false)
   const [categoriesTargetId, setCategoriesTargetId] = useState<SidebarCategoryId>('featured')
   const [categoriesTargetLabel, setCategoriesTargetLabel] = useState('Featured')
-  const [categoryListing, setCategoryListing] = useState<CategoryListingSelection | null>(null)
-  const [productDetail, setProductDetail] = useState<ProductDetailContext | null>(null)
-  const [cartStep, setCartStep] = useState<HomeNavigationState['cartStep'] | null>(null)
-  const [wishlistOpen, setWishlistOpen] = useState(false)
+
+  const pathname = location.pathname
+  const productDetail = pathname.startsWith('/products/')
+    ? parseProductRoute(params.productId, searchParams)
+    : null
+  const categoryListing = pathname.startsWith('/categories')
+    ? parseCategoryRoute(params.categoryId, searchParams.get('subcategory'))
+    : null
+  const cartStep: CartStep | null =
+    pathname === '/cart'
+      ? 'cart'
+      : pathname === '/checkout'
+        ? 'checkout'
+        : pathname === '/order-complete'
+          ? 'completed'
+          : null
+  const wishlistOpen = pathname === '/wishlist'
 
   useEffect(() => {
-    const state = location.state as HomeNavigationState | null
-    if (!state) return
-
-    if (state.categoryListing) {
-      setCategoryListing(state.categoryListing)
-      setProductDetail(null)
-      setCartStep(null)
-      setWishlistOpen(false)
+    if (pathname.startsWith('/products/') && params.productId && !productDetail) {
+      navigate(getHomePath(), { replace: true })
     }
+  }, [navigate, params.productId, pathname, productDetail])
 
-    if (state.cartStep) {
-      setCategoryListing(null)
-      setProductDetail(null)
-      setCartStep(state.cartStep)
-      setWishlistOpen(false)
+  useEffect(() => {
+    if (pathname.startsWith('/categories/') && params.categoryId && !categoryListing) {
+      navigate(getHomePath(), { replace: true })
     }
+  }, [categoryListing, navigate, params.categoryId, pathname])
 
-    if (state.wishlistOpen) {
-      setCategoryListing(null)
-      setProductDetail(null)
-      setCartStep(null)
-      setWishlistOpen(true)
+  useEffect(() => {
+    if (pathname === '/checkout' && cartItems.length === 0) {
+      navigate(getCartPath(), { replace: true })
     }
-
-    if (state.openCategories) {
-      setCategoriesTargetId(state.categoriesTargetId ?? 'featured')
-      setIsCategoriesOpen(true)
-    }
-
-    if (state.productId) {
-      const product = getProductById(state.productId)
-      if (product) {
-        setCategoryListing(null)
-        setCartStep(null)
-        setWishlistOpen(false)
-        setProductDetail(buildHomeProductDetailContext(product))
-      }
-    }
-
-    navigate('.', { replace: true, state: null })
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [location.key, navigate])
+  }, [cartItems.length, navigate, pathname])
 
   const openCategories = useCallback(
     (categoryId: SidebarCategoryId = 'featured', label = 'Featured') => {
@@ -117,93 +110,105 @@ export function HomePage({ authUser, onSignedIn, onSignOut }: HomePageProps) {
     setIsCategoriesOpen(false)
   }, [])
 
-  const handleSubcategorySelect = useCallback((selection: CategoryListingSelection) => {
-    setCategoryListing(selection)
-    setProductDetail(null)
-    setCartStep(null)
-    setWishlistOpen(false)
-    setIsCategoriesOpen(false)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  const handleSubcategorySelect = useCallback(
+    (selection: CategoryListingSelection) => {
+      setIsCategoriesOpen(false)
+      navigate(getCategoryPathFromSelection(selection))
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    },
+    [navigate],
+  )
 
   const handleOpenAllCategories = useCallback(() => {
-    handleSubcategorySelect(allCategoriesListingSelection)
-  }, [handleSubcategorySelect])
+    navigate(getCategoryPathFromSelection(allCategoriesListingSelection))
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [navigate])
 
   const handleGoHome = useCallback(() => {
-    setCategoryListing(null)
-    setProductDetail(null)
-    setCartStep(null)
-    setWishlistOpen(false)
+    navigate(getHomePath())
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  }, [navigate])
 
   const handleBackToListing = useCallback(() => {
-    setProductDetail(null)
+    if (!productDetail) return
+    navigate(getCategoryPathFromSelection(productDetail.selection))
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  }, [navigate, productDetail])
 
   const handleProductSelect = useCallback(
     (product: Product) => {
       if (!categoryListing) return
-      setProductDetail(buildProductDetailContext(product, categoryListing))
+      navigate(
+        getProductPath(product.id, {
+          categoryId: categoryListing.categoryId,
+          subcategory: categoryListing.subcategoryLabel,
+        }),
+      )
       window.scrollTo({ top: 0, behavior: 'smooth' })
     },
-    [categoryListing],
+    [categoryListing, navigate],
   )
 
-  const handleNewArrivalProductSelect = useCallback((product: Product) => {
-    setProductDetail(buildHomeProductDetailContext(product))
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  const handleNewArrivalProductSelect = useCallback(
+    (product: Product) => {
+      navigate(getProductPath(product.id, { from: 'home' }))
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    },
+    [navigate],
+  )
 
-  const handleFeaturedProductSelect = useCallback((product: Product) => {
-    setProductDetail(buildFeaturedProductDetailContext(product))
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  const handleFeaturedProductSelect = useCallback(
+    (product: Product) => {
+      navigate(getProductPath(product.id, { from: 'featured' }))
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    },
+    [navigate],
+  )
 
   const handleOpenCart = useCallback(() => {
-    setCategoryListing(null)
-    setProductDetail(null)
-    setWishlistOpen(false)
-    setCartStep('cart')
     setIsCategoriesOpen(false)
+    navigate(getCartPath())
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  }, [navigate])
 
   const handleOpenWishlist = useCallback(() => {
-    setCategoryListing(null)
-    setProductDetail(null)
-    setCartStep(null)
-    setWishlistOpen(true)
     setIsCategoriesOpen(false)
+    navigate(getWishlistPath())
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  }, [navigate])
 
-  const handleWishlistProductSelect = useCallback((product: Product) => {
-    setProductDetail(buildWishlistProductDetailContext(product))
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  const handleWishlistProductSelect = useCallback(
+    (product: Product) => {
+      navigate(getProductPath(product.id, { from: 'wishlist' }))
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    },
+    [navigate],
+  )
 
   const handleCheckout = useCallback(() => {
     if (cartItems.length === 0) return
-    setCartStep('checkout')
+    navigate(getCheckoutPath())
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [cartItems.length])
+  }, [cartItems.length, navigate])
 
   const handleSubmitOrder = useCallback(() => {
-    setCartStep('completed')
     clearCart()
+    navigate(getOrderCompletePath())
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [clearCart])
+  }, [clearCart, navigate])
 
   const handleRelatedProductSelect = useCallback(
     (product: Product) => {
       if (!productDetail) return
-      setProductDetail(buildProductDetailContext(product, productDetail.selection))
+      navigate(
+        getProductPath(product.id, {
+          categoryId: productDetail.selection.categoryId,
+          subcategory: productDetail.selection.subcategoryLabel,
+        }),
+      )
       window.scrollTo({ top: 0, behavior: 'smooth' })
     },
-    [productDetail],
+    [navigate, productDetail],
   )
 
   const mobileActiveTab: MobileNavTab = cartStep

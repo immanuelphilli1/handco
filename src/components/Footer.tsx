@@ -86,7 +86,7 @@ const paymentIcons = [
 
 export function Footer() {
   return (
-    <footer className="flex w-full flex-col">
+    <footer className="flex w-full flex-col pb-24 lg:pb-0">
       <div className="border border-border-primary px-4 lg:px-16">
         <div className="flex flex-col gap-14 border-x border-border-primary px-4 py-8 lg:px-6 lg:py-16">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">

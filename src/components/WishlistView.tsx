@@ -12,6 +12,7 @@ import {
   MobileListingHeader,
   useListingFilters,
 } from './ProductListingFilters'
+import { getProductPath } from '../data/shopRoutes'
 import { ProductCard } from './ProductCard'
 
 type WishlistViewProps = {
@@ -102,6 +103,7 @@ export function WishlistView({ onGoHome, onProductSelect }: WishlistViewProps) {
                     key={product.id}
                     product={product}
                     enableAddButton
+                    to={getProductPath(product.id, { from: 'wishlist' })}
                     onClick={() => onProductSelect(product)}
                   />
                 ))}

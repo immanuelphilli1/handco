@@ -7,6 +7,7 @@ import {
 } from '../data/about'
 import { getHomeFeaturedProducts, type Product } from '../data/products'
 import { PageBreadcrumbs } from './PageBreadcrumbs'
+import { getProductPath } from '../data/shopRoutes'
 import { ProductCard } from './ProductCard'
 
 type AboutPageContentProps = {
@@ -124,6 +125,7 @@ export function AboutPageContent({ onGoHome, onProductSelect }: AboutPageContent
                 key={`${product.id}-${index}`}
                 product={product}
                 enableAddButton
+                to={getProductPath(product.id, { from: 'home' })}
                 onClick={onProductSelect ? () => onProductSelect(product) : undefined}
               />
             ))}
