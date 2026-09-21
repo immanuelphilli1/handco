@@ -33,16 +33,16 @@ export function FeaturesSection() {
             {features.map((feature, index) => (
               <div
                 key={feature.title}
-                className={`flex items-center gap-4 bg-bg-secondary px-6 py-6 lg:gap-4.25 lg:px-8 lg:py-6 ${
+                className={`flex items-center gap-4 bg-bg-secondary px-6 py-6 lg:gap-4.25 lg:px-8 lg:py-4 ${
                   index < features.length - 1 ? 'lg:border-r lg:border-border-primary' : ''
                 }`}
               >
-                <Icon src={feature.icon} className="size-12 shrink-0" />
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <p className="text-xl font-semibold tracking-[-0.4px] text-text-secondary">
+                <Icon src={feature.icon} className="size-8 shrink-0 brightness-0" />
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <p className="text-lg font-semibold tracking-[-0.4px] text-text-secondary">
                     {feature.title}
                   </p>
-                  <p className="text-base font-medium tracking-[-0.32px] text-text-secondary">
+                  <p className="text-sm font-medium tracking-[-0.32px] text-text-secondary">
                     {feature.subtitle}
                   </p>
                 </div>

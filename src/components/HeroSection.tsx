@@ -37,7 +37,7 @@ export function HeroSection() {
   return (
     <section className="p-4 lg:px-16 lg:py-6">
       <div
-        className="relative h-40 overflow-hidden rounded-[12px] lg:h-120"
+        className="relative h-40 overflow-hidden rounded-[12px] lg:h-80"
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
       >

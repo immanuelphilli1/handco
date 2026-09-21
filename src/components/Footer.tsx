@@ -154,7 +154,7 @@ export function Footer() {
       </div>
 
       <div className="border-b border-border-primary px-4 lg:px-16">
-        <div className="flex flex-col gap-6 border-x border-border-primary p-4 lg:flex-row lg:items-center lg:gap-4 lg:p-6">
+        <div className="flex flex-col gap-6 border-x border-border-primary p-4 lg:flex-row lg:items-end lg:gap-4 lg:p-6">
           <div className="flex flex-col gap-6">
             <p className="text-base font-medium tracking-[-0.32px] text-text-secondary">
               Download the H&CO. App on
@@ -165,16 +165,13 @@ export function Footer() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-4 lg:ml-auto lg:items-end lg:justify-end">
+          <div className="flex flex-col md:flex-row gap-4 lg:ml-auto lg:items-end lg:justify-end">
             <div className="flex flex-wrap items-center gap-2">
               {trustBadges.map((badge) => (
                 <img key={badge} alt="" className="h-7 object-contain" src={badge} />
               ))}
             </div>
-            <div className="hidden h-7 w-px lg:block">
-              <img alt="" className="size-full" src={images.footer.divider} />
-            </div>
-            <div className="flex flex-wrap items-center gap-2 lg:gap-3.5">
+            <div className="flex flex-nowrap items-center gap-2 lg:gap-3.5">
               {paymentIcons.map((icon) => (
                 <img key={icon} alt="" className="h-7 w-9 object-contain" src={icon} />
               ))}
@@ -199,10 +196,10 @@ export function Footer() {
           <img alt="Compliance badges" className="h-12 w-38 object-contain" src={images.footer.compliance} />
           <div className="lg:w-68 lg:text-right">
             <p className="text-sm font-medium tracking-[-0.28px] text-text-tertiary">
-              Nordbær • Gridvolt • MSTEPA • Gründen
+            H&CO • Nordbær • Gridvolt • Gründen
             </p>
             <p className="text-base font-medium tracking-[-0.32px] text-text-secondary">
-              © 2026 H&CO. All rights reserved.
+              © 2026 HDTN. All rights reserved.
             </p>
           </div>
         </div>

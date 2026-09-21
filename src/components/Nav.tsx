@@ -10,7 +10,6 @@ import { getAccountPath, type AccountSection } from '../data/accountRoutes'
 import GlobalLineIcon from 'remixicon-react/GlobalLineIcon'
 import HeartLineIcon from 'remixicon-react/HeartLineIcon'
 import ListCheckLineIcon from 'remixicon-react/ListCheckIcon'
-import ShoppingCartLineIcon from 'remixicon-react/ShoppingCartLineIcon'
 import UserLineIcon from 'remixicon-react/UserLineIcon'
 import SearchLineIcon from 'remixicon-react/SearchLineIcon'
 import type { SidebarCategoryId } from '../data/categoriesModal'
@@ -199,15 +198,15 @@ export function Nav({
         ref={headerRef}
         className="fixed inset-x-0 top-0 z-50 w-full max-w-[100vw] overflow-x-clip bg-bg-primary"
       >
-        <div className="relative mx-auto w-full min-w-0 max-w-400">
-          <div className={`${promoBannerClass} flex h-12 items-center px-4 lg:h-13 lg:px-16`}>
-            <p className="text-xs font-medium tracking-[-0.24px] text-text-inverse lg:text-base lg:tracking-[-0.32px]">
+        <div className="relative mx-auto w-full min-w-0 max-w-full border-b border-border-primary">
+          <div className={`${promoBannerClass} flex h-7 items-center px-4 lg:h-10 lg:px-16`}>
+            <p className="text-xs font-medium tracking-[-0.24px] text-text-inverse lg:text-xs lg:tracking-[-0.32px]">
               You Can Add Your Advertisement Here
             </p>
           </div>
 
           {/* Desktop navigation */}
-          <div className="hidden items-center gap-4 border-b border-border-primary px-16 py-4 lg:flex">
+          <div className="hidden max-w-400 mx-auto items-center gap-4 px-16 py-4 lg:flex">
             <Link to="/" aria-label="Home" className="shrink-0">
               <img alt="H&CO." className="h-7 w-29.25" src={images.nav.logo} />
             </Link>
@@ -281,7 +280,16 @@ export function Nav({
                   className={`${navIconButton} size-12 px-3`}
                   aria-label="Cart"
                 >
-                  <ShoppingCartLineIcon className={`size-6 ${navIcon}`} aria-hidden />
+                  <svg
+                    className={`size-6 ${navIcon}`}
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden
+                  >
+                    <use href={`${images.nav.cart}#Vector`} fill="currentColor" />
+                  </svg>
                 </button>
                 <span className="btn-orange absolute -right-2.5 -top-1.5 flex size-6 min-w-6 items-center justify-center rounded-full border border-white px-1 text-xs font-medium tracking-[-0.24px] text-text-inverse">
                   {cartItemCount}
@@ -339,7 +347,7 @@ export function Nav({
           </div>
 
           {/* Mobile navigation */}
-          <div className="flex flex-col gap-2 border-b border-border-primary p-4 lg:hidden">
+          <div className="flex flex-col gap-2 p-4 lg:hidden">
             <div className="flex items-center gap-4">
               <Link to="/" aria-label="Home" className="shrink-0" onClick={() => onMobileHome?.()}>
                 <img alt="H&CO." className="h-6 w-25" src={images.nav.logo} />

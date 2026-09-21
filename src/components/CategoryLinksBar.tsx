@@ -25,8 +25,8 @@ const categoryLinks: CategoryLink[] = [
   { label: 'Electronics & Tech', icon: ComputerLineIcon },
   { label: 'Fashion & Accessories', icon: TShirt2LineIcon },
   { label: 'Home & Garden', imageIcon: images.hero.sofa },
-  { label: 'Construction & Tools', icon: HammerLineIcon },
   { label: 'Energy & Power', icon: LightbulbFlashLineIcon },
+  { label: 'Construction & Tools', icon: HammerLineIcon },
 ]
 
 function CategoryLinkIcon({
@@ -63,7 +63,7 @@ export function CategoryLinksBar({
 
   return (
     <section className="hidden border-b border-border-primary bg-bg-primary px-4 lg:block lg:px-14">
-      <div className="py-2">
+      <div className="py-2 max-w-380 mx-auto">
         <div className="flex gap-2 overflow-x-auto [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden">
           {visibleLinks.map((category) => {
             const categoryId = resolveCategoryId(category.label)
