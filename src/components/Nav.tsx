@@ -20,9 +20,6 @@ const navIconButton =
 const navIcon =
   'text-text-secondary transition-colors group-hover:text-primary-orange'
 
-const promoBannerClass =
-  'bg-gradient-to-r from-primary-orange from-0% via-primary-orange via-[55%] to-[#ffe7d6] to-100%'
-
 type NavProps = {
   isCategoriesOpen: boolean
   categoriesTargetId: SidebarCategoryId
@@ -199,10 +196,16 @@ export function Nav({
         className="fixed inset-x-0 top-0 z-50 w-full max-w-[100vw] overflow-x-clip bg-bg-primary"
       >
         <div className="relative mx-auto w-full min-w-0 max-w-full border-b border-border-primary">
-          <div className={`${promoBannerClass} flex h-7 items-center px-4 lg:h-10 lg:px-16`}>
-            <p className="text-xs font-medium tracking-[-0.24px] text-text-inverse lg:text-xs lg:tracking-[-0.32px]">
-              You Can Add Your Advertisement Here
-            </p>
+          <div className="relative h-7 overflow-hidden lg:h-10">
+            <video
+              className="size-full object-cover"
+              src={images.nav.bannerVid}
+              autoPlay
+              loop
+              muted
+              playsInline
+              aria-label="Advertisement"
+            />
           </div>
 
           {/* Desktop navigation */}

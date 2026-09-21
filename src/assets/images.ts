@@ -15,6 +15,7 @@ export const images = {
     heart: "/assets/nav/heart-line.svg",
     cart: "/assets/nav/cart-line.svg",
     user: "/assets/nav/user-line.svg",
+    bannerVid: "/assets/nav/banner-vid.mp4",
   },
   hero: {
     banner: "/assets/hero/banner.png",
