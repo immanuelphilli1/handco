@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import CloseFillIcon from 'remixicon-react/CloseFillIcon'
 import EyeLineIcon from 'remixicon-react/EyeLineIcon'
@@ -9,9 +9,11 @@ import LockPasswordLineIcon from 'remixicon-react/LockPasswordLineIcon'
 import MailLineIcon from 'remixicon-react/MailLineIcon'
 import { images } from '../assets/images'
 import { authApi, cartApi } from '../api'
+import { clearOAuthState, saveOAuthReturnPath, saveOAuthState } from '../api/googleOAuth'
 import { useAuth } from '../context/AuthContext'
 import { useShop } from '../context/ShopContext'
 import { signInLegalCopy, type SignInStep } from '../data/auth'
+import { getGoogleOAuthCallbackPath } from '../data/shopRoutes'
 
 type SignInModalProps = {
   isOpen: boolean
@@ -105,11 +107,17 @@ function LegalNotice({ onLinkClick }: { onLinkClick: () => void }) {
 export function SignInModal({ isOpen, onClose }: SignInModalProps) {
   const { signIn, register } = useAuth()
   const { refreshCart, refreshWishlist } = useShop()
+  const location = useLocation()
   const [step, setStep] = useState<SignInStep>('email')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isRegisterFlow, setIsRegisterFlow] = useState(false)
+  /**
+   * True when `check-email` reports an account that only has a Google login and
+   * no password, so we must not show a password field for it.
+   */
+  const [isOAuthOnlyAccount, setIsOAuthOnlyAccount] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -120,6 +128,7 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
     setPassword('')
     setShowPassword(false)
     setIsRegisterFlow(false)
+    setIsOAuthOnlyAccount(false)
     setIsSubmitting(false)
     setErrorMessage(null)
   }, [isOpen])
@@ -161,7 +170,10 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
     try {
       const response = await authApi.checkEmail(email.trim())
       setIsRegisterFlow(response.nextStep === 'register')
-      setStep('password')
+      setIsOAuthOnlyAccount(response.nextStep === 'oauth')
+      // Google-only accounts have no password, so sending them to the password
+      // step would dead-end. Send them straight back to the provider buttons.
+      setStep(response.nextStep === 'oauth' ? 'email' : 'password')
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to continue with email.')
     } finally {
@@ -193,6 +205,32 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
       setIsSubmitting(false)
     }
   }
+
+  /**
+   * Starts the Google flow: ask the API for a fresh URL + CSRF `state`, stash
+   * both, then hand the whole page over to Google. The callback page reads the
+   * state back and completes the exchange.
+   */
+  const handleGoogleSignIn = useCallback(async () => {
+    setIsSubmitting(true)
+    setErrorMessage(null)
+    try {
+      // A fresh URL/state pair on every click: `state` is single-use and short-lived.
+      const { url, state } = await authApi.getGoogleOAuthUrl()
+      clearOAuthState()
+      saveOAuthState(state)
+      // Return the user to where they started (e.g. checkout) after sign-in. The
+      // modal can be reopened on the callback page itself when a Google attempt
+      // failed, and saving that would loop the user back here forever.
+      if (location.pathname !== getGoogleOAuthCallbackPath()) {
+        saveOAuthReturnPath(location.pathname + location.search)
+      }
+      window.location.assign(url)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to continue with Google.')
+      setIsSubmitting(false)
+    }
+  }, [location.pathname, location.search])
 
   if (!isOpen) return null
 
@@ -303,6 +341,13 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
               </p>
             ) : null}
 
+            {isOAuthOnlyAccount ? (
+              <p className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-secondary">
+                This account uses Google to sign in and has no password yet. Continue with Google
+                below, or use Forgot password to set one.
+              </p>
+            ) : null}
+
             <button
               type="button"
               disabled={isSubmitting}
@@ -321,7 +366,15 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
                 Or continue with other ways
               </p>
               <div className="flex items-center gap-6">
-                <button type="button" aria-label="Continue with Google" className="cursor-pointer">
+                <button
+                  type="button"
+                  aria-label="Continue with Google"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    void handleGoogleSignIn()
+                  }}
+                  className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-70"
+                >
                   <GoogleIcon />
                 </button>
                 <button type="button" aria-label="Continue with Facebook" className="cursor-pointer">

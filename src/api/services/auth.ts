@@ -1,6 +1,10 @@
 import { apiRequest, persistAuthResponse } from '../client'
 import type { AuthUser } from '../../data/auth'
-import type { AuthResponse, CheckEmailResponse } from '../types'
+import type {
+  AuthResponse,
+  CheckEmailResponse,
+  GoogleOAuthUrlResponse,
+} from '../types'
 
 export async function checkEmail(email: string): Promise<CheckEmailResponse> {
   return apiRequest<CheckEmailResponse>('/auth/check-email', {
@@ -57,11 +61,30 @@ export async function forgotPassword(email: string): Promise<void> {
   })
 }
 
-export async function oauthSignIn(
-  provider: 'google' | 'facebook' | 'apple',
-  input: { idToken: string; email?: string; fullName?: string },
-): Promise<AuthResponse> {
-  const response = await apiRequest<AuthResponse>(`/auth/oauth/${provider}`, {
+/**
+ * Step 1 of Google sign-in: ask the API for a Google consent URL and its CSRF
+ * state. The API does all the Google work, so the client needs no Google SDK,
+ * client id, or client secret. No auth needed; a fresh pair is required on every
+ * click because `state` is single-use.
+ */
+export async function getGoogleOAuthUrl(): Promise<GoogleOAuthUrlResponse> {
+  return apiRequest<GoogleOAuthUrlResponse>('/auth/oauth/google/url', {
+    method: 'GET',
+    auth: false,
+    cart: false,
+  })
+}
+
+/**
+ * Step 2: trade the one-time `code` from Google's callback for a session. Sends
+ * the guest `X-Cart-Id` so the guest cart merges into the account's cart, and
+ * stores the tokens exactly as email sign-in does.
+ */
+export async function oauthGoogleSignIn(input: {
+  code: string
+  state: string
+}): Promise<AuthResponse> {
+  const response = await apiRequest<AuthResponse>('/auth/oauth/google', {
     method: 'POST',
     body: input,
     auth: false,

@@ -50,6 +50,15 @@ export function getPaymentCancelPath(): string {
   return '/checkout/cancel'
 }
 
+/**
+ * Google redirects here after the user picks an account. The path must match the
+ * `redirect_uri` registered with Google exactly (currently
+ * `https://handco.onrender.com/oauth/google/callback`), so it is not configurable.
+ */
+export function getGoogleOAuthCallbackPath(): string {
+  return '/oauth/google/callback'
+}
+
 export function getWishlistPath(): string {
   return '/wishlist'
 }

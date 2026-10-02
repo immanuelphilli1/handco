@@ -32,7 +32,21 @@ export type AuthResponse = {
 
 export type CheckEmailResponse = {
   exists: boolean
-  nextStep: 'password' | 'register'
+  /**
+   * `oauth` is returned for Google-only accounts, which have no password. The
+   * client must offer "Continue with Google" instead of a password field for
+   * those; see docs/GOOGLE-OAUTH.md.
+   */
+  nextStep: 'password' | 'register' | 'oauth'
+  /** Provider that owns the account when `nextStep` is `oauth`. */
+  oauthProvider?: 'google'
+}
+
+/** Response of `GET /auth/oauth/google/url`. */
+export type GoogleOAuthUrlResponse = {
+  url: string
+  /** CSRF token. Valid for 10 minutes and single-use; keep it in sessionStorage. */
+  state: string
 }
 
 export type ApiProductCard = Product & {

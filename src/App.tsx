@@ -7,6 +7,7 @@ import { ScrollToTop } from './components/ScrollToTop'
 import { RequireAuth } from './components/RequireAuth'
 import { AboutPage } from './pages/AboutPage'
 import { AccountPage } from './pages/AccountPage'
+import { GoogleOAuthCallbackPage } from './pages/GoogleOAuthCallbackPage'
 import { HomePage } from './pages/HomePage'
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage'
 import { ReturnRefundPolicyPage } from './pages/ReturnRefundPolicyPage'
@@ -38,6 +39,8 @@ function AppRoutes() {
       <Route path="/secure-payments" element={<SecurePaymentsPage />} />
       <Route path="/intellectual-property" element={<IntellectualPropertyPage />} />
       <Route path="/terms-of-use" element={<TermsOfUsePage />} />
+      {/* Must stay in step with the redirect_uri registered with Google. */}
+      <Route path="/oauth/google/callback" element={<GoogleOAuthCallbackPage />} />
       <Route
         path="/account/:section"
         element={

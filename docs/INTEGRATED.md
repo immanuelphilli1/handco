@@ -19,7 +19,7 @@ For gaps and partial integrations, see [NOT-INTEGRATED.md](./NOT-INTEGRATED.md).
 | Checkout handoff | `src/api/pendingPayment.ts` | Survives the provider redirect with the payment + cart lines to order |
 | Types & mappers | `src/api/types.ts`, `src/api/mappers.ts` | API shapes → existing UI types; relative image URLs resolved |
 | Services | `src/api/services/*.ts` | One module per backend area (auth, catalog, cart, etc.) |
-| Auth state | `src/context/AuthContext.tsx` | Session bootstrap, sign-in, register, sign-out |
+| Auth state | `src/context/AuthContext.tsx` | Session bootstrap, sign-in, register, sign-out, `adoptSession` for OAuth |
 | Shop state | `src/context/ShopContext.tsx` | Cart, wishlist, order summary, last placed order |
 | Catalog state | `src/context/CatalogContext.tsx` | Categories, facets, featured and new-arrival products |
 | Catalog hooks | `src/hooks/useCatalogProducts.ts` | Featured, new arrivals, listings, recommendations |
@@ -41,8 +41,43 @@ For gaps and partial integrations, see [NOT-INTEGRATED.md](./NOT-INTEGRATED.md).
 | `GET /auth/me` | Session bootstrap on app load |
 | `POST /auth/logout` | Sign out from account menu |
 | `POST /auth/refresh` | Automatic retry in `api/client.ts` on 401 |
+| `GET /auth/oauth/google/url` | “Continue with Google” — full-page redirect to Google |
+| `POST /auth/oauth/google` | Callback page — exchanges the one-time `code` for a session |
 
-**Wired components:** `SignInModal`, `Nav` (via `useAuth`), `AuthContext`
+**Wired components:** `SignInModal`, `Nav` (via `useAuth`), `AuthContext`, `GoogleOAuthCallbackPage`
+
+### Google sign-in (OAuth)
+
+Implemented per `docs/GOOGLE-OAUTH.md`. The API does all the Google work, so the client
+ships no Google SDK, client id, or client secret.
+
+1. **Start** — `handleGoogleSignIn` calls `GET /auth/oauth/google/url`, stores the
+   `state` in `sessionStorage` (`api/googleOAuth.ts`), and redirects with
+   `window.location.assign`. A fresh URL/`state` pair is fetched on every click
+   because `state` is single-use and expires after 10 minutes.
+2. **Callback** — route `/oauth/google/callback` (`GoogleOAuthCallbackPage`). This
+   path must match the `redirect_uri` registered with Google
+   (`https://handco.onrender.com/oauth/google/callback`); it is exposed as
+   `getGoogleOAuthCallbackPath()` and is not configurable.
+3. **Validate** — the query is parsed once in a lazy state initialiser, so an
+   already-invalid or cancelled link shows its error immediately instead of
+   flashing the loader. `error` → “Sign-in was cancelled.” and no API call.
+   `code`/`state` are compared against the saved value (CSRF check), then both the
+   query string and the saved state are cleared so a refresh cannot replay the
+   single-use code.
+4. **Exchange** — `POST /auth/oauth/google` with `{ code, state }`, sending the
+   guest `X-Cart-Id` so the guest cart merges into the account. Tokens are stored
+   exactly as for email sign-in, then `adoptSession` updates `AuthContext` without
+   a redundant `/auth/me` round trip.
+5. **Return** — the page redirects to the saved return path (e.g. checkout) or the
+   home page. The callback path is rejected on both write and read, so it can
+   never be used as a destination.
+
+Documented error codes (`oauth_invalid_state`, `oauth_failed`,
+`oauth_email_unverified`, `oauth_account_conflict`, `validation_error`) map to
+their own copy, and any failure reopens the sign-in modal. `nextStep: "oauth"`
+from `check-email` routes Google-only accounts to the Google button instead of a
+password field they cannot use.
 
 **Also on login:** `POST /cart/merge` — guest cart merged after successful sign-in/register
 
@@ -190,6 +225,7 @@ The API owns payment end to end; the client never collects card details.
 ### New
 - `src/api/` — client, config, storage, types, mappers, services
 - `src/api/pendingPayment.ts` — survives the provider redirect
+- `src/api/googleOAuth.ts` — survives the Google redirect (`state` + return path)
 - `src/context/AuthContext.tsx`
 - `src/context/CatalogContext.tsx`
 - `src/hooks/useCatalogProducts.ts`

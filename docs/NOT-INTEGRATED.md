@@ -10,7 +10,8 @@ API base URL: `https://handco.craftsmanjohn.com/api/v1` (see `.env.example`).
 
 | Item | Status | Notes |
 |------|--------|-------|
-| OAuth sign-in (Google, Facebook, Apple) | Not integrated | Social buttons in `SignInModal` are visual only. `authApi.oauthSignIn` exists but is not called. |
+| OAuth sign-in (Google) | Integrated | Full redirect flow in `src/pages/GoogleOAuthCallbackPage.tsx` on route `/oauth/google/callback`, per `docs/GOOGLE-OAUTH.md`. `getGoogleOAuthUrl()` → save `state` → full-page redirect; callback validates `state`, scrubs the query, and exchanges the one-time `code`. Verified live against the API. |
+| OAuth sign-in (Facebook, Apple) | Not integrated | The API supports Google only (`unsupported_provider`). The two buttons in `SignInModal` remain inert. |
 | Forgot / reset password | Not integrated | `authApi.forgotPassword` exists; no reset-password UI or email-token flow. |
 | Token refresh retry | Partial | `api/client.ts` retries once on 401 via `/auth/refresh`; no dedicated session-expired UX. |
 | 2FA enable / disable | Not integrated | Endpoints exist under `/users/me/...`; no account UI. |
@@ -147,6 +148,6 @@ Demo credentials (from backend docs): `demo@handco.test` / `password`, or `jaygr
 
 1. Call `checkoutApi.getShippingQuote` when the checkout address changes.
 2. Wire the account security panel (email/phone/password/2FA) to its PATCH endpoints, which are still unused.
-3. Add OAuth and password-reset flows matching Postman Flow 01.
+3. Add the password-reset flow (request + token flow) to match the Google flow.
 4. Wire `cmsApi.getHomeContent` / `getFooterContent` / `useCmsPage('about')` to remove the remaining static CMS copy.
 5. Wire the footer partnership / quotation / agent forms to `formsApi`.
