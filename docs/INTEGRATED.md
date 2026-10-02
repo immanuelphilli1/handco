@@ -216,6 +216,24 @@ The API owns payment end to end; the client never collects card details.
 
 ---
 
+## Route protection
+
+`src/components/RequireAuth.tsx` gates signed-in-only surfaces. The account routes
+(`/account/:section`) are wrapped in it, so a signed-out visitor hitting those URLs
+directly is redirected home and prompted via the sign-in modal.
+
+- Holds a `ListingLoader` while `AuthProvider` restores the session from storage, so a
+  page refresh does not bounce a signed-in user out before they are resolved.
+- Calls `requestSignIn()` when blocked, which the `Nav` watches to open the sign-in modal
+  (same mechanism as the wishlist heart and cart checkout).
+- Re-evaluates on session change, so signing out while on an account page ejects
+  immediately rather than leaving stale private panels on screen.
+
+This is a **UX guard, not a security boundary** — the backend authorises its own
+endpoints, and that server-side check is what actually protects the data.
+
+---
+
 ## How to run
 
 ```bash

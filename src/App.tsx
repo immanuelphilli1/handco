@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext'
 import { CatalogProvider } from './context/CatalogContext'
 import { ShopProvider } from './context/ShopContext'
 import { ScrollToTop } from './components/ScrollToTop'
+import { RequireAuth } from './components/RequireAuth'
 import { AboutPage } from './pages/AboutPage'
 import { AccountPage } from './pages/AccountPage'
 import { HomePage } from './pages/HomePage'
@@ -37,7 +38,14 @@ function AppRoutes() {
       <Route path="/secure-payments" element={<SecurePaymentsPage />} />
       <Route path="/intellectual-property" element={<IntellectualPropertyPage />} />
       <Route path="/terms-of-use" element={<TermsOfUsePage />} />
-      <Route path="/account/:section" element={<AccountPage />} />
+      <Route
+        path="/account/:section"
+        element={
+          <RequireAuth>
+            <AccountPage />
+          </RequireAuth>
+        }
+      />
       <Route path="/account" element={<Navigate to={getAccountPath('orders')} replace />} />
     </Routes>
   )
