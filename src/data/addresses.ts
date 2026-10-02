@@ -44,34 +44,9 @@ export const emptyAddressForm: AddressFormValues = {
   isDefault: false,
 }
 
-export const savedAddresses: AddressRecord[] = [
-  {
-    id: 'address-1',
-    country: 'United Arab Emirates',
-    firstName: 'Clement Nii Odai',
-    lastName: 'Afotey',
-    phoneCountryCode: '+233',
-    phoneNumber: '54 271 7127',
-    addressLine: 'Room 231 - Al Ahdab Tower',
-    region: 'Dubai',
-    city: 'Dubai',
-    cityLine: 'Al Nahda 2 Dubai, UAE',
-    isDefault: true,
-  },
-  {
-    id: 'address-2',
-    country: 'United Arab Emirates',
-    firstName: 'Clement Nii Odai',
-    lastName: 'Afotey',
-    phoneCountryCode: '+233',
-    phoneNumber: '54 271 7127',
-    addressLine: 'Room 231 - Al Ahdab Tower',
-    region: 'Dubai',
-    city: 'Dubai',
-    cityLine: 'Al Nahda 2 Dubai, UAE',
-    isDefault: false,
-  },
-]
+export function getAddressesEmptyStateMessage(): string {
+  return "You don't have any saved addresses"
+}
 
 export function formatAddressContact(address: AddressRecord): string {
   return `${address.firstName} ${address.lastName} | ${address.phoneCountryCode} ${address.phoneNumber}`

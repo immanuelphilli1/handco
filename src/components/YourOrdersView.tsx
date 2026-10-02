@@ -36,9 +36,7 @@ import {
   getReviewsEmptyStateMessage,
   reviewFilterTabs,
   REVIEWED_REVIEWS_PAGE_SIZE,
-  reviewedReviews,
   WAITING_REVIEWS_PAGE_SIZE,
-  waitingReviews,
   type ReviewFilter,
   type ReviewedReviewRecord,
   type WaitingReviewRecord,
@@ -63,6 +61,7 @@ import { AddressesPanel } from './AddressesPanel'
 import { PaymentMethodsPanel } from './PaymentMethodsPanel'
 import { NotificationsPanel } from './NotificationsPanel'
 import { ListingLoader } from './ListingLoader'
+import { AccountEmptyState } from './AccountEmptyState'
 import { OrderTrackingModal } from './OrderTrackingModal'
 import { ReturnRefundModal } from './ReturnRefundModal'
 import { useBuyAgain } from '../hooks/useBuyAgain'
@@ -349,25 +348,6 @@ function OrderCard({
         </p>
       </div>
     </article>
-  )
-}
-
-function AccountEmptyState({ message }: { message: string }) {
-  return (
-    <div
-      role="status"
-      className="flex min-h-121.25 w-full flex-col items-center justify-center gap-2 px-6 py-10"
-    >
-      <img
-        alt=""
-        aria-hidden
-        className="size-33.5 shrink-0"
-        src={images.orders.empty}
-      />
-      <p className="text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
-        {message}
-      </p>
-    </div>
   )
 }
 
@@ -723,12 +703,11 @@ function ReviewsPanel() {
   const [activeFilter, setActiveFilter] = useState<ReviewFilter>('waiting')
   const [visibleCount, setVisibleCount] = useState(WAITING_REVIEWS_PAGE_SIZE)
   const [reviewModalTarget, setReviewModalTarget] = useState<WaitingReviewRecord | null>(null)
-  const [waitingItems, setWaitingItems] = useState(() => [...waitingReviews])
-  const [reviewedItems, setReviewedItems] = useState(() => [...reviewedReviews])
+  const [waitingItems, setWaitingItems] = useState<WaitingReviewRecord[]>([])
+  const [reviewedItems, setReviewedItems] = useState<ReviewedReviewRecord[]>([])
   const [isLoadingReviews, setIsLoadingReviews] = useState(true)
 
-  // Both review lists are loaded up front so switching tabs is instant. A failed
-  // call leaves the static seed rows in place rather than an empty tab.
+  // Both review lists are loaded up front so switching tabs is instant.
   useEffect(() => {
     let cancelled = false
 
@@ -741,12 +720,12 @@ function ReviewsPanel() {
         ])
         if (cancelled) return
 
-        const waitingSlots = mapApiReviewSlots(waiting)
-        const reviewedSlots = mapApiReviewSlots(reviewed)
-        if (waitingSlots.length > 0) setWaitingItems(waitingSlots)
-        if (reviewedSlots.length > 0) setReviewedItems(reviewedSlots)
+        // Set unconditionally, including for empty results, so an account with
+        // nothing to review is not masked by the removed seed rows.
+        setWaitingItems(mapApiReviewSlots(waiting))
+        setReviewedItems(mapApiReviewSlots(reviewed))
       } catch {
-        // Keep static fallback reviews.
+        // Keep whatever is on screen; a load failure should not blank the tabs.
       } finally {
         if (!cancelled) setIsLoadingReviews(false)
       }

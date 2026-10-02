@@ -6,10 +6,11 @@ import DeleteBin7LineIcon from 'remixicon-react/DeleteBin7LineIcon'
 import LockFillIcon from 'remixicon-react/LockFillIcon'
 import { images } from '../assets/images'
 import { ListingLoader } from './ListingLoader'
+import { AccountEmptyState } from './AccountEmptyState'
 import {
   paymentSafeguardNotice,
   paymentTypeLabel,
-  savedPaymentMethods,
+  getPaymentMethodsEmptyStateMessage,
   type PaymentMethodRecord,
   type PaymentMethodType,
 } from '../data/paymentMethods'
@@ -139,9 +140,9 @@ function PaymentMethodCard({
 }
 
 export function PaymentMethodsPanel() {
-  const [payments, setPayments] = useState<PaymentMethodRecord[]>(() =>
-    savedPaymentMethods.map((payment) => ({ ...payment })),
-  )
+  // Starts empty: the API is the only source of truth, so an account with no
+  // saved methods shows the empty state rather than sample cards.
+  const [payments, setPayments] = useState<PaymentMethodRecord[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -154,11 +155,13 @@ export function PaymentMethodsPanel() {
       try {
         const response = await accountApi.listPaymentMethods()
         const items = mapApiPaymentMethods(response)
-        if (!cancelled && items.length > 0) {
+        // Set unconditionally, including for an empty result, so an account with
+        // no saved methods is not masked by the removed seed rows.
+        if (!cancelled) {
           setPayments(items)
         }
       } catch {
-        // Keep static fallback payment methods.
+        // Keep whatever is on screen; the banner below reports load failures.
       } finally {
         if (!cancelled) setIsLoading(false)
       }
@@ -173,7 +176,7 @@ export function PaymentMethodsPanel() {
 
   /** The server owns the default flag, so a failure rolls the toggle back. */
   const setDefaultPayment = async (paymentId: string) => {
-    if (!paymentId || paymentId.startsWith('payment-')) return
+    if (!paymentId) return
 
     setErrorMessage(null)
 
@@ -210,8 +213,7 @@ export function PaymentMethodsPanel() {
       return next
     })
 
-    // Local seed ids are not server records, so there is nothing to delete.
-    if (!paymentId || paymentId.startsWith('payment-')) return
+    if (!paymentId) return
 
     try {
       setIsSaving(true)
@@ -257,9 +259,7 @@ export function PaymentMethodsPanel() {
         {isLoading ? (
           <ListingLoader label="Loading payment methods" />
         ) : payments.length === 0 ? (
-          <p className="rounded-xl bg-bg-secondary px-4 py-6 text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
-            No saved payment methods yet. Cards you use at checkout are saved here for next time.
-          </p>
+          <AccountEmptyState message={getPaymentMethodsEmptyStateMessage()} />
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {payments.map((payment) => (

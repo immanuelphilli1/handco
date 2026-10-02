@@ -4,11 +4,12 @@ import { ApiError } from '../api/client'
 import { mapApiBrowsingHistory } from '../api/mappers'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import {
-  browsingHistorySections as initialSections,
   getAllHistoryItemIds,
+  getBrowsingHistoryEmptyStateMessage,
   type BrowsingHistorySection,
 } from '../data/browsingHistory'
 import { ProductCard } from './ProductCard'
+import { AccountEmptyState } from './AccountEmptyState'
 import { ListingLoader } from './ListingLoader'
 
 function HistorySelectToggle({
@@ -252,12 +253,9 @@ function ClearAllConfirm({
 }
 
 export function BrowsingHistoryPanel() {
-  const [sections, setSections] = useState<BrowsingHistorySection[]>(() =>
-    initialSections.map((section) => ({
-      ...section,
-      items: section.items.map((item) => ({ ...item, product: { ...item.product } })),
-    })),
-  )
+  // Starts empty: the API is the only source of truth, so an account with no
+  // browsing shows the empty state rather than sample products.
+  const [sections, setSections] = useState<BrowsingHistorySection[]>([])
   const [isManageMode, setIsManageMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [isLoading, setIsLoading] = useState(true)
@@ -273,11 +271,13 @@ export function BrowsingHistoryPanel() {
       try {
         const response = await accountApi.getBrowsingHistory()
         const items = mapApiBrowsingHistory(response)
-        if (!cancelled && items.length > 0) {
+        // Set unconditionally, including for an empty result, so a genuinely
+        // empty history is not masked by leftover rows.
+        if (!cancelled) {
           setSections(items)
         }
       } catch {
-        // Keep static fallback history.
+        // Keep whatever is on screen; the banner below reports load failures.
       } finally {
         if (!cancelled) setIsLoading(false)
       }
@@ -375,8 +375,9 @@ export function BrowsingHistoryPanel() {
     )
     setSelectedIds(new Set())
 
-    // Local seed ids (today-0, nov-12-3) are not server records.
-    const serverRids = rids.filter((id) => !/^(today|nov-\d+)-\d+$/.test(id))
+    // Mappers fall back to a synthesized id (`today-0`, `history-3`) when the API
+    // omits `rid`; those are not server records, so there is nothing to delete.
+    const serverRids = rids.filter((id) => !/^(today|history|nov-\d+|item)-?\d*$/.test(id))
     if (serverRids.length === 0) return
 
     try {
@@ -444,9 +445,7 @@ export function BrowsingHistoryPanel() {
           ))}
         </div>
       ) : (
-        <p className="py-12 text-center text-base font-medium leading-5 tracking-[-0.32px] text-text-tertiary">
-          You have not browsed any products yet.
-        </p>
+        <AccountEmptyState message={getBrowsingHistoryEmptyStateMessage()} />
       )}
     </div>
   )

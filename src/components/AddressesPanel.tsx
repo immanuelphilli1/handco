@@ -7,13 +7,14 @@ import EditBoxLineIcon from 'remixicon-react/EditBoxLineIcon'
 import FileCopyLineIcon from 'remixicon-react/FileCopyLineIcon'
 import LockFillIcon from 'remixicon-react/LockFillIcon'
 import { AddAddressModal } from './AddAddressModal'
+import { AccountEmptyState } from './AccountEmptyState'
 import { ListingLoader } from './ListingLoader'
 import {
   addressSafeguardNotice,
   addressToFormValues,
   formValuesToAddress,
   formatAddressContact,
-  savedAddresses,
+  getAddressesEmptyStateMessage,
   type AddressFormValues,
   type AddressRecord,
 } from '../data/addresses'
@@ -153,9 +154,9 @@ export function AddressesPanel({
   startEditingDefault = false,
   onDismissEditIntent,
 }: AddressesPanelProps) {
-  const [addresses, setAddresses] = useState<AddressRecord[]>(() =>
-    savedAddresses.map((address) => ({ ...address })),
-  )
+  // Starts empty: the API is the only source of truth, so a new account sees the
+  // empty state rather than sample addresses.
+  const [addresses, setAddresses] = useState<AddressRecord[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -172,11 +173,13 @@ export function AddressesPanel({
       try {
         const response = await accountApi.listAddresses()
         const items = mapApiAddresses(response)
-        if (!cancelled && items.length > 0) {
+        // Set unconditionally, including for an empty result, so an account with
+        // no saved addresses is not masked by the removed seed rows.
+        if (!cancelled) {
           setAddresses(items)
         }
       } catch {
-        // Keep static fallback addresses.
+        // Keep whatever is on screen; the banner below reports load failures.
       } finally {
         if (!cancelled) setIsLoading(false)
       }
@@ -233,7 +236,7 @@ export function AddressesPanel({
    * successful call is the source of truth and a failure rolls the toggle back.
    */
   const setDefaultAddress = async (addressId: string) => {
-    if (!addressId || addressId.startsWith('address-')) return
+    if (!addressId) return
 
     const previous = addresses
     setAddresses((current) =>
@@ -273,9 +276,7 @@ export function AddressesPanel({
       return next
     })
 
-    // Local seed ids (address-1, address-2) are not server records, so there is
-    // nothing to delete remotely.
-    if (!addressId || addressId.startsWith('address-')) return
+    if (!addressId) return
 
     try {
       setIsSaving(true)
@@ -288,7 +289,7 @@ export function AddressesPanel({
   }
 
   const duplicateAddress = async (addressId: string) => {
-    if (!addressId || addressId.startsWith('address-')) return
+    if (!addressId) return
 
     try {
       setIsSaving(true)
@@ -394,6 +395,8 @@ export function AddressesPanel({
 
         {isLoading ? (
           <ListingLoader label="Loading addresses" />
+        ) : addresses.length === 0 ? (
+          <AccountEmptyState message={getAddressesEmptyStateMessage()} />
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {addresses.map((address) => (

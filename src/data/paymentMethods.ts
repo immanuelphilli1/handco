@@ -46,30 +46,9 @@ export const emptyPaymentMethodForm: PaymentMethodFormValues = {
   network: '',
 }
 
-export const savedPaymentMethods: PaymentMethodRecord[] = [
-  {
-    id: 'payment-1',
-    cardholderName: 'Clement Nii Odai Afotey',
-    type: 'paypal',
-    maskedDetail: 'vik***r@g**.com',
-    isDefault: true,
-  },
-  {
-    id: 'payment-2',
-    cardholderName: 'Clement Nii Odai Afotey',
-    type: 'visa',
-    maskedDetail: '114********215',
-    isDefault: false,
-  },
-  {
-    id: 'payment-3',
-    cardholderName: 'Clement Nii Odai Afotey',
-    type: 'mobile_money',
-    network: 'MTN',
-    maskedDetail: '054********127',
-    isDefault: false,
-  },
-]
+export function getPaymentMethodsEmptyStateMessage(): string {
+  return "You don't have any saved payment methods"
+}
 
 export function countryOptionToType(option: PaymentCountryOption): PaymentMethodType {
   switch (option) {
