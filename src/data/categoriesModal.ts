@@ -18,6 +18,18 @@ export type Subcategory = {
   image: string
 }
 
+/**
+ * UI-only label for "show me the whole catalog, ignoring the category". It is
+ * not a real backend subcategory, so it must never be forwarded as an API
+ * `subcategory` param (it matches zero products) and it must not be sent as a
+ * `categoryId` either - `categoryId=featured` returns only the featured items,
+ * not every product.
+ *
+ * Defined here rather than in `catalogCategories` so the label can be listed as
+ * a real subcategory entry without a circular import.
+ */
+export const ALL_PRODUCTS_LABEL = 'All products'
+
 export type CategorySection = {
   title: string
   items: Subcategory[]
@@ -53,7 +65,7 @@ export const categorySubcategories: Record<
   Exclude<SidebarCategoryId, 'all-categories'>,
   Subcategory[]
 > = {
-  featured: buildSubcategories(['Best Sellers', 'Top Rated', 'Deals']),
+  featured: buildSubcategories(['Best Sellers', 'Top Rated', 'Deals', ALL_PRODUCTS_LABEL], 3),
   'new-releases': buildSubcategories(
     ['Latest Arrivals', 'Just Dropped', 'Coming Soon', 'Fresh Picks', 'Limited Edition'],
     3,
@@ -107,7 +119,10 @@ export function getSubcategoryOptions(categoryId: SidebarCategoryId): string[] {
     )
   }
 
-  return categorySubcategories[categoryId].map((item) => item.label)
+  // The API returns leaf category ids (e.g. "home-garden-kitchen") that are not
+  // keys in this static map, so an unknown id must resolve to an empty list
+  // rather than throwing on a missing lookup.
+  return categorySubcategories[categoryId]?.map((item) => item.label) ?? []
 }
 
 export const categoryIdByTitle = Object.fromEntries(

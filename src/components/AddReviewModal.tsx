@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { accountApi } from '../api'
+import { ApiError } from '../api/client'
 import CheckLineIcon from 'remixicon-react/CheckLineIcon'
 import CloseFillIcon from 'remixicon-react/CloseFillIcon'
 import StarFillIcon from 'remixicon-react/StarFillIcon'
@@ -125,20 +127,19 @@ function ReviewSuccessContent({ onClose }: { onClose: () => void }) {
 }
 
 export function AddReviewModal({ review, onClose, onSubmitSuccess }: AddReviewModalProps) {
+  // The parent keys this component by review id, so every fresh target starts
+  // from blank state in its first render. Deriving that reset from the prop in
+  // an effect would instead paint one frame carrying the previous review.
   const [rating, setRating] = useState(0)
   const [title, setTitle] = useState('')
   const [detailedReview, setDetailedReview] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!review) return
+  const isOpen = review !== null
 
-    setRating(0)
-    setTitle('')
-    setDetailedReview('')
-    setIsSubmitted(false)
-  }, [review])
-
+  /** Hands the submitted review back so the row can move to the Reviewed tab. */
   const handleClose = useCallback(() => {
     if (isSubmitted && review) {
       onSubmitSuccess?.(review.id)
@@ -147,7 +148,7 @@ export function AddReviewModal({ review, onClose, onSubmitSuccess }: AddReviewMo
   }, [isSubmitted, onClose, onSubmitSuccess, review])
 
   useEffect(() => {
-    if (!review) return
+    if (!isOpen) return
 
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
 
@@ -158,10 +159,10 @@ export function AddReviewModal({ review, onClose, onSubmitSuccess }: AddReviewMo
       document.body.style.overflow = ''
       document.body.style.paddingRight = ''
     }
-  }, [review])
+  }, [isOpen])
 
   useEffect(() => {
-    if (!review) return
+    if (!isOpen) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') handleClose()
@@ -170,13 +171,49 @@ export function AddReviewModal({ review, onClose, onSubmitSuccess }: AddReviewMo
     document.addEventListener('keydown', handleKeyDown)
 
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [handleClose, review])
+  }, [handleClose, isOpen])
 
-  const handleSubmit = () => {
-    setIsSubmitted(true)
+  /**
+   * Posts the review to the server. The success screen is only shown once the
+   * call lands, so a rejected review keeps the form open with the reason.
+   */
+  const handleSubmit = async () => {
+    if (!review) return
+
+    if (rating === 0) {
+      setErrorMessage('Please choose a star rating before submitting.')
+      return
+    }
+    if (!title.trim()) {
+      setErrorMessage('Please add a review title before submitting.')
+      return
+    }
+
+    setErrorMessage(null)
+    setIsSubmitting(true)
+
+    try {
+      await accountApi.submitReview({
+        reviewId: review.id,
+        rating,
+        title: title.trim(),
+        detailedReview: detailedReview.trim(),
+      })
+      setIsSubmitted(true)
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiError && error.message
+          ? error.message
+          : 'We could not submit your review. Please try again.',
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (!review) return null
+
+  const activeReview = review
 
   return createPortal(
     <>
@@ -223,30 +260,30 @@ export function AddReviewModal({ review, onClose, onSubmitSuccess }: AddReviewMo
           <div className="overflow-y-auto">
             <div className="flex flex-col gap-4 border-b border-border-primary px-6 pb-4 pt-4 lg:flex-row lg:items-start">
               <div className="size-29.5 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary">
-                <img alt="" className="size-full object-cover" src={review.productImage} />
+                <img alt="" className="size-full object-cover" src={activeReview.productImage} />
               </div>
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-col gap-4">
                   <p className="line-clamp-2 text-sm leading-4 tracking-[-0.28px] text-text-secondary">
-                    {review.productName}
+                    {activeReview.productName}
                   </p>
                   <span className="w-fit rounded-lg bg-bg-secondary px-2 py-1 text-xs font-medium leading-4 tracking-[-0.24px] text-text-primary">
-                    Order ID: {review.orderId}
+                    Order ID: {activeReview.orderId}
                   </span>
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-8">
                   <p className="flex items-baseline gap-1 text-text-primary">
                     <span className="text-sm leading-4 tracking-[-0.28px]">
-                      {review.priceCurrency}
+                      {activeReview.priceCurrency}
                     </span>
                     <span className="text-xl font-semibold leading-6 tracking-[-0.4px]">
-                      {review.priceAmount}
+                      {activeReview.priceAmount}
                     </span>
                   </p>
                   <p className="text-sm font-medium leading-4 tracking-[-0.28px] text-text-tertiary">
-                    QTY: {review.quantity}
+                    QTY: {activeReview.quantity}
                   </p>
                 </div>
               </div>
@@ -259,7 +296,7 @@ export function AddReviewModal({ review, onClose, onSubmitSuccess }: AddReviewMo
                   Buy again
                 </button>
                 <p className="text-center text-xs font-medium leading-4 tracking-[-0.24px] text-text-tertiary">
-                  Delivered on {review.deliveredOn}
+                  Delivered on {activeReview.deliveredOn}
                 </p>
               </div>
             </div>
@@ -287,12 +324,22 @@ export function AddReviewModal({ review, onClose, onSubmitSuccess }: AddReviewMo
                 multiline
               />
 
+              {errorMessage ? (
+                <p
+                  role="alert"
+                  className="rounded-xl bg-orange-light px-4 py-3 text-sm font-medium leading-4.5 tracking-[-0.28px] text-primary-orange"
+                >
+                  {errorMessage}
+                </p>
+              ) : null}
+
               <button
                 type="button"
-                onClick={handleSubmit}
-                className="btn-orange flex h-10 w-fit cursor-pointer items-center justify-center rounded-full px-4 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse"
+                onClick={() => void handleSubmit()}
+                disabled={isSubmitting}
+                className="btn-orange flex h-10 w-fit cursor-pointer items-center justify-center rounded-full px-4 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Submit your review
+                {isSubmitting ? 'Submitting…' : 'Submit your review'}
               </button>
             </div>
           </div>

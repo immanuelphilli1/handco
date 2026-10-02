@@ -8,19 +8,17 @@ import {
 } from 'react'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
-import { newArrivalProducts, type Product } from '../data/products'
+import { newArrivalProducts as fallbackNewArrivals, type Product } from '../data/products'
 import { getProductPath } from '../data/shopRoutes'
+import { useCatalog } from '../context/CatalogContext'
 import { CarouselDots } from './CarouselDots'
 import { ProductCard } from './ProductCard'
 
 const AUTO_PLAY_INTERVAL_MS = 8000
-const PRODUCT_COUNT = newArrivalProducts.length
 const MOBILE_PRODUCT_COUNT = 5
 const DESKTOP_ITEMS_PER_VIEW = 4
 const DESKTOP_MEDIA_QUERY = '(min-width: 1024px)'
 const TRANSITION_MS = 700
-
-const mobileProducts = newArrivalProducts.slice(0, MOBILE_PRODUCT_COUNT)
 
 const carouselArrowButton =
   'group flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-3 transition-colors hover:bg-orange-light active:bg-orange-light'
@@ -57,11 +55,17 @@ type NewArrivalsSectionProps = {
 }
 
 export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps) {
+  const { newArrivalProducts, isReady } = useCatalog()
+  const newArrivalProductsList =
+    isReady && newArrivalProducts.length > 0 ? newArrivalProducts : fallbackNewArrivals
+  const productCount = Math.max(newArrivalProductsList.length, 1)
+  const mobileProducts = newArrivalProductsList.slice(0, MOBILE_PRODUCT_COUNT)
   const isDesktop = useIsDesktop()
   const mobileTrackRef = useRef<HTMLDivElement>(null)
   const [mobileActiveIndex, setMobileActiveIndex] = useState(0)
   const trackRef = useRef<HTMLDivElement>(null)
   const slideIndexRef = useRef(DESKTOP_ITEMS_PER_VIEW)
+  const startIndex = DESKTOP_ITEMS_PER_VIEW
   const isAnimatingRef = useRef(false)
   const resetTimeoutRef = useRef<number | null>(null)
 
@@ -70,13 +74,12 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
   const [isPaused, setIsPaused] = useState(false)
   const [enableTransition, setEnableTransition] = useState(true)
 
-  const startIndex = DESKTOP_ITEMS_PER_VIEW
-  const resetEndIndex = startIndex + PRODUCT_COUNT
-  const resetStartIndex = startIndex + PRODUCT_COUNT - 1
+  const resetEndIndex = startIndex + productCount
+  const resetStartIndex = startIndex + productCount - 1
 
   const loopedProducts = useMemo(
-    () => buildLoopedProducts(newArrivalProducts, DESKTOP_ITEMS_PER_VIEW),
-    [],
+    () => buildLoopedProducts(newArrivalProductsList, DESKTOP_ITEMS_PER_VIEW),
+    [newArrivalProductsList],
   )
 
   const setSlideIndex = useCallback((nextIndex: number | ((index: number) => number)) => {
@@ -88,7 +91,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
   }, [])
 
   const activeProductIndex =
-    (((slideIndex - startIndex) % PRODUCT_COUNT) + PRODUCT_COUNT) % PRODUCT_COUNT
+    (((slideIndex - startIndex) % productCount) + productCount) % productCount
 
   const clearResetTimeout = useCallback(() => {
     if (resetTimeoutRef.current !== null) {
@@ -188,6 +191,10 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
   )
 
   useEffect(() => {
+    jumpWithoutTransition(startIndex)
+  }, [jumpWithoutTransition, newArrivalProductsList, startIndex])
+
+  useEffect(() => {
     if (!isDesktop) return
 
     measureSlideStep()
@@ -199,7 +206,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
     observer.observe(track)
 
     return () => observer.disconnect()
-  }, [isDesktop, measureSlideStep])
+  }, [isDesktop, measureSlideStep, newArrivalProductsList])
 
   useEffect(() => {
     if (!isDesktop || enableTransition) return
@@ -233,7 +240,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
     if (!step) return
 
     setMobileActiveIndex(Math.min(Math.round(track.scrollLeft / step), mobileProducts.length - 1))
-  }, [])
+  }, [mobileProducts.length])
 
   const scrollToMobileProduct = useCallback((index: number) => {
     const track = mobileTrackRef.current
@@ -249,6 +256,14 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
     setMobileActiveIndex(index)
   }, [])
 
+  const showMobilePrevious = useCallback(() => {
+    scrollToMobileProduct(Math.max(0, mobileActiveIndex - 1))
+  }, [mobileActiveIndex, scrollToMobileProduct])
+
+  const showMobileNext = useCallback(() => {
+    scrollToMobileProduct(Math.min(mobileProducts.length - 1, mobileActiveIndex + 1))
+  }, [mobileActiveIndex, mobileProducts.length, scrollToMobileProduct])
+
   return (
     <section className="overflow-x-clip border-b border-border-primary px-4 lg:px-16">
       <div className="flex flex-col gap-2 py-4 lg:gap-4 lg:py-6">
@@ -256,26 +271,24 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
           <h2 className="flex-1 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary lg:text-2xl lg:leading-8 lg:tracking-[-0.48px]">
             New Arrivals
           </h2>
-          {isDesktop ? (
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={showPreviousSlide}
-                className={carouselArrowButton}
-                aria-label="Previous products"
-              >
-                <ArrowLeftSLineIcon className={carouselArrowIcon} aria-hidden />
-              </button>
-              <button
-                type="button"
-                onClick={showNextSlide}
-                className={carouselArrowButton}
-                aria-label="Next products"
-              >
-                <ArrowRightSLineIcon className={carouselArrowIcon} aria-hidden />
-              </button>
-            </div>
-          ) : null}
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={isDesktop ? showPreviousSlide : showMobilePrevious}
+              className={carouselArrowButton}
+              aria-label="Previous products"
+            >
+              <ArrowLeftSLineIcon className={carouselArrowIcon} aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={isDesktop ? showNextSlide : showMobileNext}
+              className={carouselArrowButton}
+              aria-label="Next products"
+            >
+              <ArrowRightSLineIcon className={carouselArrowIcon} aria-hidden />
+            </button>
+          </div>
         </div>
 
         {isDesktop ? (
@@ -295,7 +308,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
               >
                 {loopedProducts.map((product, index) => (
                   <div
-                    key={`${product.name}-${product.category}-${index}`}
+                    key={`${product.id}-${index}`}
                     className="flex w-[calc((100%-1.5rem)/4)] min-w-0 shrink-0"
                   >
                     <ProductCard
@@ -310,9 +323,9 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
             </div>
 
             <div className="flex items-center justify-center gap-2 px-8 py-2">
-              {newArrivalProducts.map((product, index) => (
+              {newArrivalProductsList.map((product, index) => (
                 <button
-                  key={`${product.name}-${product.category}-${index}`}
+                  key={`${product.id}-${index}`}
                   type="button"
                   onClick={() => goToProduct(index)}
                   aria-label={`Go to ${product.name}`}
@@ -334,7 +347,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
             >
               {mobileProducts.map((product, index) => (
                 <div
-                  key={`${product.name}-${product.category}-${index}`}
+                  key={`${product.id}-${index}`}
                   className="w-[calc((100%-8px)/2)] shrink-0 snap-start"
                 >
                   <ProductCard

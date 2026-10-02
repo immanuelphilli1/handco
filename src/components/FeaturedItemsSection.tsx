@@ -1,14 +1,19 @@
 import { getHomeFeaturedProducts, type Product } from '../data/products'
 import { getProductPath } from '../data/shopRoutes'
+import { useCatalog } from '../context/CatalogContext'
 import { ProductCard } from './ProductCard'
 
 type FeaturedItemsSectionProps = {
   onProductSelect?: (product: Product) => void
 }
 
-const homeFeaturedProducts = getHomeFeaturedProducts()
+const fallbackFeaturedProducts = getHomeFeaturedProducts()
 
 export function FeaturedItemsSection({ onProductSelect }: FeaturedItemsSectionProps) {
+  const { featuredProducts, isReady } = useCatalog()
+  const homeFeaturedProducts =
+    isReady && featuredProducts.length > 0 ? featuredProducts : fallbackFeaturedProducts
+
   return (
     <section className="border-b border-border-primary px-4 lg:px-16">
       <div className="flex flex-col gap-4 pt-6 pb-4 lg:py-6">

@@ -1,4 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { accountApi } from '../api'
+import { ApiError } from '../api/client'
+import { mapApiBrowsingHistory } from '../api/mappers'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import {
   browsingHistorySections as initialSections,
@@ -6,6 +9,7 @@ import {
   type BrowsingHistorySection,
 } from '../data/browsingHistory'
 import { ProductCard } from './ProductCard'
+import { ListingLoader } from './ListingLoader'
 
 function HistorySelectToggle({
   selected,
@@ -206,6 +210,47 @@ function BrowsingHistorySectionBlock({
   )
 }
 
+/** Inline confirmation, so clearing the whole history is never one stray tap. */
+function ClearAllConfirm({
+  isClearing,
+  onCancel,
+  onConfirm,
+}: {
+  isClearing: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <div className="mb-6 rounded-2xl border border-border-primary bg-bg-secondary p-4">
+      <p className="text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
+        Clear your entire browsing history?
+      </p>
+      <p className="mt-2 text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
+        This removes every product you have viewed and cannot be undone.
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={isClearing}
+          className="btn-orange flex h-11 cursor-pointer items-center justify-center rounded-full px-5 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isClearing ? 'Clearing…' : 'Yes, clear all'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isClearing}
+          className="flex h-11 cursor-pointer items-center justify-center rounded-full bg-bg-primary px-5 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function BrowsingHistoryPanel() {
   const [sections, setSections] = useState<BrowsingHistorySection[]>(() =>
     initialSections.map((section) => ({
@@ -215,10 +260,65 @@ export function BrowsingHistoryPanel() {
   )
   const [isManageMode, setIsManageMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [isLoading, setIsLoading] = useState(true)
+  const [isClearing, setIsClearing] = useState(false)
+  const [showClearAll, setShowClearAll] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadHistory() {
+      setIsLoading(true)
+      try {
+        const response = await accountApi.getBrowsingHistory()
+        const items = mapApiBrowsingHistory(response)
+        if (!cancelled && items.length > 0) {
+          setSections(items)
+        }
+      } catch {
+        // Keep static fallback history.
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    void loadHistory()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const allItemIds = useMemo(() => getAllHistoryItemIds(sections), [sections])
   const selectedCount = selectedIds.size
   const allSelected = allItemIds.length > 0 && allItemIds.every((id) => selectedIds.has(id))
+  const hasHistory = sections.some((section) => section.items.length > 0)
+
+  /** Empties the list everywhere, then tells the server to forget it too. */
+  const handleClearAll = async () => {
+    const previous = sections
+
+    setSections([])
+    setSelectedIds(new Set())
+    setIsManageMode(false)
+    setShowClearAll(false)
+    setIsClearing(true)
+    setErrorMessage(null)
+
+    try {
+      await accountApi.clearBrowsingHistory()
+    } catch (error) {
+      setSections(previous)
+      setErrorMessage(
+        error instanceof ApiError && error.message
+          ? error.message
+          : 'We could not clear your browsing history. Please try again.',
+      )
+    } finally {
+      setIsClearing(false)
+    }
+  }
 
   const exitManageMode = () => {
     setIsManageMode(false)
@@ -258,8 +358,12 @@ export function BrowsingHistoryPanel() {
     setSelectedIds(new Set(allItemIds))
   }
 
-  const handleDelete = () => {
+  /** Removes the selected rows locally, then mirrors the delete on the server. */
+  const handleDelete = async () => {
     if (selectedCount === 0) return
+
+    const previous = sections
+    const rids = [...selectedIds]
 
     setSections((current) =>
       current
@@ -270,6 +374,16 @@ export function BrowsingHistoryPanel() {
         .filter((section) => section.items.length > 0),
     )
     setSelectedIds(new Set())
+
+    // Local seed ids (today-0, nov-12-3) are not server records.
+    const serverRids = rids.filter((id) => !/^(today|nov-\d+)-\d+$/.test(id))
+    if (serverRids.length === 0) return
+
+    try {
+      await accountApi.deleteBrowsingHistory(serverRids)
+    } catch {
+      setSections(previous)
+    }
   }
 
   return (
@@ -284,19 +398,56 @@ export function BrowsingHistoryPanel() {
         />
       ) : null}
 
-      <div className="flex flex-col gap-8 lg:gap-10">
-        {sections.map((section) => (
-          <BrowsingHistorySectionBlock
-            key={section.id}
-            section={section}
-            isManageMode={isManageMode}
-            selectedIds={selectedIds}
-            onEnterManageMode={() => setIsManageMode(true)}
-            onToggleSection={() => toggleSection(section)}
-            onToggleItem={toggleItem}
-          />
-        ))}
-      </div>
+      {hasHistory && !isManageMode ? (
+        <div className="mb-6 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowClearAll(true)}
+            className="cursor-pointer text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-secondary underline underline-offset-4 hover:text-primary-orange"
+          >
+            Clear all history
+          </button>
+        </div>
+      ) : null}
+
+      {errorMessage ? (
+        <p
+          role="alert"
+          className="mb-4 rounded-xl bg-orange-light px-4 py-3 text-sm font-medium leading-4.5 tracking-[-0.28px] text-primary-orange"
+        >
+          {errorMessage}
+        </p>
+      ) : null}
+
+      {showClearAll ? (
+        <ClearAllConfirm
+          isClearing={isClearing}
+          onCancel={() => setShowClearAll(false)}
+          onConfirm={() => void handleClearAll()}
+        />
+      ) : null}
+
+      {isLoading ? (
+        <ListingLoader label="Loading browsing history" />
+      ) : hasHistory ? (
+        <div className="flex flex-col gap-8 lg:gap-10">
+          {sections.map((section) => (
+            <BrowsingHistorySectionBlock
+              key={section.id}
+              section={section}
+              isManageMode={isManageMode}
+              selectedIds={selectedIds}
+              onEnterManageMode={() => setIsManageMode(true)}
+              onToggleSection={() => toggleSection(section)}
+              onToggleItem={toggleItem}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="py-12 text-center text-base font-medium leading-5 tracking-[-0.32px] text-text-tertiary">
+          You have not browsed any products yet.
+        </p>
+      )}
     </div>
   )
 }

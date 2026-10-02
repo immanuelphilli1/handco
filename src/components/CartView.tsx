@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import DeleteBin7LineIcon from 'remixicon-react/DeleteBin7LineIcon'
 import type { CartItem } from '../data/cart'
+import { useShop } from '../context/ShopContext'
+import { useRecommendations } from '../hooks/useCatalogProducts'
 import { cartRecommendations } from '../data/wishlist'
 import { OrderSummaryPanel } from './OrderSummaryPanel'
 import { PageBreadcrumbs } from './PageBreadcrumbs'
@@ -8,10 +10,9 @@ import { ProductCard } from './ProductCard'
 import { QuantityStepper } from './QuantityStepper'
 
 type CartViewProps = {
-  items: CartItem[]
-  onItemsChange: (items: CartItem[]) => void
   onGoHome: () => void
   onCheckout: () => void
+  onGoToProduct: (productId: string) => void
 }
 
 function CartCheckbox({
@@ -42,12 +43,14 @@ function CartItemRow({
   onDelete,
   onDecrease,
   onIncrease,
+  onGoToProduct,
 }: {
   item: CartItem
   onToggleSelected: () => void
   onDelete: () => void
   onDecrease: () => void
   onIncrease: () => void
+  onGoToProduct: () => void
 }) {
   return (
     <article className="border-b border-border-primary py-4">
@@ -58,9 +61,14 @@ function CartItemRow({
             onChange={onToggleSelected}
             label={`Select ${item.name}`}
           />
-          <div className="size-20 shrink-0 overflow-hidden rounded-[11px] border border-border-primary bg-bg-secondary lg:size-36">
+          <button
+            type="button"
+            onClick={onGoToProduct}
+            aria-label={`View ${item.name}`}
+            className="size-20 shrink-0 cursor-pointer overflow-hidden rounded-[11px] border border-border-primary bg-bg-secondary lg:size-36"
+          >
             <img alt="" className="size-full object-cover" src={item.image} />
-          </div>
+          </button>
           <div className="min-w-0 flex-1 lg:hidden">
             <div className="flex items-start gap-2">
               <p className="line-clamp-3 flex-1 text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
@@ -83,9 +91,15 @@ function CartItemRow({
 
         <div className="hidden min-w-0 flex-1 lg:block">
           <div className="flex items-start gap-4">
-            <p className="line-clamp-2 flex-1 text-base leading-5 tracking-[-0.32px] text-text-secondary">
-              {item.name}
-            </p>
+            <button
+              type="button"
+              onClick={onGoToProduct}
+              className="min-w-0 flex-1 cursor-pointer text-left"
+            >
+              <p className="line-clamp-2 text-base leading-5 tracking-[-0.32px] text-text-secondary">
+                {item.name}
+              </p>
+            </button>
             <button
               type="button"
               onClick={onDelete}
@@ -141,17 +155,30 @@ function CartItemRow({
   )
 }
 
-export function CartView({ items, onItemsChange, onGoHome, onCheckout }: CartViewProps) {
-  const selectedCount = useMemo(() => items.filter((item) => item.selected).length, [items])
-  const allSelected = items.length > 0 && selectedCount === items.length
+export function CartView({ onGoHome, onCheckout, onGoToProduct }: CartViewProps) {
+  const {
+    cartItems,
+    updateCartItem,
+    removeCartItem,
+    removeSelectedCartItems,
+    selectAllCartItems,
+    moveSelectedToWishlist,
+  } = useShop()
+  const recommendationProducts = useRecommendations('cart', cartRecommendations)
+
+  const selectedCount = useMemo(() => cartItems.filter((item) => item.selected).length, [cartItems])
+  const allSelected = cartItems.length > 0 && selectedCount === cartItems.length
 
   const toggleAll = () => {
-    const next = !allSelected
-    onItemsChange(items.map((item) => ({ ...item, selected: next })))
+    void selectAllCartItems(!allSelected)
   }
 
   const deleteSelected = () => {
-    onItemsChange(items.filter((item) => !item.selected))
+    void removeSelectedCartItems()
+  }
+
+  const moveSelected = () => {
+    void moveSelectedToWishlist()
   }
 
   return (
@@ -175,7 +202,7 @@ export function CartView({ items, onItemsChange, onGoHome, onCheckout }: CartVie
                   label="Select all items"
                 />
                 <p className="min-w-0 flex-1 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
-                  Select all ({items.length})
+                  Select all ({cartItems.length})
                 </p>
                 <div className="hidden items-center gap-2 lg:flex">
                   <button
@@ -187,6 +214,7 @@ export function CartView({ items, onItemsChange, onGoHome, onCheckout }: CartVie
                   </button>
                   <button
                     type="button"
+                    onClick={moveSelected}
                     className="cursor-pointer rounded-full bg-bg-secondary px-4 py-2 text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary"
                   >
                     Move to wishlist
@@ -195,7 +223,7 @@ export function CartView({ items, onItemsChange, onGoHome, onCheckout }: CartVie
               </div>
 
               <div className="px-4">
-                {items.length === 0 ? (
+                {cartItems.length === 0 ? (
                   <div className="flex min-h-48 flex-col items-center justify-center gap-2 py-10 text-center">
                     <p className="text-xl font-medium leading-6 tracking-[-0.4px] text-text-primary">
                       Your cart is empty
@@ -205,38 +233,25 @@ export function CartView({ items, onItemsChange, onGoHome, onCheckout }: CartVie
                     </p>
                   </div>
                 ) : (
-                  items.map((item) => (
+                  cartItems.map((item) => (
                     <CartItemRow
                       key={item.id}
                       item={item}
                       onToggleSelected={() =>
-                        onItemsChange(
-                          items.map((entry) =>
-                            entry.id === item.id
-                              ? { ...entry, selected: !entry.selected }
-                              : entry,
-                          ),
-                        )
+                        void updateCartItem(item.id, { selected: !item.selected })
                       }
-                      onDelete={() => onItemsChange(items.filter((entry) => entry.id !== item.id))}
+                      onDelete={() => void removeCartItem(item.id)}
                       onDecrease={() =>
-                        onItemsChange(
-                          items.map((entry) =>
-                            entry.id === item.id && entry.quantity > 1
-                              ? { ...entry, quantity: entry.quantity - 1 }
-                              : entry,
-                          ),
-                        )
+                        void updateCartItem(item.id, {
+                          quantity: Math.max(1, item.quantity - 1),
+                        })
                       }
                       onIncrease={() =>
-                        onItemsChange(
-                          items.map((entry) =>
-                            entry.id === item.id
-                              ? { ...entry, quantity: entry.quantity + 1 }
-                              : entry,
-                          ),
-                        )
+                        void updateCartItem(item.id, { quantity: item.quantity + 1 })
                       }
+                      onGoToProduct={() => {
+                        if (item.productRid) onGoToProduct(item.productRid)
+                      }}
                     />
                   ))
                 )}
@@ -251,7 +266,7 @@ export function CartView({ items, onItemsChange, onGoHome, onCheckout }: CartVie
           <div className="hidden lg:block">
             <div className="mb-4 rounded-2xl border border-border-primary bg-bg-primary p-4">
               <p className="text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
-                All items({items.length})
+                All items({cartItems.length})
               </p>
             </div>
             <OrderSummaryPanel mode="cart" onPrimaryAction={onCheckout} />
@@ -263,8 +278,8 @@ export function CartView({ items, onItemsChange, onGoHome, onCheckout }: CartVie
             You may also like
           </h2>
           <div className="grid grid-cols-2 items-stretch gap-2 lg:grid-cols-5 lg:gap-2">
-            {cartRecommendations.slice(0, 10).map((product, index) => (
-              <ProductCard key={`${product.name}-${index}`} product={product} />
+            {recommendationProducts.slice(0, 10).map((product, index) => (
+              <ProductCard key={`${product.id}-${index}`} product={product} />
             ))}
           </div>
         </div>

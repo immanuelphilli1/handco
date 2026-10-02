@@ -1,4 +1,14 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  mapApiOrder,
+  mapApiPaymentMethods,
+  mapApiProduct,
+  mapApiProfile,
+  mapApiReviewSlots,
+} from '../api/mappers'
+import { accountApi, ordersApi } from '../api'
+import { ApiError } from '../api/client'
+import { useAuth } from '../context/AuthContext'
 import ArrowDownSLineIcon from 'remixicon-react/ArrowDownSLineIcon'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
@@ -13,6 +23,7 @@ import Wallet3LineIcon from 'remixicon-react/Wallet3LineIcon'
 import {
   buyAgainProducts,
   filterOrders,
+  getBuyAgainProductsFromOrders,
   getOrdersEmptyStateMessage,
   orderFilterTabs,
   type BuyAgainProduct,
@@ -35,15 +46,15 @@ import {
 import {
   accountProtectionDescription,
   accountProtectionTitle,
-  defaultAddress,
   getProfileInitials,
-  paymentMethod,
   privacyNotice,
   profileTabs,
   securitySettings,
   userProfile,
+  type DefaultAddress,
   type ProfileTab,
 } from '../data/profile'
+import { paymentTypeLabel, type PaymentMethodRecord } from '../data/paymentMethods'
 import { images } from '../assets/images'
 import { AddReviewModal } from './AddReviewModal'
 import { EditProfileModal } from './EditProfileModal'
@@ -51,6 +62,15 @@ import { BrowsingHistoryPanel } from './BrowsingHistoryPanel'
 import { AddressesPanel } from './AddressesPanel'
 import { PaymentMethodsPanel } from './PaymentMethodsPanel'
 import { NotificationsPanel } from './NotificationsPanel'
+import { ListingLoader } from './ListingLoader'
+import { OrderTrackingModal } from './OrderTrackingModal'
+import { ReturnRefundModal } from './ReturnRefundModal'
+import { useBuyAgain } from '../hooks/useBuyAgain'
+import { useDefaultAddress } from '../hooks/useDefaultAddress'
+import { useOrderDetail } from '../hooks/useOrderDetail'
+import { useNavigate } from 'react-router-dom'
+import { useShop } from '../context/ShopContext'
+import { getCartPath } from '../data/shopRoutes'
 import EditBoxLineIcon from 'remixicon-react/EditBoxLineIcon'
 import LockFillIcon from 'remixicon-react/LockFillIcon'
 import ShieldCheckFillIcon from 'remixicon-react/ShieldCheckFillIcon'
@@ -63,6 +83,12 @@ type YourOrdersViewProps = {
   onGoHome: () => void
   section: AccountSection
   onSectionChange: (section: AccountSection) => void
+  /** Opens the refund policy page, used by the Return/Refund dialog. */
+  onViewRefundPolicy: () => void
+  /** Set when arriving at Addresses from checkout's "Edit" link. */
+  startEditingDefaultAddress?: boolean
+  /** Clears that intent once the form is dismissed. */
+  onDismissEditIntent?: () => void
 }
 
 type RemixIcon = typeof UserLineIcon
@@ -240,7 +266,21 @@ function OrderProductCarousel({ images }: { images: string[] }) {
   )
 }
 
-function OrderCard({ order }: { order: OrderRecord }) {
+function OrderCard({
+  order,
+  onBuyAgain,
+  onReturnRefund,
+  onTrackOrder,
+  onViewDetails,
+  isBuyingAgain,
+}: {
+  order: OrderRecord
+  onBuyAgain: (order: OrderRecord) => void
+  onReturnRefund: (order: OrderRecord) => void
+  onTrackOrder: (order: OrderRecord) => void
+  onViewDetails: (order: OrderRecord) => void
+  isBuyingAgain: boolean
+}) {
   return (
     <article className="overflow-hidden rounded-2xl border border-border-primary">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-primary px-4 py-4 lg:px-6">
@@ -256,6 +296,7 @@ function OrderCard({ order }: { order: OrderRecord }) {
         </div>
         <button
           type="button"
+          onClick={() => onViewDetails(order)}
           className="group flex cursor-pointer items-center gap-0 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
         >
           View order details
@@ -271,18 +312,22 @@ function OrderCard({ order }: { order: OrderRecord }) {
         <div className="flex w-full shrink-0 flex-col gap-2 lg:w-65.5">
           <button
             type="button"
-            className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-orange-light px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-primary-orange"
+            onClick={() => onBuyAgain(order)}
+            disabled={isBuyingAgain}
+            className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-orange-light px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-primary-orange disabled:cursor-wait disabled:opacity-60"
           >
-            Buy Again
+            {isBuyingAgain ? 'Adding…' : 'Buy Again'}
           </button>
           <button
             type="button"
+            onClick={() => onReturnRefund(order)}
             className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
           >
             Return/Refund
           </button>
           <button
             type="button"
+            onClick={() => onTrackOrder(order)}
             className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
           >
             Track order
@@ -326,11 +371,64 @@ function AccountEmptyState({ message }: { message: string }) {
   )
 }
 
-function OrdersPanel() {
+function OrdersPanel({
+  onViewRefundPolicy,
+  onOrdersChange,
+}: {
+  onViewRefundPolicy: () => void
+  onOrdersChange: (orders: OrderRecord[]) => void
+}) {
   const [activeFilter, setActiveFilter] = useState<OrderFilter>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [orders, setOrders] = useState<OrderRecord[]>(() => filterOrders(activeFilter))
+  const [isLoading, setIsLoading] = useState(true)
+  const navigate = useNavigate()
+  const { applyCartResponse: applyCart } = useShop()
+  const [trackingOrder, setTrackingOrder] = useState<OrderRecord | null>(null)
+  const [returnOrderTarget, setReturnOrderTarget] = useState<OrderRecord | null>(null)
+  const [isBuyingAgain, setIsBuyingAgain] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const { buyOrderAgain, addBuyAgainProductToCart } = useBuyAgain()
+  const { lines, events, isLoading: isDetailLoading, loadOrderDetail, reset } = useOrderDetail()
 
-  const filteredOrders = filterOrders(activeFilter).filter((order) => {
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadOrders() {
+      setIsLoading(true)
+      try {
+        const response = await ordersApi.listOrders({
+          status: activeFilter === 'all' ? undefined : activeFilter,
+          search: searchQuery.trim() || undefined,
+        })
+        if (!cancelled) {
+          setOrders(response.orders.map(mapApiOrder))
+        }
+      } catch {
+        if (!cancelled) {
+          setOrders(filterOrders(activeFilter))
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadOrders()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeFilter, searchQuery])
+
+  // The "Buy this again" rail is a sibling of this panel, so the loaded orders
+  // are published upward to keep both in step.
+  useEffect(() => {
+    onOrdersChange(orders)
+  }, [onOrdersChange, orders])
+
+  const filteredOrders = orders.filter((order) => {
     if (!searchQuery.trim()) return true
     const query = searchQuery.toLowerCase()
     return order.id.toLowerCase().includes(query)
@@ -338,8 +436,72 @@ function OrdersPanel() {
 
   const emptyStateMessage = getOrdersEmptyStateMessage(activeFilter, searchQuery.trim().length > 0)
 
+  /**
+   * Buy Again asks the server to re-add the order's own lines, then refreshes the
+   * cart. Falls back to adding the lines client-side if the call fails, so the
+   * button always does something useful.
+   */
+  const handleBuyAgain = async (order: OrderRecord) => {
+    setIsBuyingAgain(true)
+    setNotice(null)
+
+    try {
+      const cart = await ordersApi.buyAgainOrder(order.id)
+      applyCart(cart)
+      navigate(getCartPath())
+    } catch {
+      const orderWithLines = lines.length > 0 ? { ...order, lines } : order
+      if (orderWithLines.lines && orderWithLines.lines.length > 0) {
+        await buyOrderAgain(orderWithLines.lines)
+        return
+      }
+      setNotice('We could not add this order to your cart. Please try again.')
+    } finally {
+      setIsBuyingAgain(false)
+    }
+  }
+
+  /** Posts the return request; the modal owns the success and error states. */
+  const handleReturnRequest = async (orderId: string, reason: string) => {
+    await ordersApi.returnOrder(orderId, reason)
+  }
+
+  const openTracking = (order: OrderRecord) => {
+    setTrackingOrder(order)
+    void loadOrderDetail(order)
+  }
+
+  const closeTracking = () => {
+    setTrackingOrder(null)
+    reset()
+  }
+
+  const trackingOrderWithLines: OrderRecord | null = trackingOrder
+    ? { ...trackingOrder, lines: lines.length > 0 ? lines : trackingOrder.lines }
+    : null
+
   return (
     <>
+      <OrderTrackingModal
+        order={trackingOrderWithLines}
+        events={events}
+        isLoading={isDetailLoading}
+        onClose={closeTracking}
+      />
+      <ReturnRefundModal
+        order={returnOrderTarget}
+        onClose={() => setReturnOrderTarget(null)}
+        onViewPolicy={onViewRefundPolicy}
+        onSubmit={handleReturnRequest}
+      />
+      {notice ? (
+        <p
+          role="alert"
+          className="mb-4 rounded-xl bg-orange-light px-4 py-3 text-sm font-medium leading-4.5 tracking-[-0.28px] text-primary-orange"
+        >
+          {notice}
+        </p>
+      ) : null}
       <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex gap-6 overflow-x-auto border-b border-border-primary pb-3 [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden">
           {orderFilterTabs.map((tab) => {
@@ -380,8 +542,20 @@ function OrdersPanel() {
       </div>
 
       <div className="flex flex-col gap-4">
-        {filteredOrders.length > 0 ? (
-          filteredOrders.map((order) => <OrderCard key={order.id} order={order} />)
+        {isLoading ? (
+          <ListingLoader label="Loading orders" />
+        ) : filteredOrders.length > 0 ? (
+          filteredOrders.map((order) => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              onBuyAgain={handleBuyAgain}
+              isBuyingAgain={isBuyingAgain}
+              onReturnRefund={(order) => setReturnOrderTarget(order)}
+              onTrackOrder={openTracking}
+              onViewDetails={openTracking}
+            />
+          ))
         ) : (
           <AccountEmptyState message={emptyStateMessage} />
         )}
@@ -391,14 +565,25 @@ function OrdersPanel() {
         <p className="col-span-2 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
           Buy this again
         </p>
-        {buyAgainProducts.map((product) => (
-          <div
-            key={`mobile-${product.id}`}
-            className="overflow-hidden rounded-2xl border border-border-primary p-2"
-          >
-            <BuyAgainProductCard product={product} />
-          </div>
-        ))}
+        {getBuyAgainProductsFromOrders(orders)
+          .concat(buyAgainProducts)
+          .filter(
+            (product, index, all) => all.findIndex((candidate) => candidate.id === product.id) === index,
+          )
+          .slice(0, 4)
+          .map((product) => (
+            <div
+              key={`mobile-${product.id}`}
+              className="overflow-hidden rounded-2xl border border-border-primary p-2"
+            >
+              <BuyAgainProductCard
+                product={product}
+                onAddToCart={(productId) => {
+                  void addBuyAgainProductToCart(productId)
+                }}
+              />
+            </div>
+          ))}
       </div>
     </>
   )
@@ -444,14 +629,17 @@ function ReviewProductDetails({
 
 function ReviewRowActions({
   primaryAction,
+  onViewDetails,
 }: {
   primaryAction: ReactNode
+  onViewDetails: () => void
 }) {
   return (
     <div className="flex w-full items-center gap-4 lg:w-54 lg:flex-col lg:items-center lg:gap-4">
       {primaryAction}
       <button
         type="button"
+        onClick={onViewDetails}
         className="group flex shrink-0 cursor-pointer items-center gap-0 text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary lg:justify-center"
       >
         View order details
@@ -467,9 +655,11 @@ function ReviewRowActions({
 function WaitingReviewRow({
   review,
   onAddReview,
+  onViewDetails,
 }: {
   review: WaitingReviewRecord
   onAddReview: (review: WaitingReviewRecord) => void
+  onViewDetails: () => void
 }) {
   return (
     <article className="flex flex-col gap-6 border-b border-border-primary py-4 lg:flex-row lg:items-center lg:gap-6">
@@ -491,12 +681,19 @@ function WaitingReviewRow({
             Add review
           </button>
         }
+        onViewDetails={onViewDetails}
       />
     </article>
   )
 }
 
-function ReviewedReviewRow({ review }: { review: ReviewedReviewRecord }) {
+function ReviewedReviewRow({
+  review,
+  onViewDetails,
+}: {
+  review: ReviewedReviewRecord
+  onViewDetails: () => void
+}) {
   return (
     <article className="flex flex-col gap-6 border-b border-border-primary py-4 lg:flex-row lg:items-center lg:gap-6">
       <div className="flex w-full gap-3 lg:contents">
@@ -516,6 +713,7 @@ function ReviewedReviewRow({ review }: { review: ReviewedReviewRecord }) {
             Buy Again
           </button>
         }
+        onViewDetails={onViewDetails}
       />
     </article>
   )
@@ -527,6 +725,39 @@ function ReviewsPanel() {
   const [reviewModalTarget, setReviewModalTarget] = useState<WaitingReviewRecord | null>(null)
   const [waitingItems, setWaitingItems] = useState(() => [...waitingReviews])
   const [reviewedItems, setReviewedItems] = useState(() => [...reviewedReviews])
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true)
+
+  // Both review lists are loaded up front so switching tabs is instant. A failed
+  // call leaves the static seed rows in place rather than an empty tab.
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadReviews() {
+      setIsLoadingReviews(true)
+      try {
+        const [waiting, reviewed] = await Promise.all([
+          accountApi.getWaitingReviews(),
+          accountApi.getReviewedReviews(),
+        ])
+        if (cancelled) return
+
+        const waitingSlots = mapApiReviewSlots(waiting)
+        const reviewedSlots = mapApiReviewSlots(reviewed)
+        if (waitingSlots.length > 0) setWaitingItems(waitingSlots)
+        if (reviewedSlots.length > 0) setReviewedItems(reviewedSlots)
+      } catch {
+        // Keep static fallback reviews.
+      } finally {
+        if (!cancelled) setIsLoadingReviews(false)
+      }
+    }
+
+    void loadReviews()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const pageSize =
     activeFilter === 'waiting' ? WAITING_REVIEWS_PAGE_SIZE : REVIEWED_REVIEWS_PAGE_SIZE
@@ -540,9 +771,63 @@ function ReviewsPanel() {
     setVisibleCount(filter === 'waiting' ? WAITING_REVIEWS_PAGE_SIZE : REVIEWED_REVIEWS_PAGE_SIZE)
   }
 
+  /**
+   * "View order details" opens the same tracker the orders tab uses. A review row
+   * carries only an order reference, so the detail is fetched for that id and the
+   * modal takes its title and image from the real line once it arrives.
+   */
+  const { lines, events, isLoading: isDetailLoading, loadOrderDetail, reset } = useOrderDetail()
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null)
+  const [detailOrderIdLoading, setDetailOrderIdLoading] = useState(false)
+
+  const openOrderDetails = async (review: WaitingReviewRecord | ReviewedReviewRecord) => {
+    const orderId = review.orderId
+    if (!orderId) return
+
+    const detailOrder: OrderRecord = {
+      id: orderId,
+      status: 'delivered',
+      statusDateLabel: '',
+      statusBadgeLabel: '',
+      itemCount: 1,
+      total: `${review.priceCurrency} ${review.priceAmount}`.trim(),
+      orderTime: review.deliveredOn,
+      productImages: review.productImage ? [review.productImage] : [],
+    }
+
+    setDetailOrderId(orderId)
+    setDetailOrderIdLoading(true)
+    try {
+      await loadOrderDetail(detailOrder)
+    } finally {
+      setDetailOrderIdLoading(false)
+    }
+  }
+
+  const closeTracking = () => {
+    setDetailOrderId(null)
+    reset()
+  }
+
+  const trackingOrder: OrderRecord | null = detailOrderId
+    ? {
+        id: detailOrderId,
+        status: 'delivered',
+        statusDateLabel: '',
+        statusBadgeLabel: '',
+        itemCount: lines.length,
+        total: '',
+        orderTime: '',
+        productImages: lines.map((line) => line.image),
+        lines: lines.length > 0 ? lines : undefined,
+      }
+    : null
+
   return (
     <>
+      {/* Keyed by review id so a new target always starts from a blank form. */}
       <AddReviewModal
+        key={reviewModalTarget?.id ?? 'closed'}
         review={reviewModalTarget}
         onClose={() => setReviewModalTarget(null)}
         onSubmitSuccess={(reviewId) => {
@@ -560,6 +845,13 @@ function ReviewsPanel() {
             return items.filter((item) => item.id !== reviewId)
           })
         }}
+      />
+
+      <OrderTrackingModal
+        order={trackingOrder}
+        events={events}
+        isLoading={isDetailLoading || detailOrderIdLoading}
+        onClose={closeTracking}
       />
 
       <div className="mb-4 flex gap-6 overflow-x-auto border-b border-border-primary px-4 pb-3 [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden">
@@ -584,7 +876,9 @@ function ReviewsPanel() {
         })}
       </div>
 
-      {filteredReviews.length > 0 ? (
+      {isLoadingReviews ? (
+        <ListingLoader label="Loading reviews" />
+      ) : filteredReviews.length > 0 ? (
         <div className="px-4">
           <div className="flex flex-col">
             {activeFilter === 'waiting'
@@ -593,10 +887,15 @@ function ReviewsPanel() {
                     key={review.id}
                     review={review}
                     onAddReview={setReviewModalTarget}
+                    onViewDetails={() => void openOrderDetails(review)}
                   />
                 ))
               : visibleReviews.map((review) => (
-                  <ReviewedReviewRow key={review.id} review={review} />
+                  <ReviewedReviewRow
+                    key={review.id}
+                    review={review}
+                    onViewDetails={() => void openOrderDetails(review)}
+                  />
                 ))}
           </div>
 
@@ -624,7 +923,13 @@ function ReviewsPanel() {
   )
 }
 
-function BuyAgainProductCard({ product }: { product: BuyAgainProduct }) {
+function BuyAgainProductCard({
+  product,
+  onAddToCart,
+}: {
+  product: BuyAgainProduct
+  onAddToCart: (productId: string) => void
+}) {
   return (
     <div className="overflow-hidden rounded-lg bg-bg-primary">
       <div className="overflow-hidden rounded-lg bg-bg-secondary">
@@ -639,6 +944,7 @@ function BuyAgainProductCard({ product }: { product: BuyAgainProduct }) {
         </p>
         <button
           type="button"
+          onClick={() => onAddToCart(product.id)}
           className="btn-orange mt-2 flex h-8.5 w-full cursor-pointer items-center justify-center rounded-full px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-inverse"
         >
           Add to cart
@@ -697,7 +1003,20 @@ function PrivacyNotice() {
   )
 }
 
-function DefaultAddressCard({ onEdit }: { onEdit: () => void }) {
+function DefaultAddressCard({
+  address,
+  onEdit,
+}: {
+  address?: DefaultAddress | null
+  onEdit: () => void
+}) {
+  // Nothing is shown when the account has no default address, rather than
+  // falling back to the static fixture, which would show a saved-seeming address
+  // that does not belong to this user. `isEmpty` guards the branch below, so the
+  // empty-object fallback here is only for the type checker.
+  const isEmpty = !address
+  const shown = address
+
   return (
     <div className="flex gap-4 rounded-firm-2 bg-bg-secondary p-4">
       <div className="min-w-0 flex-1">
@@ -706,12 +1025,14 @@ function DefaultAddressCard({ onEdit }: { onEdit: () => void }) {
         </p>
         <div className="mt-4 flex flex-col gap-2">
           <p className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary">
-            {defaultAddress.contactName} | {defaultAddress.phone}
+            {isEmpty ? 'No default address saved' : `${shown?.contactName} | ${shown?.phone}`}
           </p>
-          <div className="flex flex-col gap-2 text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
-            <p>{defaultAddress.line1}</p>
-            <p>{defaultAddress.line2}</p>
-          </div>
+          {address ? (
+            <div className="flex flex-col gap-2 text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
+              <p>{address.line1}</p>
+              <p>{address.line2}</p>
+            </div>
+          ) : null}
         </div>
       </div>
       <button
@@ -726,7 +1047,16 @@ function DefaultAddressCard({ onEdit }: { onEdit: () => void }) {
   )
 }
 
-function PaymentMethodCard({ onEdit }: { onEdit: () => void }) {
+function PaymentMethodCard({
+  payment,
+  onEdit,
+}: {
+  payment?: PaymentMethodRecord | null
+  onEdit: () => void
+}) {
+  // Falls back to the static preview when the account has no saved method yet.
+  const isEmpty = !payment
+
   return (
     <div className="flex gap-4 rounded-firm-2 bg-bg-secondary p-4">
       <div className="min-w-0 flex-1">
@@ -741,16 +1071,31 @@ function PaymentMethodCard({ onEdit }: { onEdit: () => void }) {
               className="h-6 w-8 shrink-0 object-contain"
               src={images.footer.paypal}
             />
-            <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
-              {paymentMethod.provider}
-            </span>
-            <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
-              {paymentMethod.maskedEmail}
-            </span>
+            {isEmpty ? (
+              <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
+                No saved payment method
+              </span>
+            ) : (
+              <>
+                <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
+                  {paymentTypeLabel(payment.type)}
+                </span>
+                {payment.network ? (
+                  <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
+                    {payment.network}
+                  </span>
+                ) : null}
+                <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
+                  {payment.maskedDetail}
+                </span>
+              </>
+            )}
           </div>
-          <p className="text-base leading-5 tracking-[-0.32px] text-text-secondary">
-            Added: {paymentMethod.addedOn}
-          </p>
+          {isEmpty ? null : (
+            <p className="text-base leading-5 tracking-[-0.32px] text-text-secondary">
+              {payment.cardholderName}
+            </p>
+          )}
         </div>
       </div>
       <button
@@ -770,11 +1115,17 @@ function PersonalInformationPanel({
   onEditProfile,
   onEditAddress,
   onEditPaymentMethod,
+  address,
+  paymentMethod,
+  isSaving = false,
 }: {
   profile: { fullName: string; email: string; initials: string }
   onEditProfile: () => void
   onEditAddress: () => void
   onEditPaymentMethod: () => void
+  address?: DefaultAddress | null
+  paymentMethod?: PaymentMethodRecord | null
+  isSaving?: boolean
 }) {
   return (
     <>
@@ -793,18 +1144,19 @@ function PersonalInformationPanel({
         <button
           type="button"
           onClick={onEditProfile}
-          className="flex w-fit cursor-pointer items-center justify-center rounded-full bg-text-primary px-4 py-2 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse lg:ml-auto lg:shrink-0"
+          disabled={isSaving}
+          className="flex w-fit cursor-pointer items-center justify-center rounded-full bg-text-primary px-4 py-2 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse disabled:cursor-not-allowed disabled:opacity-60 lg:ml-auto lg:shrink-0"
         >
-          Edit profile
+          {isSaving ? 'Saving…' : 'Edit profile'}
         </button>
       </div>
 
       <div className="flex flex-col gap-4 px-4 py-4 lg:flex-row lg:gap-8 lg:px-6">
         <div className="min-w-0 flex-1">
-          <DefaultAddressCard onEdit={onEditAddress} />
+          <DefaultAddressCard address={address} onEdit={onEditAddress} />
         </div>
         <div className="min-w-0 flex-1">
-          <PaymentMethodCard onEdit={onEditPaymentMethod} />
+          <PaymentMethodCard payment={paymentMethod} onEdit={onEditPaymentMethod} />
         </div>
       </div>
 
@@ -890,14 +1242,94 @@ function AccountSecurityPanel() {
 function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountSection) => void }) {
   const [activeTab, setActiveTab] = useState<ProfileTab>('personal')
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [profile, setProfile] = useState(() => ({ ...userProfile }))
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const { authUser, refreshSession } = useAuth()
 
-  const handleProfileUpdate = (fullName: string) => {
-    setProfile({
-      fullName,
-      email: profile.email,
-      initials: getProfileInitials(fullName),
-    })
+  /**
+   * The signed-in user from `/auth/me` is the source of truth for name and
+   * email, since that is what the rest of the app already shows. The profile
+   * endpoint can override them and also supplies the default address preview.
+   */
+  const [profile, setProfile] = useState(() => ({
+    fullName: authUser?.fullName ?? userProfile.fullName,
+    email: authUser?.email ?? userProfile.email,
+    initials: getProfileInitials(authUser?.fullName ?? userProfile.fullName),
+  }))
+  const [savedPayment, setSavedPayment] = useState<PaymentMethodRecord | null>(null)
+
+  /**
+   * The default address comes from its own hook so Your Profile and Checkout
+   * resolve the same record instead of reading it two different ways.
+   */
+  // ProfilePanel unmounts while the Addresses tab is open, so the hook refetches
+  // on its own when the user navigates back.
+  const { address: savedAddress } = useDefaultAddress()
+
+  // Profile details and saved payment methods load together; the default
+  // address has its own hook because Checkout reads it too.
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadProfile() {
+      setIsLoading(true)
+      try {
+        const [profileResponse, paymentResponse] = await Promise.all([
+          accountApi.getProfile(),
+          accountApi.listPaymentMethods(),
+        ])
+        if (cancelled) return
+
+        if (profileResponse.profile) {
+          const mapped = mapApiProfile(profileResponse.profile)
+          // `/users/me/profile` may omit the email, in which case the session's
+          // email is the accurate one to show.
+          setProfile({
+            fullName: mapped.fullName || authUser?.fullName || userProfile.fullName,
+            email: mapped.email || authUser?.email || userProfile.email,
+            initials: getProfileInitials(mapped.fullName || authUser?.fullName || ''),
+          })
+        }
+
+        const payments = mapApiPaymentMethods(paymentResponse)
+        setSavedPayment(payments.find((item) => item.isDefault) ?? payments[0] ?? null)
+      } catch {
+        // Keep the session-derived values and the static address fallback.
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    void loadProfile()
+
+    return () => {
+      cancelled = true
+    }
+  }, [authUser])
+
+  /** Saves the new name, then refreshes the session so the Nav updates too. */
+  const handleProfileUpdate = async (fullName: string) => {
+    setErrorMessage(null)
+    setIsSaving(true)
+
+    try {
+      const response = await accountApi.updateProfile({ fullName })
+      setProfile(
+        response.profile
+          ? mapApiProfile(response.profile)
+          : { fullName, email: profile.email, initials: getProfileInitials(fullName) },
+      )
+      await refreshSession().catch(() => undefined)
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiError && error.message
+          ? error.message
+          : 'We could not update your profile. Please try again.',
+      )
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -906,18 +1338,34 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
         isOpen={isEditModalOpen}
         fullName={profile.fullName}
         onClose={() => setIsEditModalOpen(false)}
-        onSubmit={handleProfileUpdate}
+        onSubmit={(fullName) => void handleProfileUpdate(fullName)}
       />
 
       <ProfileTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
+      {errorMessage ? (
+        <p
+          role="alert"
+          className="mx-4 mt-4 rounded-xl bg-orange-light px-4 py-3 text-sm font-medium leading-4.5 tracking-[-0.28px] text-primary-orange lg:mx-6"
+        >
+          {errorMessage}
+        </p>
+      ) : null}
+
       {activeTab === 'personal' ? (
-        <PersonalInformationPanel
-          profile={profile}
-          onEditProfile={() => setIsEditModalOpen(true)}
-          onEditAddress={() => onSectionChange('addresses')}
-          onEditPaymentMethod={() => onSectionChange('payments')}
-        />
+        isLoading ? (
+          <ListingLoader label="Loading profile" />
+        ) : (
+          <PersonalInformationPanel
+            profile={profile}
+            onEditProfile={() => setIsEditModalOpen(true)}
+            isSaving={isSaving}
+            address={savedAddress}
+            paymentMethod={savedPayment}
+            onEditAddress={() => onSectionChange('addresses')}
+            onEditPaymentMethod={() => onSectionChange('payments')}
+          />
+        )
       ) : (
         <AccountSecurityPanel />
       )}
@@ -925,7 +1373,56 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
   )
 }
 
-function BuyAgainSidebar() {
+function BuyAgainSidebar({
+  orders,
+  onAddToCart,
+}: {
+  orders: OrderRecord[]
+  onAddToCart: (productId: string) => void
+}) {
+  const [suggested, setSuggested] = useState<BuyAgainProduct[] | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadSuggestions() {
+      try {
+        const response = await ordersApi.getBuyAgainProducts()
+        if (cancelled) return
+
+        setSuggested(
+          response.products.map((item) => {
+            const product = mapApiProduct(item)
+            return {
+              id: product.id,
+              name: product.name,
+              price: product.price,
+              image: product.image,
+            }
+          }),
+        )
+      } catch {
+        // Suggestions are a convenience; the rail falls back to the order lines.
+        if (!cancelled) {
+          setSuggested(null)
+        }
+      }
+    }
+
+    void loadSuggestions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // The API's suggestions lead. When they are unavailable or empty, the rail
+  // falls back to products from the orders actually on screen, so it only ever
+  // advertises something this customer has bought.
+  const purchasedProducts = getBuyAgainProductsFromOrders(orders)
+  const products =
+    suggested && suggested.length > 0 ? suggested : purchasedProducts.length > 0 ? purchasedProducts : buyAgainProducts
+
   return (
     <aside className="hidden w-37.5 shrink-0 flex-col overflow-hidden rounded-2xl border border-border-primary xl:flex">
       <div className="border-b border-border-primary px-2 py-3">
@@ -934,15 +1431,31 @@ function BuyAgainSidebar() {
         </p>
       </div>
       <div className="flex flex-col gap-2 p-2">
-        {buyAgainProducts.map((product) => (
-          <BuyAgainProductCard key={product.id} product={product} />
+        {products.map((product) => (
+          <BuyAgainProductCard
+            key={product.id}
+            product={product}
+            onAddToCart={onAddToCart}
+          />
         ))}
       </div>
     </aside>
   )
 }
 
-export function YourOrdersView({ onGoHome, section, onSectionChange }: YourOrdersViewProps) {
+export function YourOrdersView({
+  onGoHome,
+  section,
+  onSectionChange,
+  onViewRefundPolicy,
+  startEditingDefaultAddress = false,
+  onDismissEditIntent,
+}: YourOrdersViewProps) {
+  // Orders live here so the panel and the "Buy this again" rail read from the
+  // same list, which keeps the rail's products tied to real purchases.
+  const [orders, setOrders] = useState<OrderRecord[]>([])
+  const { addBuyAgainProductToCart } = useBuyAgain()
+
   return (
     <>
       <AccountBreadcrumbs onGoHome={onGoHome} section={section} />
@@ -953,7 +1466,10 @@ export function YourOrdersView({ onGoHome, section, onSectionChange }: YourOrder
 
           <div className="min-w-0 flex-1">
             {section === 'orders' ? (
-              <OrdersPanel />
+              <OrdersPanel
+                onViewRefundPolicy={onViewRefundPolicy}
+                onOrdersChange={setOrders}
+              />
             ) : section === 'reviews' ? (
               <ReviewsPanel />
             ) : section === 'profile' ? (
@@ -961,7 +1477,10 @@ export function YourOrdersView({ onGoHome, section, onSectionChange }: YourOrder
             ) : section === 'history' ? (
               <BrowsingHistoryPanel />
             ) : section === 'addresses' ? (
-              <AddressesPanel />
+              <AddressesPanel
+              startEditingDefault={startEditingDefaultAddress}
+              onDismissEditIntent={onDismissEditIntent}
+            />
             ) : section === 'payments' ? (
               <PaymentMethodsPanel />
             ) : (
@@ -969,7 +1488,14 @@ export function YourOrdersView({ onGoHome, section, onSectionChange }: YourOrder
             )}
           </div>
 
-          {section === 'orders' ? <BuyAgainSidebar /> : null}
+          {section === 'orders' ? (
+            <BuyAgainSidebar
+              orders={orders}
+              onAddToCart={(productId) => {
+                void addBuyAgainProductToCart(productId)
+              }}
+            />
+          ) : null}
         </div>
       </section>
     </>

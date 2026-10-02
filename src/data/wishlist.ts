@@ -21,6 +21,4 @@ export const cartRecommendations: Product[] = [
   ...newArrivalProducts.slice(0, 3),
 ]
 
-export const checkoutCarouselProducts: Product[] = newArrivalProducts.slice(0, 3)
-
 export const browseableProducts: Product[] = allProducts

@@ -1,39 +1,46 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo } from 'react'
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { BackToTopButton } from '../components/BackToTopButton'
 import { Footer } from '../components/Footer'
 import { Nav } from '../components/Nav'
 import { YourOrdersView } from '../components/YourOrdersView'
-import { useShop } from '../context/ShopContext'
-import type { AuthUser } from '../data/auth'
+import { useCategoryNavigation } from '../hooks/useCategoryNavigation'
 import {
   getAccountPath,
   parseAccountSection,
+  wantsDefaultAddressEdit,
   type AccountSection,
 } from '../data/accountRoutes'
-import type { CategoryListingSelection } from '../data/categoryListing'
-import type { SidebarCategoryId } from '../data/categoriesModal'
 import {
   getCartPath,
-  getCategoryPathFromSelection,
   getHomePath,
   getWishlistPath,
 } from '../data/shopRoutes'
 
-type AccountPageProps = {
-  authUser: AuthUser | null
-  onSignedIn: (email: string) => void
-  onSignOut: () => void
-}
-
-export function AccountPage({ authUser, onSignedIn, onSignOut }: AccountPageProps) {
+export function AccountPage() {
   const { section: sectionParam } = useParams()
   const navigate = useNavigate()
-  const { cartItemCount } = useShop()
+  const [searchParams, setSearchParams] = useSearchParams()
   const section = parseAccountSection(sectionParam)
 
-  const [isCategoriesOpen, setIsCategoriesOpen] = useState(false)
-  const [categoriesTargetId, setCategoriesTargetId] = useState<SidebarCategoryId>('featured')
+  // Checkout's "Edit" link appends this flag so the addresses panel opens its
+  // edit form on arrival.
+  const startEditingDefaultAddress = useMemo(
+    () => section === 'addresses' && wantsDefaultAddressEdit(searchParams.toString()),
+    [searchParams, section],
+  )
+
+  /** Drops the flag once the form is dismissed, so it does not reopen. */
+  const handleDismissEditIntent = useCallback(() => {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current)
+        next.delete('edit')
+        return next
+      },
+      { replace: true },
+    )
+  }, [setSearchParams])
 
   useEffect(() => {
     if (sectionParam && !section) {
@@ -41,25 +48,15 @@ export function AccountPage({ authUser, onSignedIn, onSignOut }: AccountPageProp
     }
   }, [navigate, section, sectionParam])
 
-  const toggleCategories = useCallback(() => {
-    setIsCategoriesOpen((open) => {
-      if (open) return false
-      setCategoriesTargetId('featured')
-      return true
-    })
-  }, [])
-
-  const closeCategories = useCallback(() => {
-    setIsCategoriesOpen(false)
-  }, [])
-
-  const handleSubcategorySelect = useCallback(
-    (selection: CategoryListingSelection) => {
-      setIsCategoriesOpen(false)
-      navigate(getCategoryPathFromSelection(selection))
-    },
-    [navigate],
-  )
+  const {
+    activeCategoryId,
+    categoriesTargetId,
+    closeCategories,
+    handleSubcategorySelect,
+    isCategoriesOpen,
+    toggleCategories,
+    toggleCategoriesFromLinkBar,
+  } = useCategoryNavigation()
 
   const handleOpenCart = useCallback(() => {
     navigate(getCartPath())
@@ -73,6 +70,10 @@ export function AccountPage({ authUser, onSignedIn, onSignOut }: AccountPageProp
     navigate(getHomePath())
   }, [navigate])
 
+  const handleViewRefundPolicy = useCallback(() => {
+    navigate('/return-refund')
+  }, [navigate])
+
   const handleSectionChange = useCallback(
     (nextSection: AccountSection) => {
       navigate(getAccountPath(nextSection))
@@ -80,11 +81,6 @@ export function AccountPage({ authUser, onSignedIn, onSignOut }: AccountPageProp
     },
     [navigate],
   )
-
-  const handleSignOut = useCallback(() => {
-    onSignOut()
-    navigate(getHomePath())
-  }, [navigate, onSignOut])
 
   if (!section) {
     return <Navigate to={getAccountPath('orders')} replace />
@@ -98,14 +94,12 @@ export function AccountPage({ authUser, onSignedIn, onSignOut }: AccountPageProp
         onToggleCategories={toggleCategories}
         onCloseCategories={closeCategories}
         onSubcategorySelect={handleSubcategorySelect}
+        showCategoryLinksBar
+        onOpenCategories={toggleCategoriesFromLinkBar}
+        activeCategoryId={activeCategoryId}
         onOpenCart={handleOpenCart}
         onOpenWishlist={handleOpenWishlist}
-        cartItemCount={cartItemCount}
-        isSignedIn={authUser !== null}
-        userDisplayName={authUser?.displayName}
-        userFullName={authUser?.fullName}
-        onSignedIn={onSignedIn}
-        onSignOut={handleSignOut}
+        onAfterSignOut={handleGoHome}
         mobileActiveTab="account"
         onMobileHome={handleGoHome}
       />
@@ -115,9 +109,12 @@ export function AccountPage({ authUser, onSignedIn, onSignOut }: AccountPageProp
             section={section}
             onGoHome={handleGoHome}
             onSectionChange={handleSectionChange}
+            onViewRefundPolicy={handleViewRefundPolicy}
+            startEditingDefaultAddress={startEditingDefaultAddress}
+            onDismissEditIntent={handleDismissEditIntent}
           />
         </main>
-        <Footer />
+        <Footer onOpenCategories={toggleCategoriesFromLinkBar} />
       </div>
       <BackToTopButton />
     </>

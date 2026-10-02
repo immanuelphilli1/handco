@@ -14,6 +14,8 @@ type MobileAppNavigationProps = {
   onFavourite: () => void
   onCart: () => void
   onAccount: () => void
+  /** Total quantity in the cart, shown as a badge on the Cart tab. */
+  cartItemCount?: number
 }
 
 type TabConfig = {
@@ -38,6 +40,7 @@ export function MobileAppNavigation({
   onFavourite,
   onCart,
   onAccount,
+  cartItemCount = 0,
 }: MobileAppNavigationProps) {
   const handlers: Record<MobileNavTab, () => void> = {
     home: onHome,
@@ -65,12 +68,20 @@ export function MobileAppNavigation({
               className="flex w-20 flex-col items-center gap-px px-2 py-1.5"
               aria-current={isActive ? 'page' : undefined}
             >
-              <Icon
-                className={`size-6.5 shrink-0 ${
-                  isActive ? 'text-primary-orange' : 'text-text-tertiary'
-                }`}
-                aria-hidden
-              />
+              {/* The Cart tab carries the item-count badge the desktop header shows. */}
+              <span className="relative flex shrink-0 items-center justify-center">
+                <Icon
+                  className={`size-6.5 shrink-0 ${
+                    isActive ? 'text-primary-orange' : 'text-text-tertiary'
+                  }`}
+                  aria-hidden
+                />
+                {tab.id === 'cart' && cartItemCount > 0 ? (
+                  <span className="btn-orange absolute -right-2.5 -top-1.5 flex size-5 min-w-5 items-center justify-center rounded-full border border-white px-1 text-[0.625rem] font-medium leading-none tracking-[-0.24px] text-text-inverse">
+                    {cartItemCount}
+                  </span>
+                ) : null}
+              </span>
               <span
                 className={`text-center text-xs font-medium leading-[1.3] ${
                   isActive ? 'text-text-primary' : 'text-text-tertiary'

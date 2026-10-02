@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { accountApi } from '../api'
+import { mapApiNotificationSettings } from '../api/mappers'
 import ShieldCheckFillIcon from 'remixicon-react/ShieldCheckFillIcon'
 import {
   defaultNotificationSettings,
@@ -7,6 +9,7 @@ import {
   type NotificationSetting,
   type NotificationSettingId,
 } from '../data/notifications'
+import { ListingLoader } from './ListingLoader'
 
 function NotificationToggle({
   enabled,
@@ -66,13 +69,44 @@ export function NotificationsPanel() {
   const [settings, setSettings] = useState<NotificationSetting[]>(() =>
     defaultNotificationSettings.map((setting) => ({ ...setting })),
   )
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadSettings() {
+      setIsLoading(true)
+      try {
+        const response = await accountApi.getNotificationSettings()
+        const items = mapApiNotificationSettings(response)
+        if (!cancelled && items.length > 0) {
+          setSettings(items)
+        }
+      } catch {
+        // Keep static fallback settings.
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    void loadSettings()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const toggleSetting = (settingId: NotificationSettingId) => {
-    setSettings((current) =>
-      current.map((setting) =>
+    setSettings((current) => {
+      const next = current.map((setting) =>
         setting.id === settingId ? { ...setting, enabled: !setting.enabled } : setting,
-      ),
-    )
+      )
+      const updated = next.find((setting) => setting.id === settingId)
+      if (updated) {
+        void accountApi.updateNotificationSetting(settingId, updated.enabled).catch(() => undefined)
+      }
+      return next
+    })
   }
 
   return (
@@ -87,13 +121,17 @@ export function NotificationsPanel() {
       </div>
 
       <div className="px-0 py-4 lg:px-2 lg:py-4">
-        {settings.map((setting) => (
-          <NotificationRow
-            key={setting.id}
-            setting={setting}
-            onToggle={() => toggleSetting(setting.id)}
-          />
-        ))}
+        {isLoading ? (
+          <ListingLoader label="Loading notification settings" />
+        ) : (
+          settings.map((setting) => (
+            <NotificationRow
+              key={setting.id}
+              setting={setting}
+              onToggle={() => toggleSetting(setting.id)}
+            />
+          ))
+        )}
       </div>
     </div>
   )

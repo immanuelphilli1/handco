@@ -6,27 +6,33 @@ import PriceTag3LineIcon from 'remixicon-react/PriceTag3LineIcon'
 import StarLineIcon from 'remixicon-react/StarLineIcon'
 import TShirt2LineIcon from 'remixicon-react/TShirt2LineIcon'
 import { images } from '../assets/images'
-import { resolveCategoryId, type SidebarCategoryId } from '../data/categoriesModal'
+import type { SidebarCategoryId } from '../data/categoriesModal'
 import { Icon } from './Icon'
 
 type RemixIcon = typeof PriceTag3LineIcon
 
 type CategoryLink = {
+  /** Canonical sidebar id. Matched by id so backend label changes can't break it. */
+  id: SidebarCategoryId
   label: string
   icon?: RemixIcon
   imageIcon?: string
 }
 
-const featuredLink: CategoryLink = { label: 'Featured', icon: StarLineIcon }
+const featuredLink: CategoryLink = {
+  id: 'featured',
+  label: 'Featured',
+  icon: StarLineIcon,
+}
 
 const categoryLinks: CategoryLink[] = [
-  { label: 'Best Sellers', icon: PriceTag3LineIcon },
-  { label: 'New Releases', icon: AlarmWarningLineIcon },
-  { label: 'Electronics & Tech', icon: ComputerLineIcon },
-  { label: 'Fashion & Accessories', icon: TShirt2LineIcon },
-  { label: 'Home & Garden', imageIcon: images.hero.sofa },
-  { label: 'Energy & Power', icon: LightbulbFlashLineIcon },
-  { label: 'Construction & Tools', icon: HammerLineIcon },
+  { id: 'featured', label: 'Best Sellers', icon: PriceTag3LineIcon },
+  { id: 'new-releases', label: 'New Releases', icon: AlarmWarningLineIcon },
+  { id: 'electronics', label: 'Electronics & Tech', icon: ComputerLineIcon },
+  { id: 'fashion', label: 'Fashion & Accessories', icon: TShirt2LineIcon },
+  { id: 'home-garden', label: 'Home & Garden', imageIcon: images.hero.sofa },
+  { id: 'energy', label: 'Energy & Power', icon: LightbulbFlashLineIcon },
+  { id: 'construction', label: 'Construction & Tools', icon: HammerLineIcon },
 ]
 
 function CategoryLinkIcon({
@@ -50,13 +56,13 @@ function CategoryLinkIcon({
 
 type CategoryLinksBarProps = {
   onOpenCategories: (categoryId: SidebarCategoryId, label: string) => void
-  activeCategoryLabel?: string
+  activeCategoryId?: SidebarCategoryId
   isCategoriesOpen?: boolean
 }
 
 export function CategoryLinksBar({
   onOpenCategories,
-  activeCategoryLabel = 'Featured',
+  activeCategoryId = 'featured',
   isCategoriesOpen = false,
 }: CategoryLinksBarProps) {
   const visibleLinks = isCategoriesOpen ? [featuredLink, ...categoryLinks] : categoryLinks
@@ -66,14 +72,13 @@ export function CategoryLinksBar({
       <div className="py-2 max-w-380 mx-auto">
         <div className="flex gap-2 overflow-x-auto [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden">
           {visibleLinks.map((category) => {
-            const categoryId = resolveCategoryId(category.label)
-            const isActive = isCategoriesOpen && category.label === activeCategoryLabel
+            const isActive = isCategoriesOpen && category.id === activeCategoryId
 
             return (
               <button
                 key={category.label}
                 type="button"
-                onClick={() => onOpenCategories(categoryId, category.label)}
+                onClick={() => onOpenCategories(category.id, category.label)}
                 className={`group flex h-12 shrink-0 cursor-pointer items-center gap-2 rounded-lg p-4 transition-colors ${
                   isActive ? 'bg-orange-light' : 'hover:bg-orange-light'
                 }`}

@@ -5,6 +5,8 @@ import {
   wishlistPageTitle,
 } from '../data/wishlist'
 import type { Product } from '../data/products'
+import { applyListingFilters } from '../data/categoryListing'
+import { useCatalog } from '../context/CatalogContext'
 import { useShop } from '../context/ShopContext'
 import {
   ListingFiltersSidebar,
@@ -14,6 +16,7 @@ import {
 } from './ProductListingFilters'
 import { getProductPath } from '../data/shopRoutes'
 import { ProductCard } from './ProductCard'
+import { ListingLoader } from './ListingLoader'
 
 type WishlistViewProps = {
   onGoHome: () => void
@@ -42,7 +45,8 @@ function WishlistBreadcrumbs({ onGoHome }: { onGoHome: () => void }) {
 }
 
 export function WishlistView({ onGoHome, onProductSelect }: WishlistViewProps) {
-  const { wishlistProducts } = useShop()
+  const { wishlistProducts, isWishlistLoading } = useShop()
+  const { facets } = useCatalog()
   const categoryOptions = getWishlistCategoryOptions(wishlistProducts)
   const {
     activeCategory,
@@ -51,15 +55,22 @@ export function WishlistView({ onGoHome, onProductSelect }: WishlistViewProps) {
     setDraftCategory,
     isMobileFiltersOpen,
     openSections,
-    selectedRating,
-    setSelectedRating,
+    filters,
+    setFilters,
+    draftFilters,
+    setDraftFilters,
     toggleSection,
     openMobileFilters,
     closeMobileFilters,
     saveMobileFilters,
   } = useListingFilters('all')
 
-  const visibleProducts = filterWishlistProducts(wishlistProducts, activeCategory)
+  // Wishlist items come from the same catalog, so the same facet values and the
+  // same client-side filtering apply here as on the category listing.
+  const visibleProducts = applyListingFilters(
+    filterWishlistProducts(wishlistProducts, activeCategory),
+    filters,
+  )
   const mobileTitle = activeCategory === 'all' ? wishlistPageTitle : activeCategory
 
   return (
@@ -75,8 +86,9 @@ export function WishlistView({ onGoHome, onProductSelect }: WishlistViewProps) {
         onDraftCategoryChange={setDraftCategory}
         openSections={openSections}
         onToggleSection={toggleSection}
-        selectedRating={selectedRating}
-        onRatingChange={setSelectedRating}
+        draftFilters={draftFilters}
+        onDraftFiltersChange={setDraftFilters}
+        facets={facets}
         onClose={closeMobileFilters}
         onSave={saveMobileFilters}
         showAllCategoryOption
@@ -90,13 +102,16 @@ export function WishlistView({ onGoHome, onProductSelect }: WishlistViewProps) {
             onCategoryChange={setActiveCategory}
             openSections={openSections}
             onToggleSection={toggleSection}
-            selectedRating={selectedRating}
-            onRatingChange={setSelectedRating}
+            filters={filters}
+            onFiltersChange={setFilters}
+            facets={facets}
             showAllCategoryOption
           />
 
           <div className="min-w-0 flex-1">
-            {visibleProducts.length > 0 ? (
+            {isWishlistLoading ? (
+              <ListingLoader label="Loading wishlist" />
+            ) : visibleProducts.length > 0 ? (
               <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 xl:grid-cols-4">
                 {visibleProducts.map((product) => (
                   <ProductCard

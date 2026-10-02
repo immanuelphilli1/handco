@@ -55,7 +55,11 @@ export function ProductCard({
     toggleWishlist(product)
   }
 
+  // The whole card is a <Link>, so the anchor's default navigation must be
+  // cancelled as well as the click from bubbling. stopPropagation alone leaves
+  // the browser free to follow the href and jump to the product page.
   const handleAddToCart = (event: React.MouseEvent) => {
+    event.preventDefault()
     event.stopPropagation()
     addToCart(product)
   }
@@ -111,6 +115,10 @@ export function ProductCard({
               <button
                 type="button"
                 onClick={(event) => {
+                  // preventDefault is required as well: the card is a <Link>, and
+                  // stopping propagation alone still lets the browser follow the
+                  // anchor href, which is what navigated away from the page.
+                  event.preventDefault()
                   event.stopPropagation()
                   handleToggleLike()
                 }}

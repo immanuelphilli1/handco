@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { catalogApi } from '../api'
+import { mapApiProduct } from '../api/mappers'
 import AddLineIcon from 'remixicon-react/AddLineIcon'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
@@ -13,11 +15,10 @@ import StarFillIcon from 'remixicon-react/StarFillIcon'
 import SubtractLineIcon from 'remixicon-react/SubtractLineIcon'
 import User6LineIcon from 'remixicon-react/User6LineIcon'
 import { useShop } from '../context/ShopContext'
-import {
-  getRelatedProducts,
-  type ProductDetail,
-  type ProductDetailContext,
-  type ProductReview,
+import type {
+  ProductDetail,
+  ProductDetailContext,
+  ProductReview,
 } from '../data/productDetail'
 import type { Product } from '../data/products'
 import { getProductPath } from '../data/shopRoutes'
@@ -27,6 +28,7 @@ type ProductDetailViewProps = {
   context: ProductDetailContext
   onGoHome: () => void
   onBackToListing: () => void
+  onGoToCart: () => void
   onProductSelect: (product: Product) => void
 }
 
@@ -300,6 +302,7 @@ function ProductInfoPanel({
   onDecreaseQuantity,
   onIncreaseQuantity,
   onAddToCart,
+  onBuyNow,
 }: {
   product: Product
   detail: ProductDetail
@@ -311,6 +314,7 @@ function ProductInfoPanel({
   onDecreaseQuantity: () => void
   onIncreaseQuantity: () => void
   onAddToCart: () => void
+  onBuyNow: () => void
 }) {
   return (
     <div className="min-w-0 flex-1 overflow-hidden bg-bg-primary xl:max-w-98 xl:rounded-[12px] xl:border xl:border-border-primary">
@@ -418,7 +422,7 @@ function ProductInfoPanel({
         </button>
         <button
           type="button"
-          onClick={onAddToCart}
+          onClick={onBuyNow}
           className="btn-orange flex h-10 flex-1 cursor-pointer items-center justify-center rounded-full px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-inverse"
         >
           Buy Now
@@ -536,22 +540,73 @@ export function ProductDetailView({
   context,
   onGoHome,
   onBackToListing,
+  onGoToCart,
   onProductSelect,
 }: ProductDetailViewProps) {
   const { detail, selection } = context
   const { product } = detail
-  const relatedProducts = getRelatedProducts(product)
-  const { isLiked: isProductLiked, toggleWishlist, addToCart } = useShop()
+  const {
+    isLiked: isProductLiked,
+    toggleWishlist,
+    addToCart,
+    findCartItemForProduct,
+    updateCartItem,
+  } = useShop()
 
   const [selectedModelIndex, setSelectedModelIndex] = useState(0)
   const [quantity, setQuantity] = useState(1)
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([])
+  const [reviews, setReviews] = useState<ProductReview[]>(detail.reviews)
 
   const isLiked = isProductLiked(product.id)
 
-  const handleAddToCart = () => {
-    for (let index = 0; index < quantity; index += 1) {
-      addToCart(product)
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadProductExtras() {
+      try {
+        const [relatedResponse, reviewsResponse] = await Promise.all([
+          catalogApi.getRelatedProducts(product.id),
+          catalogApi.getProductReviews(product.id),
+        ])
+
+        if (!cancelled) {
+          setRelatedProducts(relatedResponse.items.map(mapApiProduct))
+          setReviews(reviewsResponse.reviews)
+        }
+      } catch {
+        if (!cancelled) {
+          setRelatedProducts([])
+          setReviews(detail.reviews)
+        }
+      }
     }
+
+    void loadProductExtras()
+
+    return () => {
+      cancelled = true
+    }
+  }, [detail.reviews, product.id])
+
+  const handleAddToCart = () => {
+    void addToCart(product, quantity)
+  }
+
+  const handleBuyNow = async () => {
+    // Buy Now must not stack a second line for a product already in the cart,
+    // so an existing line is topped up to the chosen quantity instead.
+    const existingItem = findCartItemForProduct(product)
+    try {
+      if (existingItem) {
+        await updateCartItem(existingItem.id, { quantity: existingItem.quantity + quantity })
+      } else {
+        await addToCart(product, quantity)
+      }
+    } catch {
+      // Cart stayed unchanged; still take the user to the cart so they can see why.
+    }
+    onGoToCart()
   }
 
   return (
@@ -572,7 +627,7 @@ export function ProductDetailView({
               <ProductReviewsSection
                 reviewCount={detail.reviewCount}
                 ratingValue={detail.ratingValue}
-                reviews={detail.reviews}
+                reviews={reviews}
               />
             </div>
           </div>
@@ -588,6 +643,7 @@ export function ProductDetailView({
             onDecreaseQuantity={() => setQuantity((value) => Math.max(1, value - 1))}
             onIncreaseQuantity={() => setQuantity((value) => value + 1)}
             onAddToCart={handleAddToCart}
+            onBuyNow={() => void handleBuyNow()}
           />
 
           <ShippingSidebar
@@ -602,7 +658,7 @@ export function ProductDetailView({
             <ProductReviewsSection
               reviewCount={detail.reviewCount}
               ratingValue={detail.ratingValue}
-              reviews={detail.reviews}
+              reviews={reviews}
             />
           </div>
         </div>

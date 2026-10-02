@@ -1,7 +1,13 @@
+import type { ApiCategory } from '../api/types'
 import type { SidebarCategoryId } from './categoriesModal'
-import { getSubcategoryOptions, sidebarCategories } from './categoriesModal'
+import { sidebarCategories } from './categoriesModal'
 import type { CategoryListingSelection } from './categoryListing'
-import { allCategoriesListingSelection } from './categoryListing'
+import {
+  buildAllCategoriesListingSelection,
+  buildCategoryListingSelection,
+  getCategoryLabel,
+  getSubcategoryOptions,
+} from './catalogCategories'
 import {
   buildFeaturedProductDetailContext,
   buildHomeProductDetailContext,
@@ -31,8 +37,30 @@ export function getOrderCompletePath(): string {
   return '/order-complete'
 }
 
+/**
+ * Return / cancel landing pages for the provider redirect. The backend appends
+ * `?reference=<payment rid>` to both, so the path is fixed and the reference is
+ * read from the query string at render time.
+ */
+export function getPaymentReturnPath(): string {
+  return '/checkout/return'
+}
+
+export function getPaymentCancelPath(): string {
+  return '/checkout/cancel'
+}
+
 export function getWishlistPath(): string {
   return '/wishlist'
+}
+
+export function getSearchPath(query: string): string {
+  const trimmed = query.trim()
+  return trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/search'
+}
+
+export function getSearchQuery(searchParams: URLSearchParams): string {
+  return searchParams.get('q') ?? ''
 }
 
 export function getCategoryPath(
@@ -81,9 +109,10 @@ function isSidebarCategoryId(value: string): value is SidebarCategoryId {
 export function parseCategoryRoute(
   categoryIdParam: string | undefined,
   subcategoryParam: string | null,
+  apiCategories: ApiCategory[] = [],
 ): CategoryListingSelection | null {
   if (!categoryIdParam) {
-    return allCategoriesListingSelection
+    return buildAllCategoriesListingSelection(apiCategories)
   }
 
   if (!isSidebarCategoryId(categoryIdParam)) {
@@ -91,29 +120,16 @@ export function parseCategoryRoute(
   }
 
   if (categoryIdParam === 'all-categories') {
-    return allCategoriesListingSelection
+    return buildAllCategoriesListingSelection(apiCategories)
   }
 
-  const categoryLabel =
-    sidebarCategories.find((category) => category.id === categoryIdParam)?.label ??
-    categoryIdParam
-  const subcategoryOptions = getSubcategoryOptions(categoryIdParam)
-  const subcategoryLabel =
-    subcategoryParam && subcategoryOptions.includes(subcategoryParam)
-      ? subcategoryParam
-      : (subcategoryOptions[0] ?? 'All products')
-
-  return {
-    categoryId: categoryIdParam,
-    categoryLabel,
-    subcategoryLabel,
-    subcategoryOptions,
-  }
+  return buildCategoryListingSelection(categoryIdParam, apiCategories, subcategoryParam)
 }
 
 export function parseProductRoute(
   productId: string | undefined,
   searchParams: URLSearchParams,
+  apiCategories: ApiCategory[] = [],
 ): ProductDetailContext | null {
   if (!productId) {
     return null
@@ -138,26 +154,18 @@ export function parseProductRoute(
   const categoryId = searchParams.get('category')
   const subcategory = searchParams.get('subcategory')
   if (categoryId && isSidebarCategoryId(categoryId) && subcategory) {
-    const categoryLabel =
-      sidebarCategories.find((category) => category.id === categoryId)?.label ??
-      product.category
-
     return buildProductDetailContext(product, {
       categoryId,
-      categoryLabel,
+      categoryLabel: getCategoryLabel(categoryId, apiCategories),
       subcategoryLabel: subcategory,
-      subcategoryOptions: getSubcategoryOptions(categoryId),
+      subcategoryOptions: getSubcategoryOptions(categoryId, apiCategories),
     })
   }
 
-  const categoryLabel =
-    sidebarCategories.find((category) => category.id === product.categoryId)?.label ??
-    product.category
-
   return buildProductDetailContext(product, {
     categoryId: product.categoryId,
-    categoryLabel,
+    categoryLabel: getCategoryLabel(product.categoryId, apiCategories),
     subcategoryLabel: product.subcategory,
-    subcategoryOptions: getSubcategoryOptions(product.categoryId),
+    subcategoryOptions: getSubcategoryOptions(product.categoryId, apiCategories),
   })
 }

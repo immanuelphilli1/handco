@@ -4,6 +4,8 @@ import {
   orderCompletedCopy,
 } from '../data/cart'
 import { cartRecommendations } from '../data/wishlist'
+import { useShop } from '../context/ShopContext'
+import { useRecommendations } from '../hooks/useCatalogProducts'
 import { PageBreadcrumbs } from './PageBreadcrumbs'
 import { ProductCard } from './ProductCard'
 
@@ -12,6 +14,11 @@ type OrderCompletedViewProps = {
 }
 
 export function OrderCompletedView({ onGoHome }: OrderCompletedViewProps) {
+  const { lastOrder } = useShop()
+  const recommendationProducts = useRecommendations('order-complete', cartRecommendations)
+  const orderReference = lastOrder?.orderReference ?? orderCompletedCopy.orderReference
+  const estimatedDelivery = lastOrder?.estimatedDelivery ?? orderCompletedCopy.estimatedDelivery
+
   return (
     <>
       <PageBreadcrumbs
@@ -55,10 +62,10 @@ export function OrderCompletedView({ onGoHome }: OrderCompletedViewProps) {
                 Your order Reference
               </p>
               <p className="mt-2 text-[32px] font-medium leading-10 tracking-[-0.64px] text-text-primary">
-                {orderCompletedCopy.orderReference}
+                {orderReference}
               </p>
               <p className="mt-2 text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
-                {orderCompletedCopy.estimatedDelivery}
+                {estimatedDelivery}
               </p>
             </div>
           </div>
@@ -69,8 +76,8 @@ export function OrderCompletedView({ onGoHome }: OrderCompletedViewProps) {
             You may also like
           </h2>
           <div className="grid grid-cols-2 items-stretch gap-2 lg:grid-cols-5 lg:gap-2">
-            {cartRecommendations.slice(0, 10).map((product, index) => (
-              <ProductCard key={`${product.name}-${index}`} product={product} />
+            {recommendationProducts.slice(0, 10).map((product, index) => (
+              <ProductCard key={`${product.id}-${index}`} product={product} />
             ))}
           </div>
         </div>

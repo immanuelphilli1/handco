@@ -46,6 +46,7 @@ export const images = {
     accessories: "/assets/categories/accessories.png",
     decor: "/assets/categories/decor.png",
     fashion: "/assets/categories/fashion.png",
+    homeGarden: "/assets/categories/home-garden.png",
   },
   categoriesModal: {
     star: "/assets/categories/star-line.svg",
@@ -103,6 +104,7 @@ export const images = {
     visa: "/assets/footer/visa.svg",
     paypal: "/assets/footer/paypal.svg",
     tabby: "/assets/footer/tabby.svg",
+    mobileMoney: "/assets/footer/mobile-money.svg",
     tamara: "/assets/footer/tamara.png",
     tamaraIcon: "/assets/footer/tamara-icon.svg",
     googlePay: "/assets/footer/google-pay.svg",

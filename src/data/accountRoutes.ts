@@ -27,3 +27,15 @@ export function parseAccountSection(param: string | undefined): AccountSection |
   const match = Object.entries(accountSectionPaths).find(([, path]) => path === param)
   return match ? (match[0] as AccountSection) : null
 }
+
+/**
+ * Query flag asking the Addresses panel to open its edit form on arrival, rather
+ * than just showing the list. Checkout's "Edit" link appends it so the user lands
+ * directly on the form for the default address.
+ */
+export const EDIT_DEFAULT_ADDRESS_PARAM = '?edit=default'
+
+/** True when the address route was opened with the edit intent above. */
+export function wantsDefaultAddressEdit(search: string): boolean {
+  return new URLSearchParams(search).get('edit') === 'default'
+}

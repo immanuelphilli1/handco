@@ -11,9 +11,11 @@ import GlobalLineIcon from 'remixicon-react/GlobalLineIcon'
 import HeartLineIcon from 'remixicon-react/HeartLineIcon'
 import ListCheckLineIcon from 'remixicon-react/ListCheckIcon'
 import UserLineIcon from 'remixicon-react/UserLineIcon'
-import SearchLineIcon from 'remixicon-react/SearchLineIcon'
+import { NavSearchBar } from './NavSearchBar'
 import type { SidebarCategoryId } from '../data/categoriesModal'
 import type { CategoryListingSelection } from '../data/categoryListing'
+import { useAuth } from '../context/AuthContext'
+import { useShop } from '../context/ShopContext'
 
 const navIconButton =
   'group flex cursor-pointer items-center justify-center rounded-full bg-bg-secondary transition-colors hover:bg-orange-light'
@@ -28,17 +30,13 @@ type NavProps = {
   onSubcategorySelect: (selection: CategoryListingSelection) => void
   onOpenCart?: () => void
   onOpenWishlist?: () => void
-  cartItemCount?: number
-  isSignedIn?: boolean
-  userDisplayName?: string
-  userFullName?: string
-  onSignedIn?: (email: string) => void
-  onSignOut?: () => void
+  onAfterSignOut?: () => void
   mobileActiveTab?: MobileNavTab
   onMobileHome?: () => void
   showCategoryLinksBar?: boolean
   onOpenCategories?: (categoryId: SidebarCategoryId, label: string) => void
-  activeCategoryLabel?: string
+  activeCategoryId?: SidebarCategoryId
+  openToInitialCategory?: boolean
 }
 
 export function Nav({
@@ -49,19 +47,25 @@ export function Nav({
   onSubcategorySelect,
   onOpenCart,
   onOpenWishlist,
-  cartItemCount = 0,
-  isSignedIn = false,
-  userDisplayName = 'Vikers',
-  userFullName = 'Vikers Junior',
-  onSignedIn,
-  onSignOut,
+  onAfterSignOut,
   mobileActiveTab = 'home',
   onMobileHome,
   showCategoryLinksBar = false,
   onOpenCategories,
-  activeCategoryLabel = 'Featured',
+  activeCategoryId = 'featured',
+  openToInitialCategory = false,
 }: NavProps) {
+  const { authUser, signOut, signInRequestCount } = useAuth()
+  const { cartItemCount } = useShop()
+  const isSignedIn = authUser !== null
+  const userDisplayName = authUser?.displayName ?? 'Guest'
+  const userFullName = authUser?.fullName ?? 'Guest'
   const navigate = useNavigate()
+
+  const handleSignOut = useCallback(async () => {
+    await signOut()
+    onAfterSignOut?.()
+  }, [onAfterSignOut, signOut])
   const headerRef = useRef<HTMLElement>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
@@ -99,15 +103,19 @@ export function Nav({
     setIsSignInModalOpen(true)
   }
 
-  const handleSignedIn = (email: string) => {
-    setIsSignInModalOpen(false)
-    onSignedIn?.(email)
-  }
-
   const openCart = () => {
     closeAccountMenu()
     onCloseCategories()
     onOpenCart?.()
+  }
+
+  const openHome = () => {
+    closeAccountMenu()
+    onCloseCategories()
+    setIsSignInModalOpen(false)
+    navigate('/')
+    onMobileHome?.()
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const openWishlist = () => {
@@ -142,6 +150,15 @@ export function Nav({
       setIsSignInModalOpen(false)
     }
   }, [closeAccountMenu, isCategoriesOpen])
+
+  // A sign-in gated action (e.g. the wishlist heart) was triggered while signed
+  // out, so surface the sign-in modal the same way the Account button does.
+  useEffect(() => {
+    if (signInRequestCount === 0 || isSignedIn) return
+
+    closeAccountMenu()
+    setIsSignInModalOpen(true)
+  }, [closeAccountMenu, isSignedIn, signInRequestCount])
 
   useEffect(() => {
     const header = headerRef.current
@@ -186,9 +203,6 @@ export function Nav({
   const categoriesButtonClass =
     'group flex h-12 w-44 shrink-0 cursor-pointer items-center gap-2 rounded-full p-4 transition-colors hover:bg-orange-light'
 
-  const searchFieldClass =
-    'flex w-full items-center gap-2 rounded-full border border-border-secondary bg-bg-primary p-1'
-
   return (
     <>
       <header
@@ -210,7 +224,7 @@ export function Nav({
 
           {/* Desktop navigation */}
           <div className="hidden max-w-400 mx-auto items-center gap-4 px-16 py-4 lg:flex">
-            <Link to="/" aria-label="Home" className="shrink-0">
+            <Link to="/" aria-label="Home" className="shrink-0 cursor-pointer" onClick={openHome}>
               <img alt="H&CO." className="h-7 w-29.25" src={images.nav.logo} />
             </Link>
 
@@ -241,22 +255,12 @@ export function Nav({
               </span>
             </button>
 
-            <div className={`${searchFieldClass} min-w-0 flex-1`}>
-              <div className="flex min-w-0 flex-1 items-center gap-2 p-2">
-                <SearchLineIcon className="size-6 shrink-0 text-text-tertiary" aria-hidden />
-                <span className="min-w-0 flex-1 text-base font-medium tracking-[-0.32px] text-text-tertiary">
-                  Search product
-                </span>
-              </div>
-              <button
-                type="button"
-                className="btn-orange group flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full py-4 pl-4 pr-6 transition-opacity hover:opacity-90"
-                aria-label="Search"
-              >
-                <SearchLineIcon className="size-5 text-text-inverse" aria-hidden />
-                <span className="text-sm font-medium tracking-[-0.28px] text-text-inverse">Search</span>
-              </button>
-            </div>
+            <NavSearchBar
+              variant="desktop"
+              inputClassName=""
+              buttonClassName="btn-orange group flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full py-4 pl-4 pr-6 transition-opacity hover:opacity-90"
+              buttonLabelClassName="text-sm font-medium tracking-[-0.28px] text-text-inverse"
+            />
 
             <div className="flex shrink-0 items-center gap-4">
               <button
@@ -335,7 +339,7 @@ export function Nav({
                     isOpen={isAccountMenuOpen}
                     userFullName={userFullName}
                     onClose={closeAccountMenu}
-                    onSignOut={onSignOut}
+                    onSignOut={() => void handleSignOut()}
                     onYourOrdersClick={() => openAccountSection('orders')}
                     onYourReviewsClick={() => openAccountSection('reviews')}
                     onYourProfileClick={() => openAccountSection('profile')}
@@ -356,21 +360,12 @@ export function Nav({
                 <img alt="H&CO." className="h-6 w-25" src={images.nav.logo} />
               </Link>
 
-              <div className={`${searchFieldClass} min-w-0 flex-1`}>
-                <div className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1">
-                  <SearchLineIcon className="size-5 shrink-0 text-text-tertiary" aria-hidden />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-[-0.28px] text-text-tertiary">
-                    Search product
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="btn-orange flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full transition-opacity hover:opacity-90"
-                  aria-label="Search"
-                >
-                  <SearchLineIcon className="size-5 text-text-inverse" aria-hidden />
-                </button>
-              </div>
+              <NavSearchBar
+                variant="mobile"
+                inputClassName="text-sm"
+                buttonClassName="btn-orange flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full transition-opacity hover:opacity-90"
+                buttonLabelClassName=""
+              />
             </div>
           </div>
         </div>
@@ -378,7 +373,7 @@ export function Nav({
         {showCategoryLinksBar && onOpenCategories ? (
           <CategoryLinksBar
             onOpenCategories={onOpenCategories}
-            activeCategoryLabel={activeCategoryLabel}
+            activeCategoryId={activeCategoryId}
             isCategoriesOpen={isCategoriesOpen}
           />
         ) : null}
@@ -386,6 +381,7 @@ export function Nav({
         <CategoriesModal
           isOpen={isCategoriesOpen}
           initialCategoryId={categoriesTargetId}
+          openToInitialCategory={openToInitialCategory}
           onClose={onCloseCategories}
           onSubcategorySelect={onSubcategorySelect}
         />
@@ -393,7 +389,6 @@ export function Nav({
         <SignInModal
           isOpen={isSignInModalOpen}
           onClose={() => setIsSignInModalOpen(false)}
-          onSignedIn={handleSignedIn}
         />
       </header>
 
@@ -406,6 +401,7 @@ export function Nav({
         onFavourite={openWishlist}
         onCart={openCart}
         onAccount={handleMobileAccount}
+        cartItemCount={cartItemCount}
       />
 
       {/* <div aria-hidden className="shrink-0 lg:hidden" style={{ height: '72px' }} /> */}

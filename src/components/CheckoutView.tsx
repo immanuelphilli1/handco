@@ -1,25 +1,32 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { checkoutApi } from '../api'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
-import BankCardLineIcon from 'remixicon-react/BankCardLineIcon'
-import CalendarEventLineIcon from 'remixicon-react/CalendarEventLineIcon'
 import EditBoxLineIcon from 'remixicon-react/EditBoxLineIcon'
-import LockLineIcon from 'remixicon-react/LockLineIcon'
 import {
-  checkoutAddress,
   checkoutPaymentMethods,
   shippingSummary,
+  type CartItem,
   type CheckoutPaymentMethodId,
 } from '../data/cart'
-import { checkoutCarouselProducts } from '../data/wishlist'
 import { useShop } from '../context/ShopContext'
+import { useDefaultAddress } from '../hooks/useDefaultAddress'
 import { OrderSummaryPanel } from './OrderSummaryPanel'
 import { PageBreadcrumbs } from './PageBreadcrumbs'
-import { ProductCard } from './ProductCard'
 
 type CheckoutViewProps = {
   onGoHome: () => void
+  onGoToCart: () => void
+  onGoToProduct: (productId: string) => void
   onSubmitOrder: () => void
+  /** "Change address": open the Addresses tab to pick a different one. */
+  onGoToAddresses: () => void
+  /** "Edit": open the Addresses tab with the default address's edit form open. */
+  onEditDefaultAddress: () => void
+  /** True while the payment intent is being created, before the redirect. */
+  isSubmitting?: boolean
+  /** Shown above the submit button when payment could not be started. */
+  submitError?: string | null
 }
 
 function PaymentRadio({
@@ -46,43 +53,105 @@ function PaymentRadio({
   )
 }
 
-function CardPaymentFields() {
+/**
+ * Item details card for a single cart line. The whole card is the link target so
+ * the image and the text both open the product page.
+ */
+function CheckoutItemCard({ item, onSelect }: { item: CartItem; onSelect: () => void }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border-primary">
-      <label className="flex h-14 items-center border-b border-border-primary">
-        <BankCardLineIcon className="ml-4 size-6 shrink-0 text-text-secondary" aria-hidden />
-        <input
-          type="text"
-          placeholder="0000 0000 0000 0000"
-          className="min-w-0 flex-1 bg-transparent px-4 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary outline-none placeholder:font-medium placeholder:text-text-secondary"
-        />
-      </label>
-      <div className="flex">
-        <label className="flex h-14 min-w-0 flex-1 items-center border-r border-border-primary">
-          <CalendarEventLineIcon className="ml-4 size-6 shrink-0 text-text-secondary" aria-hidden />
-          <input
-            type="text"
-            placeholder="mm/yyyy"
-            className="min-w-0 flex-1 bg-transparent px-4 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary outline-none placeholder:font-medium placeholder:text-text-secondary"
-          />
-        </label>
-        <label className="flex h-14 min-w-0 flex-1 items-center">
-          <LockLineIcon className="ml-4 size-6 shrink-0 text-text-secondary" aria-hidden />
-          <input
-            type="password"
-            placeholder="CVC"
-            className="min-w-0 flex-1 bg-transparent px-4 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary outline-none placeholder:font-medium placeholder:text-text-secondary"
-          />
-        </label>
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-label={`View ${item.name}`}
+      className="flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary text-left"
+    >
+      <span className="block w-full overflow-hidden bg-bg-secondary">
+        <img alt="" className="aspect-square w-full object-cover" src={item.image} />
+      </span>
+      <span className="flex flex-col gap-1 p-3">
+        <span className="line-clamp-2 text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
+          {item.name}
+        </span>
+        {item.variant ? (
+          <span className="line-clamp-1 text-xs leading-4 tracking-[-0.24px] text-text-secondary">
+            {item.variant}
+          </span>
+        ) : null}
+        <span className="mt-1 flex items-center gap-1 text-text-primary">
+          <span className="text-xs leading-4 tracking-[-0.24px]">{item.currency}</span>
+          <span className="text-sm font-semibold leading-4.5 tracking-[-0.28px]">
+            {(item.price * item.quantity).toLocaleString()}
+          </span>
+        </span>
+      </span>
+    </button>
   )
 }
 
-export function CheckoutView({ onGoHome, onSubmitOrder }: CheckoutViewProps) {
-  const { cartItemCount } = useShop()
+export function CheckoutView({
+  onGoHome,
+  onGoToCart,
+  onGoToProduct,
+  onSubmitOrder,
+  onGoToAddresses,
+  onEditDefaultAddress,
+  isSubmitting = false,
+  submitError = null,
+}: CheckoutViewProps) {
+  const { cartItems, cartItemCount } = useShop()
+  // Selected lines are what the order summary bills, so item details mirrors them.
+  const checkoutItems = useMemo(
+    () => cartItems.filter((item) => item.selected),
+    [cartItems],
+  )
   const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethodId>('card')
+  const [previewShipping, setPreviewShipping] = useState(shippingSummary)
   const trackRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * The shipping address is the account's default address, read through the
+   * same hook Your Profile uses, so the two always show the same record.
+   */
+  const { address: defaultAddress } = useDefaultAddress()
+
+  const previewAddress = useMemo(
+    () => ({
+      contact: defaultAddress
+        ? `${defaultAddress.contactName} | ${defaultAddress.phone}`.trim()
+        : '',
+      line1: defaultAddress?.line1 ?? '',
+      line2: defaultAddress?.line2 ?? '',
+    }),
+    [defaultAddress],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadPreview() {
+      try {
+        const preview = await checkoutApi.getCheckoutPreview()
+        if (cancelled) return
+        // The address comes from the account's default, not the preview copy,
+        // which can be stale. Shipping quotes still come from the preview.
+        if (preview.shipping) {
+          setPreviewShipping({
+            fee: preview.shipping.fee,
+            deliveryWindow: preview.shipping.deliveryWindow,
+            courierLabel: preview.shipping.courierLabel ?? shippingSummary.courierLabel,
+          })
+        }
+      } catch {
+        // Keep static checkout copy when preview is unavailable.
+      }
+    }
+
+    void loadPreview()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const scrollCarousel = (direction: 'prev' | 'next') => {
     const track = trackRef.current
@@ -110,6 +179,7 @@ export function CheckoutView({ onGoHome, onSubmitOrder }: CheckoutViewProps) {
                 </h2>
                 <button
                   type="button"
+                  onClick={onGoToAddresses}
                   className="flex cursor-pointer items-center gap-1 rounded-full bg-bg-secondary px-4 py-2 text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary"
                 >
                   Change address
@@ -119,20 +189,38 @@ export function CheckoutView({ onGoHome, onSubmitOrder }: CheckoutViewProps) {
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <div className="flex gap-4 rounded-xl bg-bg-secondary p-4">
-                  <div className="min-w-0 flex-1 text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
-                    <p className="font-medium">{checkoutAddress.contact}</p>
-                    <div className="mt-2 flex flex-col gap-2 font-normal">
-                      <p>{checkoutAddress.line1}</p>
-                      <p>{checkoutAddress.line2}</p>
+                  {previewAddress.contact || previewAddress.line1 ? (
+                    <div className="min-w-0 flex-1 text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
+                      <p className="font-medium">{previewAddress.contact}</p>
+                      <div className="mt-2 flex flex-col gap-2 font-normal">
+                        <p>{previewAddress.line1}</p>
+                        <p>{previewAddress.line2}</p>
+                      </div>
                     </div>
-                  </div>
-                  <EditBoxLineIcon className="size-6 shrink-0 text-text-secondary" aria-hidden />
+                  ) : (
+                    <div className="min-w-0 flex-1 text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
+                      <p className="font-medium">No default address saved</p>
+                      <p className="mt-2 font-normal text-text-secondary">
+                        Add one to know where this order ships.
+                      </p>
+                    </div>
+                  )}
+                  {/* The pencil edits the default address in place, so it opens the
+                      Addresses tab with that address's form already up. */}
+                  <button
+                    type="button"
+                    onClick={onEditDefaultAddress}
+                    aria-label="Edit shipping address"
+                    className="flex size-6 shrink-0 cursor-pointer items-center justify-center self-start"
+                  >
+                    <EditBoxLineIcon className="size-6 text-text-secondary" aria-hidden />
+                  </button>
                 </div>
                 <div className="rounded-xl bg-bg-secondary p-4 text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
-                  <p className="font-medium">Shipping: {shippingSummary.fee}</p>
+                  <p className="font-medium">Shipping: {previewShipping.fee}</p>
                   <div className="mt-2 flex flex-col gap-2 font-normal">
-                    <p>{shippingSummary.deliveryWindow}</p>
-                    <p>{shippingSummary.courierLabel}</p>
+                    <p>{previewShipping.deliveryWindow}</p>
+                    <p>{previewShipping.courierLabel}</p>
                   </div>
                 </div>
               </div>
@@ -145,6 +233,7 @@ export function CheckoutView({ onGoHome, onSubmitOrder }: CheckoutViewProps) {
                 </h2>
                 <button
                   type="button"
+                  onClick={onGoToCart}
                   className="flex cursor-pointer items-center gap-1 rounded-full bg-bg-secondary px-4 py-2 text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary"
                 >
                   View all
@@ -165,9 +254,15 @@ export function CheckoutView({ onGoHome, onSubmitOrder }: CheckoutViewProps) {
                   ref={trackRef}
                   className="flex gap-2 overflow-x-auto scroll-smooth [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden"
                 >
-                  {checkoutCarouselProducts.map((product, index) => (
-                    <div key={`${product.name}-${index}`} className="w-45 min-w-0 shrink-0 sm:w-56">
-                      <ProductCard product={product} />
+                  {checkoutItems.map((item) => (
+                    <div key={item.id} className="w-45 min-w-0 shrink-0 sm:w-56">
+                      <CheckoutItemCard
+                        item={item}
+                        onSelect={() => {
+                          const productId = item.productRid ?? item.id
+                          if (productId) onGoToProduct(productId)
+                        }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -225,20 +320,49 @@ export function CheckoutView({ onGoHome, onSubmitOrder }: CheckoutViewProps) {
                           ) : null}
                         </div>
                       </div>
-                      {method.id === 'card' && isSelected ? <CardPaymentFields /> : null}
+                      {isSelected ? (
+                        <p className="text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
+                          {method.id === 'card'
+                            ? 'You will be redirected to a secure payment page to enter your card details.'
+                            : 'You will be redirected to complete this payment.'}
+                        </p>
+                      ) : null}
                     </div>
                   )
                 })}
               </div>
+
+              {submitError ? (
+                <p
+                  role="alert"
+                  className="mt-4 rounded-xl bg-orange-light px-4 py-3 text-sm font-medium leading-4.5 tracking-[-0.28px] text-primary-orange"
+                >
+                  {submitError}
+                </p>
+              ) : null}
+
+              <p className="mt-4 text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
+                {isSubmitting
+                  ? 'Taking you to the secure payment page…'
+                  : 'Submitting order redirects you to our payment provider to complete payment. Your card details are never entered on this site.'}
+              </p>
             </section>
 
             <div className="mt-8 lg:hidden">
-              <OrderSummaryPanel mode="checkout" onPrimaryAction={onSubmitOrder} />
+              <OrderSummaryPanel
+                mode="checkout"
+                onPrimaryAction={onSubmitOrder}
+                isBusy={isSubmitting}
+              />
             </div>
           </div>
 
           <div className="hidden lg:block">
-            <OrderSummaryPanel mode="checkout" onPrimaryAction={onSubmitOrder} />
+            <OrderSummaryPanel
+              mode="checkout"
+              onPrimaryAction={onSubmitOrder}
+              isBusy={isSubmitting}
+            />
           </div>
         </div>
       </section>

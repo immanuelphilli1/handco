@@ -1,10 +1,15 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { formsApi } from '../api'
 import { images } from '../assets/images'
+import { resolveCategoryId, type SidebarCategoryId } from '../data/categoriesModal'
 import { Icon } from './Icon'
 
 type FooterLink = {
   label: string
   href?: string
+  /** Opens the category modal for this category instead of navigating. */
+  categoryId?: SidebarCategoryId
 }
 
 type FooterColumn = {
@@ -24,11 +29,11 @@ const footerColumns: FooterColumn[] = [
   {
     heading: 'MARKET PLACE',
     links: [
-      { label: 'Electronics & Tech' },
-      { label: 'Fashion & Accessories' },
-      { label: 'Home & Garden' },
-      { label: 'Construction & Tools' },
-      { label: 'Energy & Power' },
+      { label: 'Electronics & Tech', categoryId: 'electronics' },
+      { label: 'Fashion & Accessories', categoryId: 'fashion' },
+      { label: 'Home & Garden', categoryId: 'home-garden' },
+      { label: 'Construction & Tools', categoryId: 'construction' },
+      { label: 'Energy & Power', categoryId: 'energy' },
     ],
   },
   {
@@ -45,7 +50,7 @@ const footerColumns: FooterColumn[] = [
       { label: 'Warranty', href: '/warranty' },
       { label: 'Shipping & Delivery', href: '/shipping-delivery' },
       { label: 'Return & Refund Policy', href: '/return-refund' },
-      { label: 'Terms & Conditions' },
+      { label: 'Terms & Conditions', href: '/terms-of-use' },
       { label: 'Privacy Policy', href: '/privacy-policy' },
     ],
   },
@@ -84,7 +89,34 @@ const paymentIcons = [
   images.footer.tabby,
 ]
 
-export function Footer() {
+type FooterProps = {
+  /** Opens the shared category modal on the given category (Market Place links). */
+  onOpenCategories?: (categoryId: SidebarCategoryId, label: string) => void
+}
+
+export function Footer({ onOpenCategories }: FooterProps) {
+  const [email, setEmail] = useState('')
+  const [subscribeMessage, setSubscribeMessage] = useState('')
+
+  const handleCategoryLink = (link: FooterLink) => {
+    const categoryId = link.categoryId ?? resolveCategoryId(link.label)
+    onOpenCategories?.(categoryId, link.label)
+  }
+
+  const handleSubscribe = async () => {
+    if (!email.trim()) return
+
+    try {
+      await formsApi.subscribeNewsletter(email.trim())
+      setSubscribeMessage('Subscribed successfully.')
+      setEmail('')
+    } catch {
+      // setSubscribeMessage('Unable to subscribe right now.')
+      setEmail('')
+      console.log('Unable to subscribe right now.')
+    }
+  }
+
   return (
     <footer className="flex w-full flex-col pb-24 lg:pb-0">
       <div className="border border-border-primary px-4 lg:px-16">
@@ -96,18 +128,29 @@ export function Footer() {
                 Stay updated with H&CO. newsletters and promotions
               </p>
               <div className="flex items-center gap-2 rounded-full border border-border-secondary bg-bg-primary p-1">
-                <div className="flex min-w-0 flex-1 items-center gap-2 p-2">
+                <label className="flex min-w-0 flex-1 items-center gap-2 p-2">
                   <Icon src={images.footer.mail} />
-                  <span className="min-w-0 flex-1 text-base font-medium tracking-[-0.32px] text-text-tertiary">
-                    Emaill
-                  </span>
-                </div>
-                <button type="button" className="btn-orange flex h-10 items-center rounded-full p-4">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="Emaill"
+                    className="min-w-0 flex-1 bg-transparent text-base font-medium tracking-[-0.32px] text-text-primary outline-none placeholder:text-text-tertiary"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handleSubscribe()}
+                  className="btn-orange flex h-10 items-center rounded-full p-4"
+                >
                   <span className="text-sm font-medium tracking-[-0.28px] text-text-inverse">
                     Subscribe
                   </span>
                 </button>
               </div>
+              {subscribeMessage ? (
+                <p className="mt-2 text-sm tracking-[-0.28px] text-text-secondary">{subscribeMessage}</p>
+              ) : null}
             </div>
           </div>
 
@@ -127,6 +170,14 @@ export function Footer() {
                         >
                           {link.label}
                         </Link>
+                      ) : link.categoryId && onOpenCategories ? (
+                        <button
+                          type="button"
+                          onClick={() => handleCategoryLink(link)}
+                          className="block w-full cursor-pointer py-2 text-left text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary"
+                        >
+                          {link.label}
+                        </button>
                       ) : (
                         <a
                           href="#"

@@ -1,51 +1,27 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackToTopButton } from '../components/BackToTopButton'
 import { Footer } from '../components/Footer'
 import { Nav } from '../components/Nav'
+import { useCategoryNavigation } from '../hooks/useCategoryNavigation'
 import { WarrantyPolicyPageContent } from '../components/WarrantyPolicyPageContent'
-import { useShop } from '../context/ShopContext'
-import type { AuthUser } from '../data/auth'
-import type { CategoryListingSelection } from '../data/categoryListing'
-import type { SidebarCategoryId } from '../data/categoriesModal'
 import {
   getCartPath,
-  getCategoryPathFromSelection,
   getHomePath,
   getWishlistPath,
 } from '../data/shopRoutes'
 
-type WarrantyPolicyPageProps = {
-  authUser: AuthUser | null
-  onSignedIn: (email: string) => void
-  onSignOut: () => void
-}
-
-export function WarrantyPolicyPage({ authUser, onSignedIn, onSignOut }: WarrantyPolicyPageProps) {
+export function WarrantyPolicyPage() {
   const navigate = useNavigate()
-  const { cartItemCount } = useShop()
-  const [isCategoriesOpen, setIsCategoriesOpen] = useState(false)
-  const [categoriesTargetId, setCategoriesTargetId] = useState<SidebarCategoryId>('featured')
-
-  const toggleCategories = useCallback(() => {
-    setIsCategoriesOpen((open) => {
-      if (open) return false
-      setCategoriesTargetId('featured')
-      return true
-    })
-  }, [])
-
-  const closeCategories = useCallback(() => {
-    setIsCategoriesOpen(false)
-  }, [])
-
-  const handleSubcategorySelect = useCallback(
-    (selection: CategoryListingSelection) => {
-      setIsCategoriesOpen(false)
-      navigate(getCategoryPathFromSelection(selection))
-    },
-    [navigate],
-  )
+  const {
+    activeCategoryId,
+    categoriesTargetId,
+    closeCategories,
+    handleSubcategorySelect,
+    isCategoriesOpen,
+    toggleCategories,
+    toggleCategoriesFromLinkBar,
+  } = useCategoryNavigation()
 
   const handleOpenCart = useCallback(() => {
     navigate(getCartPath())
@@ -59,11 +35,6 @@ export function WarrantyPolicyPage({ authUser, onSignedIn, onSignOut }: Warranty
     navigate(getHomePath())
   }, [navigate])
 
-  const handleSignOut = useCallback(() => {
-    onSignOut()
-    navigate(getHomePath())
-  }, [navigate, onSignOut])
-
   return (
     <>
       <Nav
@@ -72,19 +43,17 @@ export function WarrantyPolicyPage({ authUser, onSignedIn, onSignOut }: Warranty
         onToggleCategories={toggleCategories}
         onCloseCategories={closeCategories}
         onSubcategorySelect={handleSubcategorySelect}
+        showCategoryLinksBar
+        onOpenCategories={toggleCategoriesFromLinkBar}
+        activeCategoryId={activeCategoryId}
         onOpenCart={handleOpenCart}
         onOpenWishlist={handleOpenWishlist}
-        cartItemCount={cartItemCount}
-        isSignedIn={authUser !== null}
-        userDisplayName={authUser?.displayName}
-        userFullName={authUser?.fullName}
-        onSignedIn={onSignedIn}
-        onSignOut={handleSignOut}
+        onAfterSignOut={handleGoHome}
         onMobileHome={handleGoHome}
       />
       <div className="mx-auto w-full min-w-0 max-w-360 overflow-x-clip bg-bg-primary">
         <WarrantyPolicyPageContent onGoHome={handleGoHome} />
-        <Footer />
+        <Footer onOpenCategories={toggleCategoriesFromLinkBar} />
       </div>
       <BackToTopButton />
     </>

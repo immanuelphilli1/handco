@@ -6,10 +6,15 @@ import StarFillIcon from 'remixicon-react/StarFillIcon'
 import SubtractLineIcon from 'remixicon-react/SubtractLineIcon'
 import {
   collapsedFilterSections,
+  defaultListingFilters,
   deliveryFilterOptions,
   mobileCollapsedFilterSections,
-  screenSizeFilterOptions,
+  PRICE_CEILING,
+  PRICE_FLOOR,
+  type ListingFilters,
 } from '../data/categoryListing'
+import { ALL_PRODUCTS_LABEL } from '../data/categoriesModal'
+import type { ProductFacets } from '../api/types'
 
 export type OpenSections = {
   price: boolean
@@ -45,36 +50,60 @@ type FilterSectionProps = {
   onToggle: () => void
   children?: ReactNode
   variant: FilterVariant
+  /** When set, a "Clear" link appears beside the title. */
+  onClear?: () => void
 }
 
-function FilterSection({ title, isOpen, onToggle, children, variant }: FilterSectionProps) {
+function FilterSection({
+  title,
+  isOpen,
+  onToggle,
+  children,
+  variant,
+  onClear,
+}: FilterSectionProps) {
   const isMobile = variant === 'mobile'
 
   return (
     <div
       className={`border-b border-border-primary ${isMobile ? 'py-4' : 'p-4'}`}
     >
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full cursor-pointer items-center gap-2 text-left"
-      >
-        <span
-          className={`flex-1 font-medium text-text-secondary ${
-            isMobile
-              ? 'text-sm leading-4.5 tracking-[-0.28px]'
-              : 'text-sm leading-4 tracking-[-0.28px]'
-          }`}
+      <div className="flex w-full items-center gap-2">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
         >
-          {title}
-        </span>
-        <ArrowUpSLineIcon
-          className={`size-6 shrink-0 text-text-secondary transition-transform ${
-            isOpen ? '' : 'rotate-180'
-          }`}
-          aria-hidden
-        />
-      </button>
+          <span
+            className={`flex-1 font-medium text-text-secondary ${
+              isMobile
+                ? 'text-sm leading-4.5 tracking-[-0.28px]'
+                : 'text-sm leading-4 tracking-[-0.28px]'
+            }`}
+          >
+            {title}
+          </span>
+          <ArrowUpSLineIcon
+            className={`size-6 shrink-0 text-text-secondary transition-transform ${
+              isOpen ? '' : 'rotate-180'
+            }`}
+            aria-hidden
+          />
+        </button>
+        {/* A sibling of the toggle, not a child: nesting a control inside the
+            toggle button is invalid and clicking it would also collapse the
+            section. */}
+        {onClear ? (
+          <button
+            type="button"
+            onClick={onClear}
+            aria-label={`Clear ${title} filter`}
+            className="shrink-0 cursor-pointer text-sm font-medium leading-4 tracking-[-0.28px] text-primary-orange"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
       {isOpen && children ? (
         <div className={`flex flex-col gap-2 ${isMobile ? 'mt-2' : 'mt-2'}`}>{children}</div>
       ) : null}
@@ -141,8 +170,39 @@ function RatingStars({ count, className = '' }: { count: number; className?: str
   )
 }
 
-function PriceRangeSlider({ variant }: { variant: FilterVariant }) {
+type PriceRangeSliderProps = {
+  variant: FilterVariant
+  minPrice: number
+  maxPrice: number
+  onMinPriceChange: (value: number) => void
+  onMaxPriceChange: (value: number) => void
+}
+
+function PriceRangeSlider({
+  variant,
+  minPrice,
+  maxPrice,
+  onMinPriceChange,
+  onMaxPriceChange,
+}: PriceRangeSliderProps) {
   const isMobile = variant === 'mobile'
+
+  // The track is expressed as percentages so the handles can be positioned with
+  // inline styles; the two handles share the full [floor, ceiling] range and are
+  // prevented from crossing by clamping on change.
+  const priceSpan = PRICE_CEILING - PRICE_FLOOR
+  const toPercent = (value: number) => ((value - PRICE_FLOOR) / priceSpan) * 100
+
+  const handleMinChange = (value: number) => {
+    onMinPriceChange(Math.min(value, maxPrice))
+  }
+
+  const handleMaxChange = (value: number) => {
+    onMaxPriceChange(Math.max(value, minPrice))
+  }
+
+  const minPercent = toPercent(minPrice)
+  const maxPercent = toPercent(maxPrice)
 
   return (
     <>
@@ -152,23 +212,45 @@ function PriceRangeSlider({ variant }: { variant: FilterVariant }) {
         <div className={`relative h-6 ${isMobile ? 'w-58 max-w-full' : 'w-full'}`}>
           <div className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-bg-tertiary" />
           <div
-            className={`absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary-orange ${
-              isMobile ? 'left-[8.62%] w-[75%]' : 'left-[8%] w-[75%]'
-            }`}
+            className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary-orange"
+            style={{ left: `${minPercent}%`, width: `${maxPercent - minPercent}%` }}
           />
-          <span className="absolute top-1/2 left-[8.62%] size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white bg-primary-orange shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_12px_0px_rgba(0,0,0,0.06)]" />
-          <span className="absolute top-1/2 left-[91.38%] size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white bg-primary-orange shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_12px_0px_rgba(0,0,0,0.06)]" />
+          {/* Two stacked range inputs drive the track: the lower one owns the
+              left handle, the upper one the right. Only the thumbs are
+              interactive, so the invisible tracks never steal each other's
+              drags. The upper handle is raised so it stays grabbable when the
+              two handles meet at the same value. */}
+          <input
+            type="range"
+            min={PRICE_FLOOR}
+            max={PRICE_CEILING}
+            step={50}
+            value={minPrice}
+            onChange={(event) => handleMinChange(Number(event.target.value))}
+            aria-label="Minimum price"
+            className="pointer-events-none absolute inset-0 z-20 size-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-primary-orange [&::-webkit-slider-thumb]:shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_12px_0px_rgba(0,0,0,0.06)] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-4 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-primary-orange"
+          />
+          <input
+            type="range"
+            min={PRICE_FLOOR}
+            max={PRICE_CEILING}
+            step={50}
+            value={maxPrice}
+            onChange={(event) => handleMaxChange(Number(event.target.value))}
+            aria-label="Maximum price"
+            className="pointer-events-none absolute inset-0 size-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-primary-orange [&::-webkit-slider-thumb]:shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_12px_0px_rgba(0,0,0,0.06)] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-4 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-primary-orange"
+          />
         </div>
       </div>
       <div className="flex items-center gap-2">
         <div className="flex flex-1 items-center gap-1 rounded-lg border border-border-secondary p-2 text-sm font-medium tracking-[-0.28px]">
           <span className="text-text-tertiary">AED</span>
-          <span className="text-text-secondary">200</span>
+          <span className="text-text-secondary">{minPrice}</span>
         </div>
         <SubtractLineIcon className="size-6 shrink-0 text-text-secondary" aria-hidden />
         <div className="flex flex-1 items-center gap-1 rounded-lg border border-border-secondary p-2 text-sm font-medium tracking-[-0.28px]">
           <span className="text-text-tertiary">AED</span>
-          <span className="text-text-secondary">2000</span>
+          <span className="text-text-secondary">{maxPrice}</span>
         </div>
       </div>
     </>
@@ -183,9 +265,11 @@ function ListingFiltersContent({
   onCategoryChange,
   openSections,
   onToggleSection,
-  selectedRating,
-  onRatingChange,
+  filters,
+  onFiltersChange,
+  facets,
   showAllCategoryOption = false,
+  showAllProductOption = false,
 }: {
   variant: FilterVariant
   headerTitle: string
@@ -194,17 +278,40 @@ function ListingFiltersContent({
   onCategoryChange: (label: string) => void
   openSections: OpenSections
   onToggleSection: (key: keyof OpenSections) => void
-  selectedRating: string
-  onRatingChange: (rating: string) => void
+  filters: ListingFilters
+  onFiltersChange: (next: ListingFilters) => void
+  facets: ProductFacets
   showAllCategoryOption?: boolean
+  showAllProductOption?: boolean
 }) {
   const isMobile = variant === 'mobile'
   const resolvedHeaderClassName = isMobile
     ? 'py-2'
     : 'border-b border-border-primary px-4 py-2'
 
-  const categoryPreviewCount = showAllCategoryOption && !isMobile ? 3 : 4
-  const categoryOverflowThreshold = showAllCategoryOption && !isMobile ? 3 : 4
+  // The preview leaves room for the leading "All categories" / "All products"
+  // entries so the visible slice of subcategories stays short.
+  const leadingOptionCount = (showAllCategoryOption ? 1 : 0) + (showAllProductOption ? 1 : 0)
+  const categoryPreviewCount = Math.max(1, (isMobile ? 4 : 4) - leadingOptionCount)
+  const categoryOverflowThreshold = categoryPreviewCount
+
+  // Facets come from the API. The previous hardcoded lists (e.g. "55 Inches",
+  // "75 Inches") matched no product and always produced an empty result, so the
+  // options are now exactly the values the catalog can be filtered by.
+  const deliveryOptions = facets.deliveryOptions.length > 0
+    ? facets.deliveryOptions
+    : deliveryFilterOptions
+  const screenSizeOptions = facets.screenSizes
+  const colorOptions = facets.colors
+  const brandOptions = facets.brands
+
+  // Each section only offers Clear once it actually deviates from the default,
+  // so an untouched panel stays free of dead links.
+  const isPriceFiltered =
+    filters.minPrice !== defaultListingFilters.minPrice ||
+    filters.maxPrice !== defaultListingFilters.maxPrice
+  const isRatingFiltered = filters.rating !== defaultListingFilters.rating
+  const isCategoryFiltered = selectedCategory !== 'all' && selectedCategory !== ''
 
   return (
     <>
@@ -218,9 +325,25 @@ function ListingFiltersContent({
         title="Price"
         isOpen={openSections.price}
         onToggle={() => onToggleSection('price')}
+        onClear={
+          isPriceFiltered
+            ? () =>
+                onFiltersChange({
+                  ...filters,
+                  minPrice: defaultListingFilters.minPrice,
+                  maxPrice: defaultListingFilters.maxPrice,
+                })
+            : undefined
+        }
         variant={variant}
       >
-        <PriceRangeSlider variant={variant} />
+        <PriceRangeSlider
+          variant={variant}
+          minPrice={filters.minPrice}
+          maxPrice={filters.maxPrice}
+          onMinPriceChange={(value) => onFiltersChange({ ...filters, minPrice: value })}
+          onMaxPriceChange={(value) => onFiltersChange({ ...filters, maxPrice: value })}
+        />
       </FilterSection>
 
       {categoryOptions.length > 0 ? (
@@ -228,13 +351,24 @@ function ListingFiltersContent({
           title="Category"
           isOpen={openSections.category}
           onToggle={() => onToggleSection('category')}
+          onClear={isCategoryFiltered ? () => onCategoryChange('all') : undefined}
           variant={variant}
         >
-          {showAllCategoryOption && !isMobile ? (
+          {/* "All categories" sits above the real subcategories: it is the
+              unfiltered option, so listing it last would bury it. */}
+          {showAllCategoryOption ? (
             <FilterRadioOption
               label="All categories"
               isSelected={selectedCategory === 'all'}
               onSelect={() => onCategoryChange('all')}
+              variant={variant}
+            />
+          ) : null}
+          {showAllProductOption ? (
+            <FilterRadioOption
+              label={ALL_PRODUCTS_LABEL}
+              isSelected={selectedCategory === ALL_PRODUCTS_LABEL}
+              onSelect={() => onCategoryChange(ALL_PRODUCTS_LABEL)}
               variant={variant}
             />
           ) : null}
@@ -263,14 +397,19 @@ function ListingFiltersContent({
         title="Rating"
         isOpen={openSections.rating}
         onToggle={() => onToggleSection('rating')}
+        onClear={
+          isRatingFiltered
+            ? () => onFiltersChange({ ...filters, rating: defaultListingFilters.rating })
+            : undefined
+        }
         variant={variant}
       >
         {[4, 3, 2, 1].map((count) => (
           <FilterRadioOption
             key={count}
             label={`${count} & above`}
-            isSelected={selectedRating === String(count)}
-            onSelect={() => onRatingChange(String(count))}
+            isSelected={filters.rating === String(count)}
+            onSelect={() => onFiltersChange({ ...filters, rating: String(count) })}
             variant={variant}
             trailing={
               <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -284,50 +423,116 @@ function ListingFiltersContent({
         ))}
         <FilterRadioOption
           label="All Ratings"
-          isSelected={selectedRating === 'all'}
-          onSelect={() => onRatingChange('all')}
+          isSelected={filters.rating === 'all'}
+          onSelect={() => onFiltersChange({ ...filters, rating: 'all' })}
           variant={variant}
         />
       </FilterSection>
 
       {isMobile ? (
-        <FilterSection
-          title="Screen Size"
-          isOpen={openSections.screenSize}
-          onToggle={() => onToggleSection('screenSize')}
-          variant={variant}
-        >
-          {screenSizeFilterOptions.map((label) => (
-            <FilterRadioOption
-              key={label}
-              label={label}
-              isSelected={false}
-              onSelect={() => undefined}
-              variant={variant}
-            />
-          ))}
-        </FilterSection>
+        screenSizeOptions.length > 0 ? (
+          <FilterSection
+            title="Screen Size"
+            isOpen={openSections.screenSize}
+            onToggle={() => onToggleSection('screenSize')}
+            onClear={
+              filters.screenSize
+                ? () => onFiltersChange({ ...filters, screenSize: '' })
+                : undefined
+            }
+            variant={variant}
+          >
+            {screenSizeOptions.map((label) => (
+              <FilterRadioOption
+                key={label}
+                label={label}
+                isSelected={filters.screenSize === label}
+                onSelect={() => onFiltersChange({ ...filters, screenSize: label })}
+                variant={variant}
+              />
+            ))}
+          </FilterSection>
+        ) : null
       ) : (
         <FilterSection
           title="Delivery"
           isOpen={openSections.delivery}
           onToggle={() => onToggleSection('delivery')}
+          onClear={
+            filters.delivery ? () => onFiltersChange({ ...filters, delivery: '' }) : undefined
+          }
           variant={variant}
         >
-          {deliveryFilterOptions.map((label) => (
+          {deliveryOptions.map((label) => (
             <FilterRadioOption
               key={label}
               label={label}
-              isSelected={false}
-              onSelect={() => undefined}
+              isSelected={filters.delivery === label}
+              onSelect={() =>
+                onFiltersChange({
+                  ...filters,
+                  // Re-selecting the active value clears it, so a single-choice
+                  // facet can be turned off.
+                  delivery: filters.delivery === label ? '' : label,
+                })
+              }
               variant={variant}
             />
           ))}
         </FilterSection>
       )}
 
+      {brandOptions.length > 0 ? (
+        <FilterSection
+          title="Brand"
+          isOpen={openSections.brand}
+          onToggle={() => onToggleSection('brand')}
+          onClear={
+            filters.brand ? () => onFiltersChange({ ...filters, brand: '' }) : undefined
+          }
+          variant={variant}
+        >
+          {brandOptions.map((label) => (
+            <FilterRadioOption
+              key={label}
+              label={label}
+              isSelected={filters.brand === label}
+              onSelect={() => onFiltersChange({ ...filters, brand: filters.brand === label ? '' : label })}
+              variant={variant}
+            />
+          ))}
+        </FilterSection>
+      ) : null}
+
+      {colorOptions.length > 0 ? (
+        <FilterSection
+          title="Color"
+          isOpen={openSections.color}
+          onToggle={() => onToggleSection('color')}
+          onClear={
+            filters.color ? () => onFiltersChange({ ...filters, color: '' }) : undefined
+          }
+          variant={variant}
+        >
+          {colorOptions.map((label) => (
+            <FilterRadioOption
+              key={label}
+              label={label}
+              isSelected={filters.color === label}
+              onSelect={() => onFiltersChange({ ...filters, color: filters.color === label ? '' : label })}
+              variant={variant}
+            />
+          ))}
+        </FilterSection>
+      ) : null}
+
       {(isMobile ? mobileCollapsedFilterSections : collapsedFilterSections).map((title) => {
         const key = title.toLowerCase() as keyof OpenSections
+        // Brand and Color are rendered above from live facets, so they are
+        // filtered out here to avoid rendering the same section twice.
+        if (key === 'brand' || key === 'color') {
+          return null
+        }
 
         return (
           <FilterSection
@@ -349,18 +554,22 @@ export function ListingFiltersSidebar({
   onCategoryChange,
   openSections,
   onToggleSection,
-  selectedRating,
-  onRatingChange,
+  filters,
+  onFiltersChange,
+  facets,
   showAllCategoryOption = false,
+  showAllProductOption = false,
 }: {
   selectedCategory: string
   categoryOptions: string[]
   onCategoryChange: (label: string) => void
   openSections: OpenSections
   onToggleSection: (key: keyof OpenSections) => void
-  selectedRating: string
-  onRatingChange: (rating: string) => void
+  filters: ListingFilters
+  onFiltersChange: (next: ListingFilters) => void
+  facets: ProductFacets
   showAllCategoryOption?: boolean
+  showAllProductOption?: boolean
 }) {
   return (
     <aside className="hidden w-66 shrink-0 flex-col overflow-hidden rounded-[12px] border border-border-primary lg:flex">
@@ -372,9 +581,11 @@ export function ListingFiltersSidebar({
         onCategoryChange={onCategoryChange}
         openSections={openSections}
         onToggleSection={onToggleSection}
-        selectedRating={selectedRating}
-        onRatingChange={onRatingChange}
+        filters={filters}
+        onFiltersChange={onFiltersChange}
+        facets={facets}
         showAllCategoryOption={showAllCategoryOption}
+        showAllProductOption={showAllProductOption}
       />
     </aside>
   )
@@ -390,11 +601,13 @@ export function MobileFiltersSheet({
   onDraftCategoryChange,
   openSections,
   onToggleSection,
-  selectedRating,
-  onRatingChange,
+  draftFilters,
+  onDraftFiltersChange,
+  facets,
   onClose,
   onSave,
   showAllCategoryOption = false,
+  showAllProductOption = false,
 }: {
   isOpen: boolean
   draftCategory: string
@@ -402,11 +615,13 @@ export function MobileFiltersSheet({
   onDraftCategoryChange: (label: string) => void
   openSections: OpenSections
   onToggleSection: (key: keyof OpenSections) => void
-  selectedRating: string
-  onRatingChange: (rating: string) => void
+  draftFilters: ListingFilters
+  onDraftFiltersChange: (next: ListingFilters) => void
+  facets: ProductFacets
   onClose: () => void
   onSave: () => void
   showAllCategoryOption?: boolean
+  showAllProductOption?: boolean
 }) {
   useEffect(() => {
     if (!isOpen) return
@@ -448,9 +663,11 @@ export function MobileFiltersSheet({
             onCategoryChange={onDraftCategoryChange}
             openSections={openSections}
             onToggleSection={onToggleSection}
-            selectedRating={selectedRating}
-            onRatingChange={onRatingChange}
+            filters={draftFilters}
+            onFiltersChange={onDraftFiltersChange}
+            facets={facets}
             showAllCategoryOption={showAllCategoryOption}
+            showAllProductOption={showAllProductOption}
           />
         </div>
 
@@ -529,7 +746,26 @@ export function useListingFilters(defaultCategory: string) {
   const [draftCategory, setDraftCategory] = useState(defaultCategory)
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
   const [openSections, setOpenSections] = useState(defaultOpenSections)
-  const [selectedRating, setSelectedRating] = useState('4')
+  // Committed filters drive the visible product list; the draft copy is what the
+  // mobile sheet edits until "Save" is pressed, matching the category field's
+  // existing apply-on-save behaviour.
+  const [filters, setFilters] = useState<ListingFilters>(defaultListingFilters)
+  const [draftFilters, setDraftFilters] = useState<ListingFilters>(defaultListingFilters)
+
+  // Re-seed when the route changes. Without this the filter keeps the value it
+  // had on mount, which is wrong when navigating between category pages or when
+  // the real categories arrive after an initial static fallback. Adjusting state
+  // during render (rather than in an effect) avoids a cascading second render.
+  const [lastDefaultCategory, setLastDefaultCategory] = useState(defaultCategory)
+  if (lastDefaultCategory !== defaultCategory) {
+    setLastDefaultCategory(defaultCategory)
+    setActiveCategory(defaultCategory)
+    setDraftCategory(defaultCategory)
+    // Facet selections belong to the previous page, so they are cleared on
+    // navigation rather than leaking into the new category's results.
+    setFilters(defaultListingFilters)
+    setDraftFilters(defaultListingFilters)
+  }
 
   const toggleSection = (key: keyof OpenSections) => {
     setOpenSections((sections) => ({ ...sections, [key]: !sections[key] }))
@@ -537,6 +773,7 @@ export function useListingFilters(defaultCategory: string) {
 
   const openMobileFilters = () => {
     setDraftCategory(activeCategory)
+    setDraftFilters(filters)
     setIsMobileFiltersOpen(true)
   }
 
@@ -546,6 +783,7 @@ export function useListingFilters(defaultCategory: string) {
 
   const saveMobileFilters = () => {
     setActiveCategory(draftCategory)
+    setFilters(draftFilters)
     setIsMobileFiltersOpen(false)
   }
 
@@ -556,8 +794,10 @@ export function useListingFilters(defaultCategory: string) {
     setDraftCategory,
     isMobileFiltersOpen,
     openSections,
-    selectedRating,
-    setSelectedRating,
+    filters,
+    setFilters,
+    draftFilters,
+    setDraftFilters,
     toggleSection,
     openMobileFilters,
     closeMobileFilters,

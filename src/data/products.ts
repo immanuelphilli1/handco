@@ -18,6 +18,14 @@ export type Product = {
   showAddButton?: boolean
   priceOrange?: boolean
   imageObjectPosition?: string
+  /**
+   * Numeric facets. The API sends these alongside the display strings above and
+   * the listing filters compare against them, so they must survive mapping.
+   */
+  priceAmount?: number
+  brand?: string
+  color?: string
+  screenSize?: string | null
 }
 
 type ProductRecord = Omit<Product, 'categoryId'>

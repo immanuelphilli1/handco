@@ -12,19 +12,25 @@ import PaletteLineIcon from 'remixicon-react/PaletteLineIcon'
 import PlantLineIcon from 'remixicon-react/PlantLineIcon'
 import StarLineIcon from 'remixicon-react/StarLineIcon'
 import TShirt2LineIcon from 'remixicon-react/TShirt2LineIcon'
+import { useCatalog } from '../context/CatalogContext'
 import {
-  categoryIdByTitle,
-  categoryPanelContent,
-  sidebarCategories,
-  type SidebarCategoryId,
-  type Subcategory,
-} from '../data/categoriesModal'
-import { allCategoriesListingSelection } from '../data/categoryListing'
+  getCategoryPanelSections,
+  getSubcategoryOptions,
+  type CategoryPanelSectionView,
+} from '../data/catalogCategories'
+import { getAllCategoriesListingSelection } from '../data/categoryListing'
 import type { CategoryListingSelection } from '../data/categoryListing'
+import { sidebarCategories, type SidebarCategoryId, type Subcategory } from '../data/categoriesModal'
 
 type CategoriesModalProps = {
   isOpen: boolean
   initialCategoryId: SidebarCategoryId
+  /**
+   * When false, opening the modal on mobile shows the category list instead of
+   * jumping straight to the initial category's subcategories. Link bar clicks
+   * pass true because the user picked a category deliberately.
+   */
+  openToInitialCategory?: boolean
   onClose: () => void
   onSubcategorySelect: (selection: CategoryListingSelection) => void
 }
@@ -130,6 +136,9 @@ function CategorySectionPanel({
   items: Subcategory[]
   onSubcategorySelect: (selection: CategoryListingSelection) => void
 }) {
+  const { categories } = useCatalog()
+  const subcategoryOptions = getSubcategoryOptions(sectionId, categories)
+
   return (
     <section data-section-id={sectionId} className="flex scroll-mt-4 flex-col gap-2">
       <h3 className="text-2xl font-medium tracking-[-0.48px] text-text-primary">{title}</h3>
@@ -143,7 +152,7 @@ function CategorySectionPanel({
                 categoryId: sectionId,
                 categoryLabel: title,
                 subcategoryLabel: item.label,
-                subcategoryOptions: items.map((entry) => entry.label),
+                subcategoryOptions,
               })
             }
           />
@@ -157,25 +166,20 @@ function CategorySections({
   sections,
   onSubcategorySelect,
 }: {
-  sections: (typeof categoryPanelContent)[SidebarCategoryId]
+  sections: CategoryPanelSectionView[]
   onSubcategorySelect: (selection: CategoryListingSelection) => void
 }) {
   return (
     <div className="flex flex-col gap-8">
-      {sections.map((section) => {
-        const sectionId = categoryIdByTitle[section.title]
-        if (!sectionId) return null
-
-        return (
-          <CategorySectionPanel
-            key={section.title}
-            sectionId={sectionId}
-            title={section.title}
-            items={section.items}
-            onSubcategorySelect={onSubcategorySelect}
-          />
-        )
-      })}
+      {sections.map((section) => (
+        <CategorySectionPanel
+          key={`${section.sectionId}-${section.title}`}
+          sectionId={section.sectionId}
+          title={section.title}
+          items={section.items}
+          onSubcategorySelect={onSubcategorySelect}
+        />
+      ))}
     </div>
   )
 }
@@ -183,27 +187,29 @@ function CategorySections({
 export function CategoriesModal({
   isOpen,
   initialCategoryId,
+  openToInitialCategory = false,
   onClose,
   onSubcategorySelect,
 }: CategoriesModalProps) {
+  const { categories } = useCatalog()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [selectedId, setSelectedId] = useState<SidebarCategoryId>('featured')
   const [mobileView, setMobileView] = useState<MobileView>('list')
 
-  const sections = categoryPanelContent[selectedId]
+  const sections = getCategoryPanelSections(selectedId, categories)
   const selectedCategory = sidebarCategories.find((category) => category.id === selectedId)
 
   const handleMobileCategorySelect = useCallback(
     (categoryId: SidebarCategoryId) => {
       if (categoryId === 'all-categories') {
-        onSubcategorySelect(allCategoriesListingSelection)
+        onSubcategorySelect(getAllCategoriesListingSelection(categories))
         return
       }
 
       setSelectedId(categoryId)
       setMobileView('detail')
     },
-    [onSubcategorySelect],
+    [categories, onSubcategorySelect],
   )
 
   const handleMobileBack = useCallback(() => {
@@ -214,13 +220,18 @@ export function CategoriesModal({
     if (!isOpen) return
 
     setSelectedId(initialCategoryId)
+    // Desktop always renders the sections in place, so mobileView only matters
+    // under 1024px. Only jump to the detail view when the user deliberately
+    // picked a category (link bar); otherwise show the category list first.
     setMobileView(
-      window.matchMedia('(max-width: 1023px)').matches && initialCategoryId !== 'featured'
+      window.matchMedia('(max-width: 1023px)').matches &&
+        openToInitialCategory &&
+        initialCategoryId !== 'featured'
         ? 'detail'
         : 'list',
     )
     scrollContainerRef.current?.scrollTo({ top: 0 })
-  }, [initialCategoryId, isOpen])
+  }, [initialCategoryId, isOpen, openToInitialCategory])
 
   useEffect(() => {
     if (!isOpen) return

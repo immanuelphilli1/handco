@@ -6,6 +6,7 @@ import {
   aboutVisionText,
 } from '../data/about'
 import { getHomeFeaturedProducts, type Product } from '../data/products'
+import { useCatalog } from '../context/CatalogContext'
 import { PageBreadcrumbs } from './PageBreadcrumbs'
 import { getProductPath } from '../data/shopRoutes'
 import { ProductCard } from './ProductCard'
@@ -15,9 +16,17 @@ type AboutPageContentProps = {
   onProductSelect?: (product: Product) => void
 }
 
-const recommendedProducts = getHomeFeaturedProducts().slice(0, 5)
+const fallbackRecommendedProducts = getHomeFeaturedProducts().slice(0, 5)
 
 export function AboutPageContent({ onGoHome, onProductSelect }: AboutPageContentProps) {
+  const { featuredProducts, isReady } = useCatalog()
+  // Show the same live featured products as the homepage, falling back to the
+  // static list until the catalog request resolves.
+  const recommendedProducts =
+    isReady && featuredProducts.length > 0
+      ? featuredProducts.slice(0, 5)
+      : fallbackRecommendedProducts
+
   return (
     <main>
       <PageBreadcrumbs

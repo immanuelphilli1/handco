@@ -4,6 +4,8 @@ import { defaultAddress } from './profile'
 
 export type CartItem = {
   id: string
+  /** Rid of the product this line belongs to, when the API supplies it. */
+  productRid?: string
   name: string
   variant: string
   image: string
@@ -18,6 +20,7 @@ export type CheckoutPaymentMethodId =
   | 'apple_pay'
   | 'google_pay'
   | 'paypal'
+  | 'mobile_money'
   | 'tabby'
   | 'tamara'
 
@@ -92,6 +95,11 @@ export const checkoutPaymentMethods: CheckoutPaymentMethod[] = [
   { id: 'apple_pay', label: 'Apple Pay', icon: images.footer.applePay },
   { id: 'google_pay', label: 'Google Pay', icon: images.footer.googlePay },
   { id: 'paypal', label: 'Paypal', icon: images.footer.paypal },
+  {
+    id: 'mobile_money',
+    label: 'Mobile Money',
+    icon: images.footer.mobileMoney,
+  },
   { id: 'tabby', label: 'Tabby', icon: images.footer.tabby, note: 'pay in instalment' },
   {
     id: 'tamara',

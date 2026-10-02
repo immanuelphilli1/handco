@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { accountApi } from '../api'
+import { ApiError } from '../api/client'
+import { getApiAddressId, mapApiAddress, mapApiAddresses } from '../api/mappers'
 import DeleteBin7LineIcon from 'remixicon-react/DeleteBin7LineIcon'
 import EditBoxLineIcon from 'remixicon-react/EditBoxLineIcon'
 import FileCopyLineIcon from 'remixicon-react/FileCopyLineIcon'
 import LockFillIcon from 'remixicon-react/LockFillIcon'
 import { AddAddressModal } from './AddAddressModal'
+import { ListingLoader } from './ListingLoader'
 import {
   addressSafeguardNotice,
   addressToFormValues,
@@ -13,6 +17,36 @@ import {
   type AddressFormValues,
   type AddressRecord,
 } from '../data/addresses'
+
+/**
+ * Ensures exactly one address reads as default: the preferred one when given,
+ * otherwise the first, otherwise the server's own flags are respected.
+ */
+function applyDefaultFlag(items: AddressRecord[], preferredDefaultId?: string): AddressRecord[] {
+  if (items.length === 0) return items
+
+  const hasPreferred =
+    preferredDefaultId !== undefined && items.some((item) => item.id === preferredDefaultId)
+
+  if (hasPreferred) {
+    return items.map((item) => ({
+      ...item,
+      isDefault: item.id === preferredDefaultId,
+    }))
+  }
+
+  if (items.some((item) => item.isDefault)) return items
+
+  return items.map((item, index) => ({
+    ...item,
+    isDefault: index === 0,
+  }))
+}
+
+/** Server errors carry the real reason; fall back to friendly copy. */
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiError && error.message ? error.message : fallback
+}
 
 function AddressDefaultToggle({
   isDefault,
@@ -104,15 +138,76 @@ function AddressCard({
   )
 }
 
-export function AddressesPanel() {
+type AddressesPanelProps = {
+  /**
+   * When true, the panel opens the default address's edit form as soon as the
+   * list loads. Checkout's "Edit" link sets this so the user lands on the form
+   * rather than having to find and open it.
+   */
+  startEditingDefault?: boolean
+  /** Clears the `?edit=default` flag once the form is dismissed. */
+  onDismissEditIntent?: () => void
+}
+
+export function AddressesPanel({
+  startEditingDefault = false,
+  onDismissEditIntent,
+}: AddressesPanelProps) {
   const [addresses, setAddresses] = useState<AddressRecord[]>(() =>
     savedAddresses.map((address) => ({ ...address })),
   )
+  const [isSaving, setIsSaving] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null)
 
-  const editingAddress = addresses.find((address) => address.id === editingAddressId)
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadAddresses() {
+      setIsLoading(true)
+      try {
+        const response = await accountApi.listAddresses()
+        const items = mapApiAddresses(response)
+        if (!cancelled && items.length > 0) {
+          setAddresses(items)
+        }
+      } catch {
+        // Keep static fallback addresses.
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    void loadAddresses()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /**
+   * Checkout's "Edit" link opens the default address's form on arrival. The
+   * target is derived while the modal is closed rather than set from an effect,
+   * which keeps this out of the render cascade; it resolves only once the list
+   * has loaded so the id is the server's, not a seed row's.
+   */
+  const defaultAddressId = useMemo(
+    () => addresses.find((address) => address.isDefault)?.id,
+    [addresses],
+  )
+
+  const shouldAutoEditDefault =
+    startEditingDefault && !isLoading && !isModalOpen && Boolean(defaultAddressId)
+
+  const editingAddress = addresses.find(
+    (address) =>
+      address.id === editingAddressId ||
+      (shouldAutoEditDefault && address.id === defaultAddressId),
+  )
 
   const openAddModal = () => {
     setModalMode('add')
@@ -126,16 +221,49 @@ export function AddressesPanel() {
     setIsModalOpen(true)
   }
 
-  const setDefaultAddress = (addressId: string) => {
+  /** Dismissing also drops the `?edit=default` flag, so the form stays closed. */
+  const closeModal = () => {
+    setIsModalOpen(false)
+    setEditingAddressId(null)
+    onDismissEditIntent?.()
+  }
+
+  /**
+   * Flags one address as default locally. The server owns this flag, so a
+   * successful call is the source of truth and a failure rolls the toggle back.
+   */
+  const setDefaultAddress = async (addressId: string) => {
+    if (!addressId || addressId.startsWith('address-')) return
+
+    const previous = addresses
     setAddresses((current) =>
       current.map((address) => ({
         ...address,
         isDefault: address.id === addressId,
       })),
     )
+
+    try {
+      setIsSaving(true)
+      const updated = await accountApi.setDefaultAddress(addressId)
+      if (getApiAddressId(updated) !== '') {
+        setAddresses((current) =>
+          current.map((address) => ({
+            ...address,
+            isDefault: address.id === addressId,
+          })),
+        )
+      }
+    } catch {
+      setAddresses(previous)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const deleteAddress = (addressId: string) => {
+  const deleteAddress = async (addressId: string) => {
+    const previous = addresses
+
     setAddresses((current) => {
       const next = current.filter((address) => address.id !== addressId)
       if (next.length === 0) return next
@@ -144,69 +272,88 @@ export function AddressesPanel() {
       }
       return next
     })
-  }
 
-  const duplicateAddress = (addressId: string) => {
-    setAddresses((current) => {
-      const source = current.find((address) => address.id === addressId)
-      if (!source) return current
+    // Local seed ids (address-1, address-2) are not server records, so there is
+    // nothing to delete remotely.
+    if (!addressId || addressId.startsWith('address-')) return
 
-      return [
-        ...current,
-        {
-          ...source,
-          id: `address-${Date.now()}`,
-          isDefault: false,
-        },
-      ]
-    })
-  }
-
-  const applyDefaultFlag = (items: AddressRecord[], preferredDefaultId?: string) => {
-    if (items.length === 0) return items
-
-    const hasPreferred =
-      preferredDefaultId !== undefined && items.some((item) => item.id === preferredDefaultId)
-
-    if (hasPreferred) {
-      return items.map((item) => ({
-        ...item,
-        isDefault: item.id === preferredDefaultId,
-      }))
+    try {
+      setIsSaving(true)
+      await accountApi.deleteAddress(addressId)
+    } catch {
+      setAddresses(previous)
+    } finally {
+      setIsSaving(false)
     }
-
-    if (items.some((item) => item.isDefault)) return items
-
-    return items.map((item, index) => ({
-      ...item,
-      isDefault: index === 0,
-    }))
   }
 
-  const handleSubmit = (values: AddressFormValues) => {
-    if (modalMode === 'edit' && editingAddressId) {
-      setAddresses((current) => {
-        const updated = current.map((address) =>
-          address.id === editingAddressId
-            ? formValuesToAddress(values, address.id, address.cityLine)
-            : address,
+  const duplicateAddress = async (addressId: string) => {
+    if (!addressId || addressId.startsWith('address-')) return
+
+    try {
+      setIsSaving(true)
+      const created = await accountApi.duplicateAddress(addressId)
+      const mapped = mapApiAddress(created)
+      if (mapped.id !== '') {
+        setAddresses((current) => [...current, { ...mapped, isDefault: false }])
+      }
+    } catch (error) {
+      setErrorMessage(getApiErrorMessage(error, 'We could not duplicate this address.'))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleSubmit = async (values: AddressFormValues) => {
+    setErrorMessage(null)
+    setIsSaving(true)
+
+    const payload = formValuesToAddress(values, '')
+
+    try {
+      if (modalMode === 'edit' && editingAddressId) {
+        const response = await accountApi.updateAddress(editingAddressId, payload)
+        const mapped = mapApiAddress(response)
+        setAddresses((current) =>
+          applyDefaultFlag(
+            current.map((address) =>
+              address.id === editingAddressId
+                ? { ...address, ...mapped, id: address.id, cityLine: mapped.cityLine || address.cityLine }
+                : address,
+            ),
+            values.isDefault ? editingAddressId : undefined,
+          ),
         )
-        return applyDefaultFlag(updated, values.isDefault ? editingAddressId : undefined)
-      })
-      return
-    }
 
-    const newAddress = formValuesToAddress(values, `address-${Date.now()}`)
-    setAddresses((current) => applyDefaultFlag([...current, newAddress], newAddress.id))
+        if (values.isDefault) {
+          await accountApi.setDefaultAddress(editingAddressId)
+        }
+        return
+      }
+
+      const response = await accountApi.createAddress(payload)
+      const mapped = mapApiAddress(response)
+      if (mapped.id !== '') {
+        setAddresses((current) => applyDefaultFlag([...current, mapped], mapped.id))
+      }
+    } catch (error) {
+      setErrorMessage(getApiErrorMessage(error, 'We could not save this address.'))
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
     <>
+      {/* Keyed by target so switching between "add" and "edit" (or to a different
+          address) mounts a fresh form seeded from the new initial values.
+          `shouldAutoEditDefault` keeps the form up until the user dismisses it. */}
       <AddAddressModal
-        isOpen={isModalOpen}
-        mode={modalMode}
+        key={`${editingAddressId ?? (shouldAutoEditDefault ? defaultAddressId : 'new')}-${isModalOpen || shouldAutoEditDefault ? 'open' : 'closed'}`}
+        isOpen={isModalOpen || shouldAutoEditDefault}
+        mode={shouldAutoEditDefault && !editingAddressId ? 'edit' : modalMode}
         initialValues={editingAddress ? addressToFormValues(editingAddress) : undefined}
-        onClose={() => setIsModalOpen(false)}
+        onClose={closeModal}
         onSubmit={handleSubmit}
       />
 
@@ -229,24 +376,38 @@ export function AddressesPanel() {
           <button
             type="button"
             onClick={openAddModal}
-            className="btn-orange flex w-full shrink-0 cursor-pointer items-center justify-center rounded-full px-6 py-4 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse lg:w-auto"
+            disabled={isSaving}
+            className="btn-orange flex w-full shrink-0 cursor-pointer items-center justify-center rounded-full px-6 py-4 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse disabled:cursor-not-allowed disabled:opacity-60 lg:w-auto"
           >
             Add new address
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {addresses.map((address) => (
-            <AddressCard
-              key={address.id}
-              address={address}
-              onSetDefault={() => setDefaultAddress(address.id)}
-              onDelete={() => deleteAddress(address.id)}
-              onEdit={() => openEditModal(address.id)}
-              onDuplicate={() => duplicateAddress(address.id)}
-            />
-          ))}
-        </div>
+        {errorMessage ? (
+          <p
+            role="alert"
+            className="rounded-xl bg-orange-light px-4 py-3 text-sm font-medium leading-4.5 tracking-[-0.28px] text-primary-orange"
+          >
+            {errorMessage}
+          </p>
+        ) : null}
+
+        {isLoading ? (
+          <ListingLoader label="Loading addresses" />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {addresses.map((address) => (
+              <AddressCard
+                key={address.id}
+                address={address}
+                onSetDefault={() => void setDefaultAddress(address.id)}
+                onDelete={() => void deleteAddress(address.id)}
+                onEdit={() => openEditModal(address.id)}
+                onDuplicate={() => void duplicateAddress(address.id)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </>
   )

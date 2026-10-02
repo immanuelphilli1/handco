@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import ArrowDownSLineIcon from 'remixicon-react/ArrowDownSLineIcon'
 import CloseFillIcon from 'remixicon-react/CloseFillIcon'
 import LockFillIcon from 'remixicon-react/LockFillIcon'
+import { accountApi } from '../api'
 import {
   addressCities,
   addressCountries,
@@ -60,6 +61,7 @@ function SelectField({
   onChange,
   options,
   placeholder,
+  isDisabled = false,
 }: {
   id: string
   label: string
@@ -67,6 +69,7 @@ function SelectField({
   onChange: (value: string) => void
   options: string[]
   placeholder: string
+  isDisabled?: boolean
 }) {
   return (
     <label
@@ -76,8 +79,9 @@ function SelectField({
       <select
         id={id}
         value={value}
+        disabled={isDisabled}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full appearance-none bg-transparent pr-8 text-base leading-5 tracking-[-0.32px] outline-none ${
+        className={`w-full appearance-none bg-transparent pr-8 text-base leading-5 tracking-[-0.32px] outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
           value ? 'font-medium text-text-primary' : 'font-normal text-text-tertiary'
         }`}
       >
@@ -133,12 +137,111 @@ export function AddAddressModal({
   onClose,
   onSubmit,
 }: AddAddressModalProps) {
-  const [form, setForm] = useState<AddressFormValues>(emptyAddressForm)
+  // The parent keys this component by the address being edited, so the form
+  // initialises from `initialValues` in its first render instead of being reset
+  // from an effect, which would paint one frame with the previous address.
+  const [form, setForm] = useState<AddressFormValues>(initialValues ?? emptyAddressForm)
+
+  /**
+   * Country → region → city, loaded from the public lookup endpoints. Each level
+   * is only fetched once its parent is chosen, and the local seed lists act as
+   * the fallback when a lookup fails so the form stays usable offline.
+   *
+   * The dropdowns show names, but the lookups are keyed by different things:
+   * regions are fetched by country **code** (`?country=GH`), while cities are
+   * fetched by region **rid** (`?region=5chrwcah51au`). Both id maps are kept so
+   * the form can translate the selected label into the value the API expects.
+   */
+  const [countries, setCountries] = useState<string[]>(addressCountries)
+  const [countryCodes, setCountryCodes] = useState<string[]>([])
+  const [regions, setRegions] = useState<string[]>(addressRegions)
+  const [regionRids, setRegionRids] = useState<string[]>([])
+  const [cities, setCities] = useState<string[]>(addressCities)
+  const [isLoadingRegions, setIsLoadingRegions] = useState(false)
+  const [isLoadingCities, setIsLoadingCities] = useState(false)
 
   useEffect(() => {
     if (!isOpen) return
-    setForm(initialValues ?? emptyAddressForm)
-  }, [initialValues, isOpen])
+
+    let cancelled = false
+
+    async function loadCountries() {
+      try {
+        const options = await accountApi.getCountries()
+        if (cancelled || options.length === 0) return
+        setCountries(options.map((option) => option.label))
+        setCountryCodes(options.map((option) => option.rid))
+      } catch {
+        // Keep the local seed list.
+      }
+    }
+
+    void loadCountries()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen])
+
+  /**
+   * Regions depend on the selected country, and the endpoint is keyed by the
+   * country's code rather than its name. Changing country also clears the two
+   * child fields, because the previous region/city are no longer valid.
+   */
+  const handleCountryChange = async (country: string) => {
+    setForm((current) => ({ ...current, country, region: '', city: '' }))
+    setCities(addressCities)
+    setRegionRids([])
+
+    if (!country) {
+      setRegions(addressRegions)
+      return
+    }
+
+    // The seed list has no codes, so fall back to the label if the id map is
+    // empty; the lookup simply returns nothing in that case.
+    const countryIndex = countries.indexOf(country)
+    const countryCode = countryCodes[countryIndex] ?? country
+
+    setIsLoadingRegions(true)
+    try {
+      const options = await accountApi.getRegions(countryCode)
+      const labels = options.map((option) => option.label)
+      const usesApiOptions = labels.length > 0
+      setRegions(usesApiOptions ? labels : addressRegions)
+      setRegionRids(usesApiOptions ? options.map((option) => option.rid) : [])
+    } catch {
+      setRegions(addressRegions)
+      setRegionRids([])
+    } finally {
+      setIsLoadingRegions(false)
+    }
+  }
+
+  /** Cities depend on the selected region's rid, which the lookup requires. */
+  const handleRegionChange = async (regionLabel: string) => {
+    setForm((current) => ({ ...current, region: regionLabel, city: '' }))
+    setCities(addressCities)
+
+    if (!regionLabel) {
+      setIsLoadingCities(false)
+      return
+    }
+
+    const regionIndex = regions.indexOf(regionLabel)
+    const regionRid = regionRids[regionIndex] ?? regionLabel
+
+    setIsLoadingCities(true)
+    try {
+      const options = await accountApi.getCities(regionRid)
+      const labels = options.map((option) => option.label)
+      setCities(labels.length > 0 ? labels : addressCities)
+    } catch {
+      setCities(addressCities)
+    } finally {
+      setIsLoadingCities(false)
+    }
+  }
 
   const handleClose = useCallback(() => {
     onClose()
@@ -227,8 +330,8 @@ export function AddAddressModal({
               id="address-country"
               label="Country"
               value={form.country}
-              onChange={(value) => updateField('country', value)}
-              options={addressCountries}
+              onChange={(value) => void handleCountryChange(value)}
+              options={countries}
               placeholder="Select country"
             />
 
@@ -281,9 +384,10 @@ export function AddAddressModal({
               id="address-region"
               label="Region"
               value={form.region}
-              onChange={(value) => updateField('region', value)}
-              options={addressRegions}
-              placeholder="State/Province/house/Region*"
+              onChange={(value) => void handleRegionChange(value)}
+              options={regions}
+              placeholder={isLoadingRegions ? 'Loading regions…' : 'State/Province/house/Region*'}
+              isDisabled={isLoadingRegions}
             />
 
             <SelectField
@@ -291,8 +395,9 @@ export function AddAddressModal({
               label="City"
               value={form.city}
               onChange={(value) => updateField('city', value)}
-              options={addressCities}
-              placeholder="City*"
+              options={cities}
+              placeholder={isLoadingCities ? 'Loading cities…' : 'City*'}
+              isDisabled={isLoadingCities}
             />
 
             <DefaultAddressToggle

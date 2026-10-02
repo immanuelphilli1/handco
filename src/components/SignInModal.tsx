@@ -8,12 +8,14 @@ import EyeOffLineIcon from 'remixicon-react/EyeOffLineIcon'
 import LockPasswordLineIcon from 'remixicon-react/LockPasswordLineIcon'
 import MailLineIcon from 'remixicon-react/MailLineIcon'
 import { images } from '../assets/images'
+import { authApi, cartApi } from '../api'
+import { useAuth } from '../context/AuthContext'
+import { useShop } from '../context/ShopContext'
 import { signInLegalCopy, type SignInStep } from '../data/auth'
 
 type SignInModalProps = {
   isOpen: boolean
   onClose: () => void
-  onSignedIn: (email: string) => void
 }
 
 function IconInputField({
@@ -80,13 +82,13 @@ function LegalNotice({ onLinkClick }: { onLinkClick: () => void }) {
   return (
     <p className="text-center text-base font-medium leading-5 tracking-[-0.32px] text-text-secondary">
       By continuing, you agree to our{' '}
-      <a
-        href="#"
-        onClick={(event) => event.preventDefault()}
+      <Link
+        to="/terms-of-use"
+        onClick={onLinkClick}
         className="underline hover:text-text-primary"
       >
         Terms of Use
-      </a>{' '}
+      </Link>{' '}
       and{' '}
       <Link
         to="/privacy-policy"
@@ -100,11 +102,16 @@ function LegalNotice({ onLinkClick }: { onLinkClick: () => void }) {
   )
 }
 
-export function SignInModal({ isOpen, onClose, onSignedIn }: SignInModalProps) {
+export function SignInModal({ isOpen, onClose }: SignInModalProps) {
+  const { signIn, register } = useAuth()
+  const { refreshCart, refreshWishlist } = useShop()
   const [step, setStep] = useState<SignInStep>('email')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [isRegisterFlow, setIsRegisterFlow] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isOpen) return
@@ -112,6 +119,9 @@ export function SignInModal({ isOpen, onClose, onSignedIn }: SignInModalProps) {
     setEmail('')
     setPassword('')
     setShowPassword(false)
+    setIsRegisterFlow(false)
+    setIsSubmitting(false)
+    setErrorMessage(null)
   }, [isOpen])
 
   const handleClose = useCallback(() => {
@@ -144,15 +154,44 @@ export function SignInModal({ isOpen, onClose, onSignedIn }: SignInModalProps) {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleClose, isOpen])
 
-  const handleEmailContinue = () => {
+  const handleEmailContinue = async () => {
     if (!email.trim()) return
-    setStep('password')
+    setIsSubmitting(true)
+    setErrorMessage(null)
+    try {
+      const response = await authApi.checkEmail(email.trim())
+      setIsRegisterFlow(response.nextStep === 'register')
+      setStep('password')
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to continue with email.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const handlePasswordContinue = () => {
+  const handlePasswordContinue = async () => {
     if (!password.trim()) return
-    onSignedIn(email.trim())
-    handleClose()
+    setIsSubmitting(true)
+    setErrorMessage(null)
+    try {
+      if (isRegisterFlow) {
+        await register(email.trim(), password.trim())
+      } else {
+        await signIn(email.trim(), password.trim())
+      }
+      try {
+        await cartApi.mergeCart()
+      } catch {
+        // Guest cart merge is best-effort after sign-in.
+      }
+      await refreshCart()
+      await refreshWishlist()
+      handleClose()
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to sign in.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (!isOpen) return null
@@ -258,10 +297,19 @@ export function SignInModal({ isOpen, onClose, onSignedIn }: SignInModalProps) {
               />
             ) : null}
 
+            {errorMessage ? (
+              <p className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-primary-red">
+                {errorMessage}
+              </p>
+            ) : null}
+
             <button
               type="button"
-              onClick={step === 'email' ? handleEmailContinue : handlePasswordContinue}
-              className="btn-orange flex h-13 w-full cursor-pointer items-center justify-center rounded-full px-6 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse"
+              disabled={isSubmitting}
+              onClick={() => {
+                void (step === 'email' ? handleEmailContinue() : handlePasswordContinue())
+              }}
+              className="btn-orange flex h-13 w-full cursor-pointer items-center justify-center rounded-full px-6 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse disabled:cursor-not-allowed disabled:opacity-70"
             >
               Continue
             </button>
