@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { images } from '../assets/images'
 import { useCatalog } from '../context/CatalogContext'
 import { sidebarCategories, type SidebarCategoryId } from '../data/categoriesModal'
+import { getCategoryNodeId } from '../data/catalogCategories'
 
 const GRID_CATEGORY_IDS = [
   'electronics',
@@ -135,8 +136,11 @@ export function CategoryGridSection({
       return fallbackCategories
     }
 
+    // Keyed by `slug`, the wire field the API uses for the category id (see
+    // `getCategoryNodeId`). Reading `.id` yielded `undefined` for every
+    // category, so all cards fell back to their static labels.
     const apiLabels = Object.fromEntries(
-      apiCategories.map((category) => [category.id, category.label]),
+      apiCategories.map((category) => [getCategoryNodeId(category), category.label]),
     ) as Partial<Record<GridCategoryId, string>>
 
     return buildCategoryGridCards(apiLabels, countProductsByCategory(allProducts))

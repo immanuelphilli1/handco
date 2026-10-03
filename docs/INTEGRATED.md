@@ -89,8 +89,8 @@ password field they cannot use.
 |----------|----------------|
 | `GET /products/new-arrivals` | Home — `NewArrivalsSection` |
 | `GET /products/featured` | Home — `FeaturedItemsSection` |
-| `GET /categories` | `CatalogContext` — category list, link bar, modal, listings |
-| `GET /categories/:id/panel` | Category panel sections — `catalogCategories` |
+| `GET /categories` | `CatalogContext` — category tree; drives every link bar entry, the categories modal, and the listing filter options |
+| `GET /categories/:id/panel` | Available via `catalogApi.getCategoryPanel`, but **not called**: the panel returns the same tree as `GET /categories`, so the modal reads it from `useCatalog()` instead of adding a request per open |
 | `GET /products` | Category listings — `CategoryListingView`; also search results via `?q=` |
 | `GET /search/suggestions` | Nav typeahead — `NavSearchBar` via `useSearchSuggestions` |
 | `GET /products/:productRid` | Product detail — `HomePage` + `ProductDetailView` |
@@ -104,6 +104,10 @@ password field they cannot use.
 - Add-to-cart and wishlist hearts use live product ids from the API.
 - Search is API-first; the local `searchRelevance` synonym map only widens the
   query so related terms (e.g. "shoe" → sneakers) reach the same endpoint.
+- Category ids come from the wire field **`slug`**, not `id`. Every lookup goes
+  through `getCategoryNodeId` in `catalogCategories`; reading `.id` returned
+  `undefined` for all 8 top-level categories and silently sent the modal down
+  the static-placeholder path.
 
 ### API cleanup migration (2026-10-03)
 

@@ -253,9 +253,14 @@ export type CartResponse = {
  * Category tree node. The API nests child nodes under `children`; `subcategories`
  * is accepted as an alias because some endpoints (e.g. the modal panel) used it
  * before the tree shape landed. Treat both via `getApiChildNodes`.
+ *
+ * `slug` is the wire field and the value used everywhere as the category id
+ * (link bar, `categoryId` query param, `getApiChildNodes` lookups). `id` is kept
+ * as an optional alias so a deployment that sends `id` still works.
  */
 export type ApiCategoryNode = {
-  id: string
+  slug?: string
+  id?: string
   rid: Rid
   label: string
   image: string | null
@@ -273,12 +278,22 @@ export type CategoriesResponse = {
   categories: ApiCategory[]
 }
 
+/**
+ * One panel section. `children` carries the real category nodes, which is what
+ * the modal renders; `rid` is present on older payloads that only sent labels.
+ */
 export type CategoryPanelSection = {
   title: string
-  items: Array<{ label: string; image: string; rid?: Rid }>
+  children?: ApiCategoryNode[]
+  items?: Array<{ label: string; image: string; rid?: Rid }>
 }
 
-export type CategoryPanelResponse = {
+/**
+ * `GET /categories/:categoryId/panel` returns the resolved category node with a
+ * `sections` array attached, so the category itself is carried alongside the
+ * panel rather than in a separate key.
+ */
+export type CategoryPanelResponse = ApiCategoryNode & {
   sections: CategoryPanelSection[]
 }
 

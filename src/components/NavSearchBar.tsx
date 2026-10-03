@@ -12,6 +12,12 @@ type NavSearchBarProps = {
   inputClassName: string
   buttonClassName: string
   buttonLabelClassName: string
+  /**
+   * Called after a search is submitted. Lets the nav dismiss anything that
+   * would otherwise sit on top of the results, such as the categories modal
+   * left open behind the search bar.
+   */
+  onSearchSubmit?: () => void
 }
 
 export function NavSearchBar({
@@ -19,6 +25,7 @@ export function NavSearchBar({
   inputClassName,
   buttonClassName,
   buttonLabelClassName,
+  onSearchSubmit,
 }: NavSearchBarProps) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
@@ -74,6 +81,9 @@ export function NavSearchBar({
 
     setIsDismissed(true)
     inputRef.current?.blur()
+    // Runs before navigating so the overlay is gone by the time the results
+    // page mounts, rather than flashing over them.
+    onSearchSubmit?.()
     navigate(getSearchPath(trimmed))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -155,6 +165,7 @@ export function NavSearchBar({
                     type="button"
                     onClick={() => {
                       setIsDismissed(true)
+                      onSearchSubmit?.()
                       if (suggestion.rid) {
                         navigate(`/products/${suggestion.rid}`)
                       } else {

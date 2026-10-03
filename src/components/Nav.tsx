@@ -277,6 +277,7 @@ export function Nav({
               inputClassName=""
               buttonClassName="btn-orange group flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full py-4 pl-4 pr-6 transition-opacity hover:opacity-90"
               buttonLabelClassName="text-sm font-medium tracking-[-0.28px] text-text-inverse"
+              onSearchSubmit={onCloseCategories}
             />
 
             <div className="flex shrink-0 items-center gap-4">
@@ -382,6 +383,7 @@ export function Nav({
                 inputClassName="text-sm"
                 buttonClassName="btn-orange flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full transition-opacity hover:opacity-90"
                 buttonLabelClassName=""
+                onSearchSubmit={onCloseCategories}
               />
             </div>
           </div>

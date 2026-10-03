@@ -60,11 +60,23 @@ export function isSpecialCategoryId(categoryId: string): boolean {
   return SPECIAL_CATEGORY_IDS.has(categoryId)
 }
 
+/**
+ * The category's identifier as used by the rest of the app.
+ *
+ * The API sends the identifier as `slug`; `id` is accepted as a fallback. Every
+ * lookup in this module goes through here rather than reading `.id` directly,
+ * because a node without a `slug` used to read as `undefined` and silently sent
+ * every lookup down the static-placeholder path.
+ */
+export function getCategoryNodeId(node: ApiCategoryNode): string {
+  return node.slug ?? node.id ?? ''
+}
+
 export function findApiCategory(
   categories: ApiCategory[],
   categoryId: string,
 ): ApiCategory | undefined {
-  return categories.find((category) => category.id === categoryId)
+  return categories.find((category) => getCategoryNodeId(category) === categoryId)
 }
 
 /**
@@ -102,6 +114,16 @@ export function getSubcategoryOptions(
   }
 
   if (isSpecialCategoryId(categoryId)) {
+    // Featured and New Releases are shortcuts into other categories, so their
+    // options are the first-level subcategories of the whole catalog. They must
+    // mirror the cards the modal renders, or a chosen card would not be listed
+    // as a valid option and the listing would silently widen.
+    if (apiCategories.length > 0) {
+      return apiCategories.flatMap((category) =>
+        getApiChildNodes(category).map((child) => child.label),
+      )
+    }
+
     return getStaticSubcategoryOptions(categoryId)
   }
 
@@ -189,7 +211,7 @@ function resolveSectionId(
 ): SidebarCategoryId | undefined {
   const apiMatch = apiCategories.find((category) => category.label === title)
   if (apiMatch) {
-    return apiMatch.id as SidebarCategoryId
+    return apiMatch.slug as SidebarCategoryId
   }
 
   return categoryIdByTitle[title]
@@ -204,7 +226,7 @@ function buildSectionsForCategory(
     return [
       {
         title: apiCategory.label,
-        sectionId: apiCategory.id as SidebarCategoryId,
+        sectionId: getCategoryNodeId(apiCategory) as SidebarCategoryId,
         items: mapApiSubcategoriesToModalItems(flattenApiSubcategories(apiCategory)),
       },
     ]
@@ -217,26 +239,76 @@ function buildSectionsForCategory(
   })
 }
 
+/**
+ * Sections for the virtual Featured and New Releases entries.
+ *
+ * Neither is a real category row on the API (`/categories/featured/panel`
+ * returns 404), so there is no category to resolve a subcategory against. Their
+ * cards are therefore real API subcategories drawn from across the catalog,
+ * offered as shortcuts into listings. Each one keeps its **own** owning category
+ * as `sectionId`, because a label such as "Sneakers" only matches products when
+ * the request also carries `categoryId=fashion` — pointing these at "featured"
+ * would match nothing.
+ *
+ * Only the fallback list is invented; once the catalog has loaded, every label
+ * and image below comes from the API.
+ */
+function buildDiscoverySections(
+  mode: 'featured' | 'new-releases',
+  apiCategories: ApiCategory[],
+): CategoryPanelSectionView[] {
+  const fallbackSections = categoryPanelContent[mode]
+
+  if (apiCategories.length === 0) {
+    return fallbackSections.map((section) => ({
+      ...section,
+      sectionId: mode,
+    }))
+  }
+
+  const seen = new Set<string>()
+  const sections: CategoryPanelSectionView[] = []
+
+  for (const category of apiCategories) {
+    // Only the first level is offered. Grandchildren are too deep to scan as a
+    // shortcut grid, and their labels repeat ("Sneakers" and "Running" both sit
+    // several levels down) which would make the grid ambiguous.
+    const items = getApiChildNodes(category).map((child) => ({
+      label: child.label,
+      image:
+        resolveAssetUrl(child.imageUrl ?? child.image ?? undefined) ||
+        modalFallbackImages[sections.length % modalFallbackImages.length],
+    }))
+
+    const fresh = items.filter((item) => {
+      const key = item.label.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    if (fresh.length === 0) continue
+
+    sections.push({
+      title: category.label,
+      sectionId: getCategoryNodeId(category) as SidebarCategoryId,
+      items: fresh,
+    })
+  }
+
+  return sections
+}
+
 export function getCategoryPanelSections(
   categoryId: SidebarCategoryId,
   apiCategories: ApiCategory[] = [],
 ): CategoryPanelSectionView[] {
   if (categoryId === 'featured') {
-    return categoryPanelContent.featured.flatMap((section) => {
-      const sectionId = resolveSectionId(section.title, apiCategories)
-      if (!sectionId) {
-        return []
-      }
-
-      return [{ ...section, sectionId }]
-    })
+    return buildDiscoverySections('featured', apiCategories)
   }
 
   if (categoryId === 'new-releases') {
-    return categoryPanelContent['new-releases'].map((section) => ({
-      ...section,
-      sectionId: 'new-releases',
-    }))
+    return buildDiscoverySections('new-releases', apiCategories)
   }
 
   if (categoryId === 'all-categories') {
