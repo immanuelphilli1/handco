@@ -34,6 +34,25 @@ function formatEventDate(isoDate: string): string {
 }
 
 /**
+ * Stable per-line keys for an order's lines.
+ *
+ * `productId` alone is not enough: an order can hold the same product twice (two
+ * sizes, say), and the swap would then be unable to tell the pair apart. Each
+ * key therefore pairs the product id with the occurrence number of that product
+ * within the order, so repeated lines stay distinct while the keys remain stable
+ * across reorders.
+ */
+function getLineKeys(lines: OrderLine[]): string[] {
+  const seen = new Map<string, number>()
+
+  return lines.map((line) => {
+    const occurrence = seen.get(line.productId) ?? 0
+    seen.set(line.productId, occurrence + 1)
+    return `${line.productId}#${occurrence}`
+  })
+}
+
+/**
  * Order progress dialog, opened from Track order and View order details.
  *
  * The dialog is titled with the product being tracked and, on desktop, lays the
@@ -47,19 +66,23 @@ function formatEventDate(isoDate: string): string {
  * inspected for each item in turn without losing the dialog.
  */
 export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderTrackingModalProps) {
-  // The swap is remembered per order, so opening the dialog for a different
-  // order starts on that order's first line instead of carrying over an id that
-  // refers to nothing. Deriving it this way avoids resetting state from an
-  // effect, which would re-render on every open.
-  const [swap, setSwap] = useState<{ orderId: string; mainIndex: number; otherIndex: number } | null>(
-    null,
-  )
+  // The current line arrangement is owned by state, seeded from the order's own
+  // line order. Storing the arrangement (rather than just the last swap) is what
+  // lets every item keep trading places indefinitely: each click rearranges the
+  // *current* list, so the item that was on preview always drops into the slot
+  // the picked item came from, no matter how many swaps came before it.
+  //
+  // The arrangement is stored per order id, so opening the dialog for a
+  // different order starts on that order's own line order instead of carrying
+  // over positions that refer to a different list. Deriving it this way avoids
+  // resetting state from an effect, which would re-render on every open.
+  const [arrangements, setArrangements] = useState<Record<string, string[]>>({})
 
   const handleClose = useCallback(() => {
     onClose()
   }, [onClose])
 
-  const pendingSwap = swap && swap.orderId === order?.id ? swap : null
+  const lines = order?.lines ?? []
 
   useEffect(() => {
     if (!order) return
@@ -87,39 +110,56 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleClose, order])
 
-  const lines = order?.lines ?? []
-
-  // Index 0 is whatever sits in the preview; everything after it is the
-  // "Other items" list. A swap is two moves in one: the picked line rises to
-  // the front, and the line it displaced drops into the list at the position
-  // the picked line vacated. Rebuilding the order this way (rather than
-  // filtering the picked line out) is what makes the two visibly trade places,
-  // so the list never silently shrinks or reorders itself.
-  //
-  // Positions are stored as indices, not product ids: an order can legitimately
-  // contain the same product twice (two sizes, say), and id matching would send
-  // both lookups to the first occurrence and duplicate a line in the list.
+  // Swaps are applied on top of the last arrangement rather than the original
+  // order, so swapping continues to work across any number of clicks.
   const reorderedLines = useMemo(() => {
-    if (!pendingSwap) return lines
+    const orderId = order?.id
+    const savedOrder = orderId ? arrangements[orderId] : undefined
 
-    const { mainIndex, otherIndex } = pendingSwap
-    const isSwappable =
-      mainIndex === 0 &&
-      otherIndex > 0 &&
-      otherIndex < lines.length &&
-      mainIndex < lines.length
+    // Lines are addressed by stable per-line keys rather than `productId` alone;
+    // see `getLineKeys`.
+    const keys = getLineKeys(lines)
 
-    if (!isSwappable) return lines
+    if (!savedOrder || savedOrder.length !== keys.length) return lines
 
-    const next = [...lines]
-    next[0] = lines[otherIndex]
-    next[otherIndex] = lines[mainIndex]
-    return next
-  }, [lines, pendingSwap])
+    const byKey = new Map(keys.map((key, index) => [key, lines[index]]))
+
+    // A stale key means the order changed since the swap, so fall back to the
+    // order's own line order instead of rendering a partly empty list.
+    if (!savedOrder.every((key) => byKey.has(key))) return lines
+
+    return savedOrder.flatMap((key) => {
+      const line = byKey.get(key)
+      return line ? [line] : []
+    })
+  }, [arrangements, lines, order?.id])
+
+  const handleSwap = useCallback(
+    (otherIndex: number) => {
+      if (!order) return
+
+      const orderId = order.id
+      const current = reorderedLines
+
+      // Nothing to trade places with: a single-item order has no list to swap
+      // into, so the click is ignored rather than clearing the preview.
+      if (current.length < 2 || otherIndex <= 0 || otherIndex >= current.length) return
+
+      const keys = getLineKeys(current)
+
+      const next = [...keys]
+      next[0] = keys[otherIndex]
+      next[otherIndex] = keys[0]
+
+      setArrangements((previous) => ({ ...previous, [orderId]: next }))
+    },
+    [lines, order, reorderedLines],
+  )
 
   if (!order) return null
 
   const mainLine = reorderedLines[0] ?? null
+  const reorderedKeys = getLineKeys(reorderedLines)
 
   // The heading names the product when it is known, and falls back to a generic
   // label while the detail request is still in flight.
@@ -227,28 +267,28 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
 
           {lines.length > 1 ? (
             <div className="border-t border-border-primary px-6 py-4">
-              <p className="mb-3 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
-                Other items in this order
-              </p>
-              <p className="mb-3 text-sm leading-4 tracking-[-0.28px] text-text-tertiary">
-                Select an item to swap it with the one shown above.
-              </p>
-              <div className="flex flex-col gap-3">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <p className="text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
+                  Other items in this order
+                </p>
+                <p className="text-sm leading-4 tracking-[-0.28px] text-text-tertiary">
+                  Select an item to swap it with the one shown above.
+                </p>
+              </div>
+              {/* A row rather than a stack: an order can hold many items, and
+                  stacking them would push the list past the dialog height. The
+                  items share the row and scroll sideways instead. */}
+              <div className="-mx-2 flex gap-3 overflow-x-auto px-2 pb-1 [scrollbar-width:thin]">
                 {reorderedLines.slice(1).map((line: OrderLine, index: number) => (
                   <button
-                    key={`${line.productId}-${index}`}
+                    key={reorderedKeys[index + 1]}
                     type="button"
                     onClick={() => {
-                      if (!mainLine) return
                       // `index` is relative to the sliced list, so the real
-                      // position in the order is one greater.
-                      setSwap({
-                        orderId: order.id,
-                        mainIndex: 0,
-                        otherIndex: index + 1,
-                      })
+                      // position within the order is one greater.
+                      handleSwap(index + 1)
                     }}
-                    className="group flex w-full cursor-pointer items-center gap-4 rounded-lg border border-transparent p-2 text-left transition-colors hover:bg-bg-secondary"
+                    className="group flex w-64 shrink-0 cursor-pointer items-center gap-4 rounded-lg border border-border-primary bg-bg-primary p-2 text-left transition-colors hover:border-border-secondary hover:bg-bg-secondary"
                   >
                     <div className="size-14 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary">
                       <img alt="" className="size-full object-cover" src={line.image} />
