@@ -43,13 +43,13 @@ export type CheckoutPaymentMethod = {
 }
 
 export const cartOrderSummary = {
-  itemsTotal: 'AED 1100',
-  itemsDiscount: '- AED 1100',
-  subtotal: 'AED 1100',
-  shipping: 'AED 20',
+  itemsTotal: 'AED 0',
+  itemsDiscount: '- AED 0',
+  subtotal: 'AED 0',
+  shipping: 'AED 0',
   // Empty until the API reports a tax amount; the row is hidden while blank.
   tax: '',
-  total: 'AED 10000',
+  total: 'AED 0',
   paymentNote: 'Please refer to your final actual payment amount.',
   availabilityNote:
     'items availability and pricing are not guaranteed until payment is final.',
