@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import CheckLineIcon from 'remixicon-react/CheckLineIcon'
 import CloseFillIcon from 'remixicon-react/CloseFillIcon'
 import {
   buildOrderTimeline,
+  type OrderLine,
   type OrderRecord,
   type OrderStageState,
   type OrderTimelineStep,
@@ -39,23 +41,25 @@ function formatEventDate(isoDate: string): string {
  * The timeline is driven by the API's tracking events; the local stage list is
  * only a fallback for when those have not arrived.
  *
- * Choosing a different line from "Other items in this order" swaps which item
- * the summary shows instead of navigating away, so progress can be inspected for
- * each item in turn without losing the dialog.
+ * Choosing a different line from "Other items in this order" **swaps** the two
+ * entries: the picked item moves up into the preview and the item that was on
+ * preview moves down into the list. Nothing navigates away, so progress can be
+ * inspected for each item in turn without losing the dialog.
  */
 export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderTrackingModalProps) {
-  // The picked line is remembered per order, so opening the dialog for a
-  // different order starts on that order's first line instead of carrying over
-  // an id that refers to nothing. Deriving it this way avoids resetting state
-  // from an effect, which would re-render on every open.
-  const [selection, setSelection] = useState<{ orderId: string; lineId: string } | null>(null)
+  // The swap is remembered per order, so opening the dialog for a different
+  // order starts on that order's first line instead of carrying over an id that
+  // refers to nothing. Deriving it this way avoids resetting state from an
+  // effect, which would re-render on every open.
+  const [swap, setSwap] = useState<{ orderId: string; mainIndex: number; otherIndex: number } | null>(
+    null,
+  )
 
   const handleClose = useCallback(() => {
     onClose()
   }, [onClose])
 
-  const selectedLineId =
-    selection && selection.orderId === order?.id ? selection.lineId : null
+  const pendingSwap = swap && swap.orderId === order?.id ? swap : null
 
   useEffect(() => {
     if (!order) return
@@ -83,17 +87,43 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleClose, order])
 
+  const lines = order?.lines ?? []
+
+  // Index 0 is whatever sits in the preview; everything after it is the
+  // "Other items" list. A swap is two moves in one: the picked line rises to
+  // the front, and the line it displaced drops into the list at the position
+  // the picked line vacated. Rebuilding the order this way (rather than
+  // filtering the picked line out) is what makes the two visibly trade places,
+  // so the list never silently shrinks or reorders itself.
+  //
+  // Positions are stored as indices, not product ids: an order can legitimately
+  // contain the same product twice (two sizes, say), and id matching would send
+  // both lookups to the first occurrence and duplicate a line in the list.
+  const reorderedLines = useMemo(() => {
+    if (!pendingSwap) return lines
+
+    const { mainIndex, otherIndex } = pendingSwap
+    const isSwappable =
+      mainIndex === 0 &&
+      otherIndex > 0 &&
+      otherIndex < lines.length &&
+      mainIndex < lines.length
+
+    if (!isSwappable) return lines
+
+    const next = [...lines]
+    next[0] = lines[otherIndex]
+    next[otherIndex] = lines[mainIndex]
+    return next
+  }, [lines, pendingSwap])
+
   if (!order) return null
 
-  const lines = order.lines ?? []
-  // The picked line wins, then whichever line the dialog opened on, then the
-  // first. A stale id from a previous order resolves to null and falls through.
-  const selectedLine =
-    lines.find((line) => line.productId === selectedLineId) ?? lines[0] ?? null
+  const mainLine = reorderedLines[0] ?? null
 
   // The heading names the product when it is known, and falls back to a generic
   // label while the detail request is still in flight.
-  const title = selectedLine?.name ?? (isLoading ? 'Loading order…' : 'Track order')
+  const title = mainLine?.name ?? (isLoading ? 'Loading order…' : 'Track order')
 
   // Every delivery stage is listed, with the reached ones ticked off and the
   // stage the order currently sits on marked active.
@@ -137,11 +167,11 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
                 Stacks above the timeline on mobile. */}
             <div className="flex shrink-0 flex-col gap-4 lg:w-64">
               <div className="aspect-square w-full overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary">
-                {selectedLine?.image ? (
+                {mainLine?.image ? (
                   <img
-                    alt={selectedLine.name}
+                    alt={mainLine.name}
                     className="size-full object-cover"
-                    src={selectedLine.image}
+                    src={mainLine.image}
                   />
                 ) : (
                   <div
@@ -167,10 +197,10 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
                   Order ID: <span className="text-text-primary">{order.id}</span>
                 </p>
 
-                {selectedLine ? (
+                {mainLine ? (
                   <p className="flex flex-wrap items-baseline gap-2 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
-                    <span>{selectedLine.price}</span>
-                    <span className="text-text-tertiary">QTY: {selectedLine.quantity}</span>
+                    <span>{mainLine.price}</span>
+                    <span className="text-text-tertiary">QTY: {mainLine.quantity}</span>
                   </p>
                 ) : null}
 
@@ -200,47 +230,44 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
               <p className="mb-3 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
                 Other items in this order
               </p>
+              <p className="mb-3 text-sm leading-4 tracking-[-0.28px] text-text-tertiary">
+                Select an item to swap it with the one shown above.
+              </p>
               <div className="flex flex-col gap-3">
-                {lines.slice(1).map((line) => {
-                  const isSelected = line.productId === selectedLine?.productId
-
-                  return (
-                    <button
-                      key={line.productId}
-                      type="button"
-                      onClick={() => {
-                        if (!order) return
-                        setSelection({ orderId: order.id, lineId: line.productId })
-                      }}
-                      aria-pressed={isSelected}
-                      className={`flex w-full cursor-pointer items-center gap-4 rounded-lg border p-2 text-left transition-colors ${
-                        isSelected
-                          ? 'border-primary-orange bg-orange-light'
-                          : 'border-transparent hover:bg-bg-secondary'
-                      }`}
-                    >
-                      <div className="size-14 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary">
-                        <img alt="" className="size-full object-cover" src={line.image} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={`line-clamp-2 text-sm leading-4 tracking-[-0.28px] ${
-                            isSelected ? 'text-text-primary' : 'text-text-secondary'
-                          }`}
-                        >
-                          {line.name}
-                        </p>
-                        <p className="mt-1 flex flex-wrap items-baseline gap-2 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
-                          <span>{line.price}</span>
-                          <span className="text-text-tertiary">QTY: {line.quantity}</span>
-                        </p>
-                      </div>
-                      <span className="shrink-0 text-xs font-medium leading-4 tracking-[-0.24px] text-text-tertiary">
-                        {isSelected ? 'Showing' : 'View progress'}
-                      </span>
-                    </button>
-                  )
-                })}
+                {reorderedLines.slice(1).map((line: OrderLine, index: number) => (
+                  <button
+                    key={`${line.productId}-${index}`}
+                    type="button"
+                    onClick={() => {
+                      if (!mainLine) return
+                      // `index` is relative to the sliced list, so the real
+                      // position in the order is one greater.
+                      setSwap({
+                        orderId: order.id,
+                        mainIndex: 0,
+                        otherIndex: index + 1,
+                      })
+                    }}
+                    className="group flex w-full cursor-pointer items-center gap-4 rounded-lg border border-transparent p-2 text-left transition-colors hover:bg-bg-secondary"
+                  >
+                    <div className="size-14 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary">
+                      <img alt="" className="size-full object-cover" src={line.image} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-sm leading-4 tracking-[-0.28px] text-text-secondary transition-colors group-hover:text-text-primary">
+                        {line.name}
+                      </p>
+                      <p className="mt-1 flex flex-wrap items-baseline gap-2 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
+                        <span>{line.price}</span>
+                        <span className="text-text-tertiary">QTY: {line.quantity}</span>
+                      </p>
+                    </div>
+                    <ArrowRightSLineIcon
+                      className="size-5 shrink-0 text-text-secondary transition-colors group-hover:text-primary-orange"
+                      aria-hidden
+                    />
+                  </button>
+                ))}
               </div>
             </div>
           ) : null}
