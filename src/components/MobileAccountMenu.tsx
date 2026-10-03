@@ -74,7 +74,7 @@ export function MobileAccountMenu({
       <button
         type="button"
         aria-label="Close account menu"
-        className="fixed inset-0 z-[60] cursor-pointer bg-[rgba(0,6,7,0.7)] lg:hidden"
+        className="fixed inset-0 z-60 cursor-pointer bg-[rgba(0,6,7,0.7)] lg:hidden"
         onClick={onClose}
       />
 
@@ -82,7 +82,7 @@ export function MobileAccountMenu({
         role="dialog"
         aria-modal="true"
         aria-label="Account menu"
-        className="fixed inset-x-0 bottom-0 z-[60] flex max-h-[80dvh] flex-col overflow-hidden rounded-t-2xl bg-bg-primary pb-24 shadow-[0px_-4px_40px_0px_rgba(0,0,0,0.12)] lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-60 flex max-h-[80dvh] flex-col overflow-hidden rounded-t-2xl bg-bg-primary pb-24 shadow-[0px_-4px_40px_0px_rgba(0,0,0,0.12)] lg:hidden"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2 border-b border-border-primary p-4">

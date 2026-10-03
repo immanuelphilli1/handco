@@ -17,10 +17,10 @@ export function FeaturedItemsSection({ onProductSelect }: FeaturedItemsSectionPr
   return (
     <section className="border-b border-border-primary px-4 lg:px-16">
       <div className="flex flex-col gap-4 pt-6 pb-4 lg:py-6">
-        <h2 className="text-base font-medium leading-6 tracking-[-0.32px] text-text-primary lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
+        <h2 className="text-base font-medium leading-6 tracking-[-0.32px] text-text-primary lg:text-2xl lg:leading-10 lg:tracking-[-0.64px]">
           Featured items
         </h2>
-        <div className="grid grid-cols-2 items-stretch gap-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 items-stretch gap-2 lg:grid-cols-5">
           {homeFeaturedProducts.map((product, index) => (
             <ProductCard
               key={`${product.id}-${index}`}

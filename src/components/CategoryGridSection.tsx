@@ -144,6 +144,7 @@ export function CategoryGridSection({
 
   return (
     <section className="px-4 lg:px-16">
+      <h2 className="text-base font-medium leading-6 tracking-[-0.32px] text-text-primary lg:text-2xl lg:leading-10 lg:tracking-[-0.64px]">Shop by Category</h2>
       <div className="py-4 lg:py-6">
         <div className="flex gap-2 overflow-x-auto scroll-smooth [-ms-overflow-style:none] scrollbar-none lg:grid lg:grid-cols-6 lg:overflow-visible [&::-webkit-scrollbar]:hidden">
           {categories.map((category) => (

@@ -13,7 +13,7 @@ import { CategoryGridSection } from '../components/CategoryGridSection'
 import { CategoryListingView } from '../components/CategoryListingView'
 import { ProductDetailView } from '../components/ProductDetailView'
 import { FeaturedItemsSection } from '../components/FeaturedItemsSection'
-import { FeaturesSection } from '../components/FeaturesSection'
+// import { FeaturesSection } from '../components/FeaturesSection'
 import { Footer } from '../components/Footer'
 import { HeroSection } from '../components/HeroSection'
 import { Nav } from '../components/Nav'
@@ -593,7 +593,7 @@ export function HomePage() {
           <>
             <main>
               <HeroSection />
-              <FeaturesSection />
+              {/* <FeaturesSection /> */}
               <CategoryGridSection onOpenCategories={openCategories} />
               <NewArrivalsSection onProductSelect={handleNewArrivalProductSelect} />
               <FeaturedItemsSection onProductSelect={handleFeaturedProductSelect} />
