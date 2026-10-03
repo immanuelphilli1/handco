@@ -646,19 +646,44 @@ export function mapApiReviewSlots(response: ReviewsResponse): WaitingReviewRecor
 }
 
 /**
- * Browsing history rows carry only what the card needs (id, name, image), so a
- * minimal `Product` is built for them. `delivery` and `rating` are required by
- * the `Product` type but unused on the history card, so they get neutral values.
+ * Browsing history rows carry only an id, a name and an image, so a bare
+ * `Product` would leave the card with no price, rating or category and render as
+ * an empty shell. The row is therefore merged over the real product from
+ * `catalogById` (the catalog the app already loads), which supplies price,
+ * category, delivery and rating from live data.
+ *
+ * `categoryId: 'featured'` is only the fallback for a product that is not in the
+ * catalog; it affects where "add to cart" attributes the item, and is preferable
+ * to a value the `Product` type does not allow.
  */
-function mapApiHistoryProduct(item: ApiBrowsingHistoryItem, fallbackId: string): Product {
+function mapApiHistoryProduct(
+  item: ApiBrowsingHistoryItem,
+  fallbackId: string,
+  catalogById: Map<string, Product>,
+): Product {
+  const productId = item.productRid ?? item.rid ?? item.id ?? fallbackId
+  const catalogProduct = catalogById.get(productId)
+  const historyName = item.name ?? ''
+  const historyImage = item.imageUrl ?? item.image
+
+  // Only the fields the history endpoint actually sends are overridden, so a
+  // catalog product never loses its price or rating to a sparse history row.
+  if (catalogProduct) {
+    return {
+      ...catalogProduct,
+      name: historyName || catalogProduct.name,
+      image: resolveAssetUrl(historyImage) || catalogProduct.image,
+    }
+  }
+
   return {
-    id: item.productRid ?? item.rid ?? item.id ?? fallbackId,
+    id: productId,
     categoryId: 'featured',
     subcategory: '',
-    image: resolveAssetUrl(item.imageUrl ?? item.image),
+    image: resolveAssetUrl(historyImage),
     tag: '',
     category: 'Recently viewed',
-    name: item.name ?? '',
+    name: historyName,
     price: '',
     delivery: '',
     rating: '',
@@ -671,7 +696,10 @@ function mapApiHistoryProduct(item: ApiBrowsingHistoryItem, fallbackId: string):
  */
 export function mapApiBrowsingHistory(
   response: BrowsingHistoryResponse,
+  catalog: Product[] = [],
 ): BrowsingHistorySection[] {
+  const catalogById = new Map(catalog.map((product) => [product.id, product]))
+
   if (response.sections) {
     return response.sections
       .map((section) => ({
@@ -679,7 +707,7 @@ export function mapApiBrowsingHistory(
         label: section.label ?? 'Recently viewed',
         items: (section.items ?? []).map((item, index) => ({
           id: item.rid ?? item.id ?? `${section.id ?? 'item'}-${index}`,
-          product: mapApiHistoryProduct(item, `${section.id ?? 'item'}-${index}`),
+          product: mapApiHistoryProduct(item, `${section.id ?? 'item'}-${index}`, catalogById),
         })),
       }))
       .filter((section) => section.items.length > 0)
@@ -708,7 +736,7 @@ export function mapApiBrowsingHistory(
 
     section.items.push({
       id: item.rid ?? item.id ?? `history-${index}`,
-      product: mapApiHistoryProduct(item, `history-${index}`),
+      product: mapApiHistoryProduct(item, `history-${index}`, catalogById),
     })
     grouped.set(key, section)
   }

@@ -1,12 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { images } from '../assets/images'
 import { AccountMenu } from './AccountMenu'
 import { CategoriesModal } from './CategoriesModal'
 import { CategoryLinksBar } from './CategoryLinksBar'
+import { MobileAccountMenu } from './MobileAccountMenu'
 import { MobileAppNavigation, type MobileNavTab } from './MobileAppNavigation'
 import { SignInModal } from './SignInModal'
-import { getAccountPath, type AccountSection } from '../data/accountRoutes'
+import {
+  getAccountPath,
+  parseAccountSection,
+  type AccountSection,
+} from '../data/accountRoutes'
 import GlobalLineIcon from 'remixicon-react/GlobalLineIcon'
 import HeartLineIcon from 'remixicon-react/HeartLineIcon'
 import ListCheckLineIcon from 'remixicon-react/ListCheckIcon'
@@ -61,6 +66,13 @@ export function Nav({
   const userDisplayName = authUser?.displayName ?? 'Guest'
   const userFullName = authUser?.fullName ?? 'Guest'
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Highlights the current page's entry in the mobile account sheet.
+  const accountSectionFromPath = useMemo(
+    () => parseAccountSection(location.pathname.split('/')[2]),
+    [location.pathname],
+  )
 
   const handleSignOut = useCallback(async () => {
     await signOut()
@@ -69,18 +81,21 @@ export function Nav({
   const headerRef = useRef<HTMLElement>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+  const [isMobileAccountMenuOpen, setIsMobileAccountMenuOpen] = useState(false)
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
   const desktopAccountRef = useRef<HTMLDivElement>(null)
 
   const closeAccountMenu = useCallback(() => setIsAccountMenuOpen(false), [])
+  const closeMobileAccountMenu = useCallback(() => setIsMobileAccountMenuOpen(false), [])
 
   const openAccountSection = useCallback(
     (section: AccountSection) => {
       closeAccountMenu()
+      closeMobileAccountMenu()
       navigate(getAccountPath(section))
       window.scrollTo({ top: 0, behavior: 'smooth' })
     },
-    [closeAccountMenu, navigate],
+    [closeAccountMenu, closeMobileAccountMenu, navigate],
   )
 
   const toggleCategories = () => {
@@ -136,9 +151,10 @@ export function Nav({
 
   const handleMobileAccount = () => {
     onCloseCategories()
+    // Signed in: open the account sheet listing every section, the same way the
+    // Categories tab opens its panel, instead of dropping straight into orders.
     if (isSignedIn) {
-      navigate(getAccountPath('orders'))
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      setIsMobileAccountMenuOpen(true)
       return
     }
     setIsSignInModalOpen(true)
@@ -147,9 +163,10 @@ export function Nav({
   useEffect(() => {
     if (isCategoriesOpen) {
       closeAccountMenu()
+      closeMobileAccountMenu()
       setIsSignInModalOpen(false)
     }
-  }, [closeAccountMenu, isCategoriesOpen])
+  }, [closeAccountMenu, closeMobileAccountMenu, isCategoriesOpen])
 
   // A sign-in gated action (e.g. the wishlist heart) was triggered while signed
   // out, so surface the sign-in modal the same way the Account button does.
@@ -390,6 +407,16 @@ export function Nav({
           isOpen={isSignInModalOpen}
           onClose={() => setIsSignInModalOpen(false)}
         />
+
+        <MobileAccountMenu
+          isOpen={isMobileAccountMenuOpen}
+          userFullName={userFullName}
+          userEmail={authUser?.email ?? ''}
+          activeSection={accountSectionFromPath ?? 'orders'}
+          onClose={closeMobileAccountMenu}
+          onSectionSelect={openAccountSection}
+          onSignOut={() => void handleSignOut()}
+        />
       </header>
 
       <div aria-hidden className="shrink-0" style={{ height: headerHeight }} />
@@ -402,6 +429,7 @@ export function Nav({
         onCart={openCart}
         onAccount={handleMobileAccount}
         cartItemCount={cartItemCount}
+        accountLabel={isSignedIn ? userDisplayName : undefined}
       />
 
       {/* <div aria-hidden className="shrink-0 lg:hidden" style={{ height: '72px' }} /> */}

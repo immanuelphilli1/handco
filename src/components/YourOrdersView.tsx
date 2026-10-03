@@ -21,7 +21,6 @@ import UserLineIcon from 'remixicon-react/UserLineIcon'
 import UserLocationLineIcon from 'remixicon-react/UserLocationLineIcon'
 import Wallet3LineIcon from 'remixicon-react/Wallet3LineIcon'
 import {
-  buyAgainProducts,
   filterOrders,
   getBuyAgainProductsFromOrders,
   getOrdersEmptyStateMessage,
@@ -573,25 +572,29 @@ function OrdersPanel({
         <p className="col-span-2 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
           Buy this again
         </p>
-        {getBuyAgainProductsFromOrders(orders)
-          .concat(buyAgainProducts)
-          .filter(
-            (product, index, all) => all.findIndex((candidate) => candidate.id === product.id) === index,
-          )
-          .slice(0, 4)
-          .map((product) => (
-            <div
-              key={`mobile-${product.id}`}
-              className="overflow-hidden rounded-2xl border border-border-primary p-2"
-            >
-              <BuyAgainProductCard
-                product={product}
-                onAddToCart={(productId) => {
-                  void addBuyAgainProductToCart(productId)
-                }}
-              />
-            </div>
-          ))}
+        {/* Same rule as the desktop rail: only products from real orders, with
+            no static fallback that would imply a purchase that never happened. */}
+        {getBuyAgainProductsFromOrders(orders).length > 0 ? (
+          getBuyAgainProductsFromOrders(orders)
+            .slice(0, 4)
+            .map((product) => (
+              <div
+                key={`mobile-${product.id}`}
+                className="overflow-hidden rounded-2xl border border-border-primary p-2"
+              >
+                <BuyAgainProductCard
+                  product={product}
+                  onAddToCart={(productId) => {
+                    void addBuyAgainProductToCart(productId)
+                  }}
+                />
+              </div>
+            ))
+        ) : (
+          <p className="col-span-2 text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
+            Nothing to buy again yet. Products you order will appear here.
+          </p>
+        )}
       </div>
     </>
   )
@@ -1425,10 +1428,11 @@ function BuyAgainSidebar({
 
   // The API's suggestions lead. When they are unavailable or empty, the rail
   // falls back to products from the orders actually on screen, so it only ever
-  // advertises something this customer has bought.
+  // advertises something this customer has bought. There is deliberately no
+  // static fallback: showing placeholder products would be inventing purchases.
   const purchasedProducts = getBuyAgainProductsFromOrders(orders)
   const products =
-    suggested && suggested.length > 0 ? suggested : purchasedProducts.length > 0 ? purchasedProducts : buyAgainProducts
+    suggested && suggested.length > 0 ? suggested : purchasedProducts
 
   return (
     <aside className="hidden w-37.5 shrink-0 flex-col overflow-hidden rounded-2xl border border-border-primary xl:flex">
@@ -1438,13 +1442,19 @@ function BuyAgainSidebar({
         </p>
       </div>
       <div className="flex flex-col gap-2 p-2">
-        {products.map((product) => (
-          <BuyAgainProductCard
-            key={product.id}
-            product={product}
-            onAddToCart={onAddToCart}
-          />
-        ))}
+        {products.length > 0 ? (
+          products.map((product) => (
+            <BuyAgainProductCard
+              key={product.id}
+              product={product}
+              onAddToCart={onAddToCart}
+            />
+          ))
+        ) : (
+          <p className="px-2 py-6 text-center text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
+            Nothing to buy again yet. Products you order will appear here.
+          </p>
+        )}
       </div>
     </aside>
   )

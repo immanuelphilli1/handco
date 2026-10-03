@@ -16,6 +16,11 @@ type MobileAppNavigationProps = {
   onAccount: () => void
   /** Total quantity in the cart, shown as a badge on the Cart tab. */
   cartItemCount?: number
+  /**
+   * Label for the Account tab. Signed-in users see their first name instead of
+   * the generic "Account", which is undefined while signed out.
+   */
+  accountLabel?: string
 }
 
 type TabConfig = {
@@ -41,6 +46,7 @@ export function MobileAppNavigation({
   onCart,
   onAccount,
   cartItemCount = 0,
+  accountLabel,
 }: MobileAppNavigationProps) {
   const handlers: Record<MobileNavTab, () => void> = {
     home: onHome,
@@ -83,11 +89,12 @@ export function MobileAppNavigation({
                 ) : null}
               </span>
               <span
-                className={`text-center text-xs font-medium leading-[1.3] ${
+                className={`w-full truncate text-center text-xs font-medium leading-[1.3] ${
                   isActive ? 'text-text-primary' : 'text-text-tertiary'
                 }`}
               >
-                {tab.label}
+                {/* A signed-in user's first name replaces the generic label. */}
+                {tab.id === 'account' && accountLabel ? accountLabel : tab.label}
               </span>
             </button>
           )

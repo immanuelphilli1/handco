@@ -22,6 +22,7 @@ import { NewArrivalsSection } from '../components/NewArrivalsSection'
 import { PromoBannerSection } from '../components/PromoBannerSection'
 import { CartView } from '../components/CartView'
 import { CheckoutView } from '../components/CheckoutView'
+import { AddAddressRequiredModal } from '../components/AddAddressRequiredModal'
 import { OrderCompletedView } from '../components/OrderCompletedView'
 import { PaymentReturnView } from '../components/PaymentReturnView'
 import { WishlistView } from '../components/WishlistView'
@@ -77,6 +78,8 @@ export function HomePage() {
   const [isProductLoading, setIsProductLoading] = useState(false)
   const [isStartingPayment, setIsStartingPayment] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  /** Set when checkout was blocked because no default address is set. */
+  const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false)
   /** Set when `POST /orders` returned a 409 the shopper needs to act on. */
   const [orderConflict, setOrderConflict] = useState<OrderConflict | null>(null)
 
@@ -336,7 +339,9 @@ export function HomePage() {
       const preview = await checkoutApi.getCheckoutPreview()
       const addressId = preview.defaultAddressRid ?? preview.address?.rid
       if (!addressId) {
-        setCheckoutError('Add a delivery address before paying.')
+        // An inline error here would leave the shopper stuck on a page with no
+        // way forward, so prompt them to add an address instead.
+        setIsAddAddressModalOpen(true)
         return
       }
 
@@ -541,6 +546,14 @@ export function HomePage() {
               )}
             </main>
             <Footer onOpenCategories={openCategories} />
+            <AddAddressRequiredModal
+              isOpen={isAddAddressModalOpen}
+              onClose={() => setIsAddAddressModalOpen(false)}
+              onContinue={() => {
+                setIsAddAddressModalOpen(false)
+                handleGoToAddresses()
+              }}
+            />
           </>
         ) : wishlistOpen ? (
           <>

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { catalogApi } from '../api'
+import { getAccountPath } from '../data/accountRoutes'
 import { mapApiProduct, mapApiProductReview } from '../api/mappers'
 import AddLineIcon from 'remixicon-react/AddLineIcon'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
@@ -16,6 +18,7 @@ import SubtractLineIcon from 'remixicon-react/SubtractLineIcon'
 import User6LineIcon from 'remixicon-react/User6LineIcon'
 import { useShop } from '../context/ShopContext'
 import { useProductDestination } from '../hooks/useProductDestination'
+import { useShareLink } from '../hooks/useShareLink'
 import type {
   ProductDetail,
   ProductDetailContext,
@@ -304,6 +307,8 @@ function ProductInfoPanel({
   onIncreaseQuantity,
   onAddToCart,
   onBuyNow,
+  onShare,
+  shareStatus,
 }: {
   product: Product
   detail: ProductDetail
@@ -316,6 +321,10 @@ function ProductInfoPanel({
   onIncreaseQuantity: () => void
   onAddToCart: () => void
   onBuyNow: () => void
+  /** Shares this product's page URL. */
+  onShare: () => void
+  /** Short confirmation shown after a share attempt. */
+  shareStatus: string | null
 }) {
   // `discount` is derived from the API's `discountPercent` during mapping; the
   // promotional-notice string it replaced is no longer sent, so the badge hides
@@ -344,10 +353,21 @@ function ProductInfoPanel({
           </button>
           <button
             type="button"
-            className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-secondary"
+            onClick={onShare}
+            className="relative flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-secondary"
             aria-label="Share product"
           >
             <ShareForwardBoxFillIcon className="size-5 text-text-secondary" aria-hidden />
+            {/* Confirmation for the clipboard fallback, where the native sheet
+                gives no feedback of its own. */}
+            {shareStatus ? (
+              <span
+                role="status"
+                className="absolute right-0 top-12 z-10 w-max rounded-lg bg-bg-secondary px-2 py-1 text-xs font-medium leading-4 tracking-[-0.24px] text-text-primary shadow-lg"
+              >
+                {shareStatus}
+              </span>
+            ) : null}
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm leading-4 tracking-[-0.28px] text-text-secondary">
@@ -469,12 +489,15 @@ function ShippingSidebar({
   deliveryEstimate,
   itemsTotal,
   subtotal,
+  onChangeAddress,
 }: {
   shippingAddress: { line1: string; line2: string }
   shippingFee: string
   deliveryEstimate: string
   itemsTotal: string
   subtotal: string
+  /** Takes the user to the addresses page to set or change a default address. */
+  onChangeAddress: () => void
 }) {
   return (
     <aside className="flex w-full shrink-0 flex-col overflow-hidden bg-bg-primary xl:w-90 xl:rounded-[12px] xl:border xl:border-border-primary">
@@ -483,6 +506,7 @@ function ShippingSidebar({
           <p className="text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">Shipping</p>
           <button
             type="button"
+            onClick={onChangeAddress}
             className="group flex cursor-pointer items-center gap-1 text-sm leading-4 tracking-[-0.28px] text-text-primary"
           >
             Change
@@ -576,6 +600,7 @@ export function ProductDetailView({
 }: ProductDetailViewProps) {
   const { detail, selection } = context
   const { product } = detail
+  const navigate = useNavigate()
   const {
     isLiked: isProductLiked,
     toggleWishlist,
@@ -583,6 +608,7 @@ export function ProductDetailView({
     findCartItemForProduct,
     updateCartItem,
   } = useShop()
+  const { share, status: shareStatus } = useShareLink()
 
   const [selectedModelIndex, setSelectedModelIndex] = useState(0)
   const [quantity, setQuantity] = useState(1)
@@ -643,6 +669,25 @@ export function ProductDetailView({
     onGoToCart()
   }
 
+  // The shipping sidebar quotes delivery for the default address, so changing it
+  // is an account-level task: take the user to the addresses page rather than
+  // offering a picker with nowhere to persist the choice.
+  const handleChangeAddress = () => {
+    navigate(getAccountPath('addresses'))
+  }
+
+  // Shares the product's own page. The URL is built from the current path so the
+  // recipient lands on this product, with a trailing-slash/search cleanup to
+  // avoid copying a URL that is not what the address bar shows.
+  const handleShare = () => {
+    const shareUrl = window.location.href
+    void share({
+      title: product.name,
+      text: product.name,
+      url: shareUrl,
+    })
+  }
+
   return (
     <>
       <ProductDetailBreadcrumbs
@@ -678,6 +723,8 @@ export function ProductDetailView({
             onIncreaseQuantity={() => setQuantity((value) => value + 1)}
             onAddToCart={handleAddToCart}
             onBuyNow={() => void handleBuyNow()}
+            onShare={handleShare}
+            shareStatus={shareStatus}
           />
 
           <ShippingSidebar
@@ -686,6 +733,7 @@ export function ProductDetailView({
             deliveryEstimate={detail.deliveryEstimate}
             itemsTotal={detail.itemsTotal}
             subtotal={detail.subtotal}
+            onChangeAddress={handleChangeAddress}
           />
 
           <div className="xl:hidden">
