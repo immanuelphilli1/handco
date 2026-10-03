@@ -9,6 +9,8 @@ import {
 } from '../api/mappers'
 import { accountApi, ordersApi } from '../api'
 import { ApiError } from '../api/client'
+import { createStandalonePaymentIntentKey } from '../api/idempotency'
+import { savePendingPayment } from '../api/pendingPayment'
 import { useAuth } from '../context/AuthContext'
 import ArrowDownSLineIcon from 'remixicon-react/ArrowDownSLineIcon'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
@@ -278,14 +280,18 @@ function OrderCard({
   onReturnRefund,
   onTrackOrder,
   onViewDetails,
+  onMakePayment,
   isBuyingAgain,
+  isPayingOrderId,
 }: {
   order: OrderRecord
   onBuyAgain: (order: OrderRecord) => void
   onReturnRefund: (order: OrderRecord) => void
   onTrackOrder: (order: OrderRecord) => void
   onViewDetails: (order: OrderRecord) => void
+  onMakePayment: (order: OrderRecord) => void
   isBuyingAgain: boolean
+  isPayingOrderId: string | null
 }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-border-primary">
@@ -331,13 +337,29 @@ function OrderCard({
           >
             Return/Refund
           </button>
-          <button
-            type="button"
-            onClick={() => onTrackOrder(order)}
-            className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
-          >
-            Track order
-          </button>
+          {/*
+            An unpaid order has nothing to track yet, so the slot becomes the
+            action that unblocks it. The payment button is filled to read as the
+            primary action on the card.
+          */}
+          {order.status === 'pending_payment' ? (
+            <button
+              type="button"
+              onClick={() => onMakePayment(order)}
+              disabled={isPayingOrderId === order.id}
+              className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-primary-orange px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-inverse disabled:cursor-wait disabled:opacity-60"
+            >
+              {isPayingOrderId === order.id ? 'Opening…' : 'Make payment'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onTrackOrder(order)}
+              className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
+            >
+              Track order
+            </button>
+          )}
         </div>
       </div>
 
@@ -376,6 +398,8 @@ function OrdersPanel({
   /** Order the loaded `returnEligibility` belongs to. */
   const [returnEligibilityOrderId, setReturnEligibilityOrderId] = useState<string | null>(null)
   const [isBuyingAgain, setIsBuyingAgain] = useState(false)
+  /** Order currently opening its payment provider page, if any. */
+  const [isPayingOrderId, setIsPayingOrderId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const { buyOrderAgain, addBuyAgainProductToCart } = useBuyAgain()
   const {
@@ -460,6 +484,44 @@ function OrdersPanel({
   /** Posts the return request; the modal owns the success and error states. */
   const handleReturnRequest = async (orderId: string, reason: string) => {
     await ordersApi.returnOrder(orderId, reason)
+  }
+
+  /**
+   * Reopens payment for an order still awaiting it, then hands off to the
+   * provider. The order already exists, so unlike checkout there is no
+   * `POST /orders` step here — only `payment-intent` against the same order id.
+   */
+  const handleMakePayment = async (order: OrderRecord) => {
+    setNotice(null)
+    setIsPayingOrderId(order.id)
+
+    try {
+      const intent = await ordersApi.createOrderPaymentIntent(
+        order.id,
+        // A fresh key per click: this request carries a different body from the
+        // checkout attempt that created the order, so it must not share its key.
+        createStandalonePaymentIntentKey(),
+      )
+
+      savePendingPayment({
+        paymentRid: intent.paymentRid,
+        provider: intent.provider,
+        orderId: intent.orderId,
+        orderReference: order.id,
+        estimatedDelivery: order.statusDateLabel,
+      })
+
+      // Full-page navigation is required: the provider page is external and
+      // React Router cannot own it.
+      window.location.href = intent.checkoutUrl
+    } catch (error) {
+      setIsPayingOrderId(null)
+      setNotice(
+        error instanceof ApiError && error.message
+          ? error.message
+          : 'We could not open payment for this order. Please try again.',
+      )
+    }
   }
 
   const openTracking = (order: OrderRecord) => {
@@ -564,6 +626,10 @@ function OrdersPanel({
               }}
               onTrackOrder={openTracking}
               onViewDetails={openTracking}
+              onMakePayment={(order) => {
+                void handleMakePayment(order)
+              }}
+              isPayingOrderId={isPayingOrderId}
             />
           ))
         ) : (

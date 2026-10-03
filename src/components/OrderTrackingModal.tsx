@@ -1,12 +1,16 @@
 import { useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { Link } from 'react-router-dom'
+import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import CheckLineIcon from 'remixicon-react/CheckLineIcon'
 import CloseFillIcon from 'remixicon-react/CloseFillIcon'
+import { getProductPath } from '../data/shopRoutes'
 import {
-  getReachedStageCount,
-  orderTrackingStages,
+  buildOrderTimeline,
   type OrderLine,
   type OrderRecord,
+  type OrderStageState,
+  type OrderTimelineStep,
   type OrderTrackingEvent,
 } from '../data/orders'
 import { ListingLoader } from './ListingLoader'
@@ -84,18 +88,9 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
   // label while the detail request is still in flight.
   const title = primaryLine?.name ?? (isLoading ? 'Loading order…' : 'Track order')
 
-  const timeline = events.length > 0 ? (
-    <TimelineList events={events} />
-  ) : (
-    <TimelineList
-      events={orderTrackingStages.slice(0, getReachedStageCount(order.status)).map((stage, index) => ({
-        id: `${stage.key}-${index}`,
-        label: stage.label,
-        description: stage.description,
-        occurredAt: '',
-      }))}
-    />
-  )
+  // Every delivery stage is listed, with the reached ones ticked off and the
+  // stage the order currently sits on marked active.
+  const timeline = <TimelineList steps={buildOrderTimeline(order.status, events)} />
 
   return createPortal(
     <>
@@ -200,12 +195,16 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
               </p>
               <div className="flex flex-col gap-3">
                 {lines.slice(1).map((line) => (
-                  <div key={line.productId} className="flex items-center gap-4">
+                  <Link
+                    key={line.productId}
+                    to={getProductPath(line.productId)}
+                    className="group flex items-center gap-4"
+                  >
                     <div className="size-14 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary">
                       <img alt="" className="size-full object-cover" src={line.image} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-sm leading-4 tracking-[-0.28px] text-text-secondary">
+                      <p className="line-clamp-2 text-sm leading-4 tracking-[-0.28px] text-text-secondary transition-colors group-hover:text-text-primary">
                         {line.name}
                       </p>
                       <p className="mt-1 flex flex-wrap items-baseline gap-2 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
@@ -213,7 +212,11 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
                         <span className="text-text-tertiary">QTY: {line.quantity}</span>
                       </p>
                     </div>
-                  </div>
+                    <ArrowRightSLineIcon
+                      className="size-5 shrink-0 text-text-secondary transition-colors group-hover:text-primary-orange"
+                      aria-hidden
+                    />
+                  </Link>
                 ))}
               </div>
             </div>
@@ -225,44 +228,93 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
   )
 }
 
-/** Vertical timeline of delivery events, oldest first, each marked as reached. */
-function TimelineList({ events }: { events: OrderTrackingEvent[] }) {
-  const lastIndex = events.length - 1
+/** Dot and connector styling for one timeline step. */
+function StageMarker({ state }: { state: OrderStageState }) {
+  if (state === 'done') {
+    return (
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-green">
+        <CheckLineIcon className="size-4 text-text-inverse" aria-hidden />
+      </span>
+    )
+  }
+
+  if (state === 'active') {
+    return (
+      <span
+        aria-hidden
+        className="size-6 shrink-0 rounded-full border-2 border-primary-orange bg-bg-primary"
+      />
+    )
+  }
+
+  return (
+    <span
+      aria-hidden
+      className="size-6 shrink-0 rounded-full border-2 border-border-secondary bg-bg-primary"
+    />
+  )
+}
+
+/**
+ * Vertical delivery timeline.
+ *
+ * Every stage is shown, oldest first: completed steps carry a green tick and
+ * their API date, the stage the order is currently on is ringed in orange, and
+ * steps still to come are muted and undated. Text is dimmed for anything not yet
+ * reached so the journey reads as unfinished rather than missing.
+ */
+function TimelineList({ steps }: { steps: OrderTimelineStep[] }) {
+  const lastIndex = steps.length - 1
 
   return (
     <ol className="flex flex-col">
-      {events.map((event, index) => {
-        const isCurrent = index === lastIndex
-        const occurredOn = formatEventDate(event.occurredAt)
+      {steps.map((step, index) => {
+        const occurredOn = formatEventDate(step.occurredAt)
+        const isDone = step.state === 'done'
+        const isActive = step.state === 'active'
+        // The connector below a step is filled only once that step is behind us.
+        const connectorFilled = index < lastIndex && step.state === 'done'
 
         return (
-          <li key={event.id} className="flex gap-4">
+          <li key={step.key} className="flex gap-4">
             <div className="flex flex-col items-center">
-              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-green">
-                <CheckLineIcon className="size-4 text-text-inverse" aria-hidden />
-              </span>
+              <StageMarker state={step.state} />
               {index < lastIndex ? (
-                <span aria-hidden className="w-0.5 flex-1 bg-primary-green" />
+                <span
+                  aria-hidden
+                  className={`w-0.5 flex-1 ${connectorFilled ? 'bg-primary-green' : 'bg-border-secondary'}`}
+                />
               ) : null}
             </div>
 
             <div className={index === lastIndex ? '' : 'pb-6'}>
-              <p className="flex flex-wrap items-center gap-2 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
-                {event.label}
-                {isCurrent ? (
+              <p
+                className={`flex flex-wrap items-center gap-2 text-sm font-medium leading-4 tracking-[-0.28px] ${
+                  step.state === 'upcoming' ? 'text-text-tertiary' : 'text-text-primary'
+                }`}
+              >
+                {step.label}
+                {isActive ? (
                   <span className="rounded bg-orange-light px-1 py-0.5 text-xs font-medium leading-4 tracking-[-0.24px] text-primary-orange">
-                    Latest
+                    In progress
                   </span>
                 ) : null}
               </p>
-              <p className="mt-1 text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
-                {event.description}
+              <p
+                className={`mt-1 text-sm leading-4.5 tracking-[-0.28px] ${
+                  step.state === 'upcoming' ? 'text-text-tertiary' : 'text-text-secondary'
+                }`}
+              >
+                {step.description}
               </p>
               {occurredOn ? (
                 <p className="mt-1 text-xs font-medium leading-4 tracking-[-0.24px] text-text-tertiary">
                   {occurredOn}
                 </p>
               ) : null}
+              <span className="sr-only">
+                {isDone ? 'Completed' : isActive ? 'Current stage' : 'Not yet reached'}
+              </span>
             </div>
           </li>
         )

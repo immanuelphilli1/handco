@@ -36,7 +36,11 @@ import { getAllCategoriesListingSelection } from '../data/categoryListing'
 import type { SidebarCategoryId } from '../data/categoriesModal'
 import { useCategoryNavigation } from '../hooks/useCategoryNavigation'
 import type { CartStep, PaymentReturnStep } from '../data/navigation'
-import { getCheckoutAttemptKey, resetCheckoutAttemptKey } from '../api/idempotency'
+import {
+  getOrderIdempotencyKey,
+  getPaymentIntentIdempotencyKey,
+  resetCheckoutAttemptKeys,
+} from '../api/idempotency'
 import type { OrderConflict } from '../data/orderConflicts'
 import { toOrderConflict } from '../data/orderConflicts'
 import { isPaymentMethodRejection } from '../data/checkoutPaymentMethods'
@@ -327,10 +331,12 @@ export function HomePage() {
    * is `POST /checkout/payment-intent` called for that exact order, which opens
    * provider checkout for the order total.
    *
-   * Both calls carry the same idempotency key so a retry after a network error
-   * replays the stored response instead of creating a second order. The key is
-   * regenerated only after a `price_changed` conflict, which is a new decision
-   * rather than a retry of the same one.
+   * Each call carries its own idempotency key, because the server stores one
+   * record per key and rejects a key replayed with a different body
+   * (`422 idempotency_key_reused`). Retrying either call reuses that call's key,
+   * so a network error replays the stored response instead of creating a second
+   * order. Keys are regenerated only after a `price_changed` conflict, which is
+   * a new decision rather than a retry of the same one.
    */
   const handleSubmitOrder = useCallback(async () => {
     if (!authUser) return
@@ -359,11 +365,14 @@ export function HomePage() {
         return
       }
 
-      const attemptKey = getCheckoutAttemptKey()
+      // The two calls get separate keys: they carry different bodies, and the
+      // server rejects one key reused with a different body
+      // (`422 idempotency_key_reused`).
+      const orderKey = getOrderIdempotencyKey()
 
       const order = await checkoutApi.placeOrder(
         { addressId, cartItemIds: selectedItemIds },
-        attemptKey,
+        orderKey,
       )
 
       // The order exists now, so its lines have already left the cart. Refresh
@@ -372,7 +381,9 @@ export function HomePage() {
 
       const intent = await checkoutApi.createPaymentIntent(
         order.orderId,
-        attemptKey,
+        // Rotated automatically if the shopper picks a different method, since
+        // that is a new request rather than a retry of this one.
+        getPaymentIntentIdempotencyKey(paymentMethodId ?? undefined),
         // Resolved by the backend from either a rid or a code.
         paymentMethodId ?? undefined,
       )
@@ -443,7 +454,7 @@ export function HomePage() {
 
       clearPendingPayment()
       // The attempt succeeded, so the next checkout is a new decision.
-      resetCheckoutAttemptKey()
+      resetCheckoutAttemptKeys()
       setLastOrder({
         orderReference: stored.orderReference,
         estimatedDelivery: stored.estimatedDelivery,
@@ -572,7 +583,7 @@ export function HomePage() {
                   onAcknowledgeConflict={() => {
                     // Acknowledging the new prices is a new decision, so the
                     // next attempt must not replay the previous one.
-                    resetCheckoutAttemptKey()
+                    resetCheckoutAttemptKeys()
                     setOrderConflict(null)
                   }}
                 />

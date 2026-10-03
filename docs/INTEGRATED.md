@@ -189,6 +189,33 @@ and `cancelled` (replacing `pending` and `failed`), and
 but not yet rendered as its own badge — only `status` drives the badge label.
 `pending_payment` uses the server's documented wording, "Awaiting payment".
 
+### Awaiting Payment tab and Make payment (2026-10-03)
+
+`orderFilterTabs` gained `pending_payment` between **All Orders** and
+**Processing**, filtering via `GET /orders?status=pending_payment`. On a
+`pending_payment` card the **Track order** button becomes **Make payment**
+(primary orange, with an "Opening…" pending state), because an unpaid order has
+nothing to track yet. It calls `POST /checkout/payment-intent` for that existing
+`orderId` (`ordersApi.createOrderPaymentIntent`) — the documented retry path —
+then hands off to `checkoutUrl`. The pending payment is written to
+`sessionStorage` first so the return leg can poll it as usual.
+
+The other-items list in the tracking modal is now made of `Link`s to
+`getProductPath(line.productId)`, so each line opens its product page. Arrow
+icons and a hover state mark them as navigable.
+
+### Delivery progress shows every stage (2026-10-03)
+
+`buildOrderTimeline(status, events)` replaces the old "slice the reached
+prefix" logic. The timeline now always lists **all** stages
+(`pending_payment → processing → shipped → delivered`) and marks each
+`done` / `active` / `upcoming`: green tick for passed steps, an orange ring for
+the stage the order sits on ("In progress"), muted and undated for what is still
+to come. A `cancelled` order marks nothing, since it never entered the journey.
+API tracking events are matched to stages **by label** first (the server's
+wording is authoritative), falling back to index position only when the server
+returned a complete timeline, so a date can't be attached to the wrong stage.
+
 ### Product attributes (2026-10-03)
 
 List items carry `attributes[]` as `{ key, label, value }`, rendered directly as
@@ -380,16 +407,25 @@ so the list reloads and the failed method cannot be silently resubmitted.
 
 `POST /orders` and `POST /checkout/payment-intent` both require
 `Idempotency-Key: <uuid>` (missing header -> `428 idempotency_key_required`).
-`src/api/idempotency.ts` holds one key per checkout **attempt**, which is the
-granularity the backend expects:
+The server keeps **one idempotency record per key**, and rejects a key replayed
+with a *different* body as `422 idempotency_key_reused`.
+
+**Each endpoint therefore gets its own key** (`src/api/idempotency.ts`). A single
+shared key looks correct — one click, one key — but the two calls in a checkout
+never carry the same body (`{addressId, cartItemIds}` then
+`{orderId, paymentMethodId}`), so the second call was always rejected. Within one
+endpoint, the key **reuses** across retries:
 
 - a retry after a timeout or network error **reuses** the key, so the stored
   response is replayed instead of creating a duplicate order;
-- acknowledging a `price_changed` conflict **resets** the key, because agreeing
+- the payment-intent key rotates when `paymentMethodId` changes, because choosing
+  a different method after a decline is a new request with a new body;
+- acknowledging a `price_changed` conflict **resets** both keys, because agreeing
   to a new price is a new decision rather than a retry of the same one.
 
-The same key is used for both endpoints: the order is created once and the
-payment intent is opened for that order.
+`createStandalonePaymentIntentKey()` covers "Make payment" on an already-placed
+order, which has no `POST /orders` step to share a key with.
+
 
 ### Order-time conflicts
 

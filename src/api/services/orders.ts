@@ -4,6 +4,7 @@ import type {
   CartResponse,
   OrderTrackingResponse,
   OrdersListResponse,
+  PaymentIntentResponse,
   ApiOrderDetail,
 } from '../types'
 
@@ -48,5 +49,26 @@ export async function returnOrder(orderRid: string, reason: string): Promise<voi
   await apiRequest<void>(`/orders/${orderRid}/return`, {
     method: 'POST',
     body: { reason },
+  })
+}
+
+/**
+ * Reopens payment for an order that is still awaiting payment.
+ *
+ * A failed or abandoned payment leaves the order in `pending_payment`, and the
+ * backend expects `payment-intent` to be called again for the same `orderId` to
+ * retry. Each attempt is a fresh user action, so it needs its own idempotency
+ * key: reusing the checkout attempt's key would send the same key with a
+ * different body and be rejected as `422 idempotency_key_reused`.
+ */
+export async function createOrderPaymentIntent(
+  orderId: string,
+  idempotencyKey: string,
+  paymentMethodId?: string,
+): Promise<PaymentIntentResponse> {
+  return apiRequest<PaymentIntentResponse>('/checkout/payment-intent', {
+    method: 'POST',
+    body: paymentMethodId ? { orderId, paymentMethodId } : { orderId },
+    idempotencyKey,
   })
 }

@@ -1,21 +1,38 @@
 /**
  * `Idempotency-Key` generation for the order-first checkout endpoints.
  *
- * `POST /orders` and `POST /checkout/payment-intent` both require the header. The
- * key identifies one *user action*, not one HTTP request:
+ * `POST /orders` and `POST /checkout/payment-intent` both require the header, and
+ * the server keeps one idempotency record per key across *all* endpoints:
  *
- *  - a retry after a timeout or network error must reuse the key, because the
- *    server cannot know whether the first call succeeded and replaying the stored
- *    response is what prevents a duplicate order;
- *  - a retry after the shopper has reviewed a `price_changed` conflict is a new
- *    decision about a new price, so it must use a fresh key.
+ *  - the same key with the same body replays the stored response, which is what
+ *    stops a retry after a timeout from creating a duplicate order;
+ *  - the same key with a *different* body is rejected with
+ *    `422 idempotency_key_reused`.
  *
- * A session-scoped in-memory key holder covers the first case without persisting
- * anything sensitive to storage: the key is only needed while the page that
- * created it is alive, and a reload already produces a new key.
+ * That second rule is why this module keeps a separate key per endpoint rather
+ * than one key per attempt. A single shared key looks correct — one click, one
+ * key — but the two requests in a checkout never carry the same body
+ * (`{addressId, cartItemIds}` then `{orderId, paymentMethodId}`), so the second
+ * call would always be rejected as a reuse.
+ *
+ * Keys are session-scoped and held in memory only: a key is needed just while
+ * the page that created it is alive, and a reload already starts a new attempt.
  */
 
-let currentAttemptKey: string | null = null
+type CheckoutAttempt = {
+  /** Key for `POST /orders`. Stable for the whole attempt. */
+  order: string
+  /** Key for `POST /checkout/payment-intent`. Rotated when the body changes. */
+  paymentIntent: string
+  /**
+   * What the current intent key was issued for. The body of this request is
+   * `{orderId, paymentMethodId}`, so a different method is a different request
+   * and needs its own key.
+   */
+  paymentIntentFingerprint: string
+}
+
+let currentAttempt: CheckoutAttempt | null = null
 
 function generateKey(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -28,22 +45,64 @@ function generateKey(): string {
 }
 
 /**
- * Returns the key for the current checkout attempt, generating one if needed.
+ * The key for `POST /orders`, generated once per attempt.
  *
- * Call this once per user action and pass the result to every retry of that same
- * action.
+ * Call this for every retry of the same "Place order" click so a timeout
+ * replays the first response instead of creating a second order.
  */
-export function getCheckoutAttemptKey(): string {
-  currentAttemptKey ??= generateKey()
-  return currentAttemptKey
+export function getOrderIdempotencyKey(): string {
+  currentAttempt ??= {
+    order: generateKey(),
+    paymentIntent: generateKey(),
+    paymentIntentFingerprint: '',
+  }
+
+  return currentAttempt.order
 }
 
 /**
- * Discards the current attempt's key so the next call starts a fresh one.
+ * The key for `POST /checkout/payment-intent`.
+ *
+ * Reused across retries that carry the same payment method, and rotated as soon
+ * as the method changes: the shopper picking a different method after a decline
+ * is a new decision with a new body, and replaying the old key would return
+ * `422 idempotency_key_reused` instead of opening the new payment.
+ */
+export function getPaymentIntentIdempotencyKey(paymentMethodId?: string): string {
+  const attempt = (currentAttempt ??= {
+    order: generateKey(),
+    paymentIntent: generateKey(),
+    paymentIntentFingerprint: '',
+  })
+
+  const fingerprint = paymentMethodId ?? 'none'
+
+  if (attempt.paymentIntentFingerprint !== fingerprint) {
+    attempt.paymentIntent = generateKey()
+    attempt.paymentIntentFingerprint = fingerprint
+  }
+
+  return attempt.paymentIntent
+}
+
+/**
+ * Discards the attempt's keys so the next call starts fresh.
  *
  * Called when an attempt has definitively succeeded, or when the shopper has
  * acknowledged a conflict and is submitting again as a new decision.
  */
-export function resetCheckoutAttemptKey(): void {
-  currentAttemptKey = null
+export function resetCheckoutAttemptKeys(): void {
+  currentAttempt = null
+}
+
+/**
+ * A key for a standalone `payment-intent` call, such as "Make payment" on an
+ * order that is already awaiting payment.
+ *
+ * Those attempts sit outside the checkout flow and have no order-placement step
+ * to share a key with, so each one gets its own. Call this once per click and
+ * pass the result to every retry of that same click.
+ */
+export function createStandalonePaymentIntentKey(): string {
+  return generateKey()
 }

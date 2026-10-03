@@ -94,6 +94,7 @@ const sampleOrderLines: OrderLine[] = [
 
 export const orderFilterTabs: { id: OrderFilter; label: string }[] = [
   { id: 'all', label: 'All Orders' },
+  { id: 'pending_payment', label: 'Awaiting Payment' },
   { id: 'processing', label: 'Processing' },
   { id: 'shipped', label: 'Shipped' },
   { id: 'delivered', label: 'Delivered' },
@@ -138,14 +139,14 @@ export const orders: OrderRecord[] = [
 
 export const orderTrackingStages: OrderTrackingStage[] = [
   {
-    key: 'placed',
-    label: 'Order placed',
-    description: 'We have received your order and payment is confirmed.',
+    key: 'pending_payment',
+    label: 'Awaiting payment',
+    description: 'We have your order and are holding your items while payment completes.',
   },
   {
     key: 'processing',
     label: 'Processing',
-    description: 'Your items are being packed and prepared for dispatch.',
+    description: 'Payment is confirmed. Your items are being packed and prepared for dispatch.',
   },
   {
     key: 'shipped',
@@ -160,13 +161,75 @@ export const orderTrackingStages: OrderTrackingStage[] = [
 ]
 
 /**
- * How far along the journey each status sits. An order is treated as complete
+ * How far along the journey an order sits. An order is treated as complete
  * through the stage matching its own status, which is how the tracker decides
  * which steps to tick off.
  */
 export function getReachedStageCount(status: OrderStatus): number {
   const stageIndex = orderTrackingStages.findIndex((stage) => stage.key === status)
-  return stageIndex === -1 ? 1 : stageIndex + 1
+  return stageIndex === -1 ? 0 : stageIndex + 1
+}
+
+/** Where an order sits against each delivery stage. */
+export type OrderStageState = 'done' | 'active' | 'upcoming'
+
+/** One row of the delivery timeline. */
+export type OrderTimelineStep = {
+  key: string
+  label: string
+  description: string
+  /** ISO timestamp from the API, when the order has reached this stage. */
+  occurredAt: string
+  state: OrderStageState
+}
+
+/** Reduces a label to a comparable form so API wording can match a local stage. */
+function normalizeLabel(label: string): string {
+  return label.toLowerCase().replace(/[^a-z]/g, '')
+}
+
+/**
+ * Builds the full delivery timeline for an order.
+ *
+ * Every stage is always returned, not just the reached ones, so the shopper can
+ * see what is still to come. Each stage is marked `done` when the order has
+ * passed it, `active` at the stage it currently sits on, and `upcoming` beyond
+ * that. A cancelled order never entered the journey, so nothing is marked.
+ *
+ * Timestamps come from the API's tracking events when they can be matched to a
+ * stage, so the dates shown are the server's rather than the client's guess.
+ */
+export function buildOrderTimeline(
+  status: OrderStatus,
+  events: OrderTrackingEvent[],
+): OrderTimelineStep[] {
+  const reachedCount = getReachedStageCount(status)
+  // A cancelled order has no delivery journey to report progress against.
+  const effectiveReached = status === 'cancelled' ? 0 : reachedCount
+
+  // Labels are matched first because the server's wording is authoritative. The
+  // index fallback only applies when the server reported a complete timeline,
+  // otherwise an event could be attached to the wrong stage.
+  const matchedByLabel = new Map<string, OrderTrackingEvent>()
+  const eventsByIndex = events.length === orderTrackingStages.length ? events : null
+
+  events.forEach((event) => {
+    matchedByLabel.set(normalizeLabel(event.label), event)
+  })
+
+  return orderTrackingStages.map((stage, index) => {
+    const event = matchedByLabel.get(normalizeLabel(stage.label)) ?? eventsByIndex?.[index]
+    const state: OrderStageState =
+      index < effectiveReached ? 'done' : index === effectiveReached ? 'active' : 'upcoming'
+
+    return {
+      key: stage.key,
+      label: stage.label,
+      description: stage.description,
+      occurredAt: state === 'upcoming' ? '' : (event?.occurredAt ?? ''),
+      state,
+    }
+  })
 }
 
 /**
