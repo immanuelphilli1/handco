@@ -9,6 +9,8 @@ import {
   type CartItem,
   type CheckoutPaymentMethodId,
 } from '../data/cart'
+import { formatAmount, formatDeliveryDays } from '../data/format'
+import type { OrderConflict } from '../data/orderConflicts'
 import { useShop } from '../context/ShopContext'
 import { useDefaultAddress } from '../hooks/useDefaultAddress'
 import { OrderSummaryPanel } from './OrderSummaryPanel'
@@ -27,6 +29,14 @@ type CheckoutViewProps = {
   isSubmitting?: boolean
   /** Shown above the submit button when payment could not be started. */
   submitError?: string | null
+  /**
+   * Set when `POST /orders` rejected the attempt with a 409. The shopper has to
+   * acknowledge it (typically a new price) before trying again, and acknowledging
+   * is treated as a new decision rather than a retry.
+   */
+  orderConflict?: OrderConflict | null
+  /** Clears the conflict and prepares a fresh attempt. */
+  onAcknowledgeConflict?: () => void
 }
 
 function PaymentRadio({
@@ -88,6 +98,81 @@ function CheckoutItemCard({ item, onSelect }: { item: CartItem; onSelect: () => 
   )
 }
 
+/**
+ * Explains an order-time conflict so the shopper can act on it.
+ *
+ * `price_changed` lists the old and new price per affected line, because the
+ * shopper has to agree to the new figure before the order can be placed. The
+ * backend records that the conflict has now been shown, so resubmitting after
+ * acknowledging is what accepts the new price.
+ */
+function OrderConflictNotice({
+  conflict,
+  onAcknowledge,
+}: {
+  conflict: OrderConflict
+  onAcknowledge: () => void
+}) {
+  return (
+    <div
+      role="alert"
+      className="mt-4 flex flex-col gap-3 rounded-xl bg-orange-light px-4 py-3"
+    >
+      <p className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-primary-orange">
+        {conflict.message}
+      </p>
+
+      {conflict.priceChanges.length > 0 ? (
+        <ul className="flex flex-col gap-2">
+          {conflict.priceChanges.map((change) => (
+            <li
+              key={change.cartItemId}
+              className="flex items-center justify-between gap-3 text-sm leading-4.5 tracking-[-0.28px] text-text-primary"
+            >
+              <span className="text-text-secondary line-through">
+                {formatAmount(change.previousPrice)}
+              </span>
+              <span aria-hidden className="text-text-secondary">
+                &rarr;
+              </span>
+              <span className="font-medium">{formatAmount(change.price)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {conflict.stockShortfalls.length > 0 ? (
+        <ul className="flex flex-col gap-1">
+          {conflict.stockShortfalls.map((shortfall, index) => (
+            <li
+              key={`${shortfall.variantRid ?? 'variant'}-${index}`}
+              className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary"
+            >
+              Only {shortfall.available} left — you asked for {shortfall.requested}.
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {conflict.unavailableCartItemIds.length > 0 ? (
+        <p className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
+          Remove the unavailable items from your cart to continue.
+        </p>
+      ) : null}
+
+      {conflict.isRetryable ? (
+        <button
+          type="button"
+          onClick={onAcknowledge}
+          className="cursor-pointer self-start rounded-full bg-bg-primary px-4 py-2 text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary"
+        >
+          {conflict.code === 'price_changed' ? 'Accept new prices' : 'Try again'}
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 export function CheckoutView({
   onGoHome,
   onGoToCart,
@@ -97,6 +182,8 @@ export function CheckoutView({
   onEditDefaultAddress,
   isSubmitting = false,
   submitError = null,
+  orderConflict = null,
+  onAcknowledgeConflict,
 }: CheckoutViewProps) {
   const { cartItems, cartItemCount } = useShop()
   // Selected lines are what the order summary bills, so item details mirrors them.
@@ -135,9 +222,14 @@ export function CheckoutView({
         // The address comes from the account's default, not the preview copy,
         // which can be stale. Shipping quotes still come from the preview.
         if (preview.shipping) {
+          // `fee`/`deliveryWindow` strings are deprecated; the Money amount and
+          // day range are formatted client-side.
+          const feeMoney = preview.shipping.feeMoney
+          const deliveryDays = formatDeliveryDays(preview.shipping.deliveryDays)
+
           setPreviewShipping({
-            fee: preview.shipping.fee,
-            deliveryWindow: preview.shipping.deliveryWindow,
+            fee: feeMoney ? formatAmount(feeMoney) : '',
+            deliveryWindow: deliveryDays,
             courierLabel: preview.shipping.courierLabel ?? shippingSummary.courierLabel,
           })
         }
@@ -341,10 +433,17 @@ export function CheckoutView({
                 </p>
               ) : null}
 
+              {orderConflict && onAcknowledgeConflict ? (
+                <OrderConflictNotice
+                  conflict={orderConflict}
+                  onAcknowledge={onAcknowledgeConflict}
+                />
+              ) : null}
+
               <p className="mt-4 text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
                 {isSubmitting
-                  ? 'Taking you to the secure payment page…'
-                  : 'Submitting order redirects you to our payment provider to complete payment. Your card details are never entered on this site.'}
+                  ? 'Placing your order and taking you to the secure payment page…'
+                  : 'Submitting places your order, then redirects you to our payment provider to complete payment. Your card details are never entered on this site.'}
               </p>
             </section>
 

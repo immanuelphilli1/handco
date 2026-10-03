@@ -26,6 +26,20 @@ export type Product = {
   brand?: string
   color?: string
   screenSize?: string | null
+  /**
+   * Every attribute with its display name, in the order the category lists them.
+   * Rendered directly as `label: value`; `key` is what attribute filters use.
+   */
+  attributes?: ProductAttribute[]
+  /** False when the default variant cannot currently be bought. */
+  inStock?: boolean
+}
+
+/** One product attribute, ready to display. */
+export type ProductAttribute = {
+  key: string
+  label: string
+  value: string
 }
 
 type ProductRecord = Omit<Product, 'categoryId'>

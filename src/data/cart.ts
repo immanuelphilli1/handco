@@ -13,6 +13,16 @@ export type CartItem = {
   price: number
   quantity: number
   selected: boolean
+  /**
+   * Unit price before it moved, when the API reports a change since the item was
+   * added. `POST /orders` rejects the order until the shopper has seen the new
+   * price, so this drives the "price changed" highlight on the cart line.
+   */
+  previousPrice?: number
+  /** Stock on hand. Null means made-to-order, so it never sells out. */
+  stockQuantity?: number | null
+  /** False when the variant cannot currently be bought. */
+  available?: boolean
 }
 
 export type CheckoutPaymentMethodId =
@@ -37,6 +47,8 @@ export const cartOrderSummary = {
   itemsDiscount: '- AED 1100',
   subtotal: 'AED 1100',
   shipping: 'AED 20',
+  // Empty until the API reports a tax amount; the row is hidden while blank.
+  tax: '',
   total: 'AED 10000',
   paymentNote: 'Please refer to your final actual payment amount.',
   availabilityNote:

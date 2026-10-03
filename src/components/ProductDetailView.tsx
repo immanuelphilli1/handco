@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { catalogApi } from '../api'
-import { mapApiProduct } from '../api/mappers'
+import { mapApiProduct, mapApiProductReview } from '../api/mappers'
 import AddLineIcon from 'remixicon-react/AddLineIcon'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
@@ -15,6 +15,7 @@ import StarFillIcon from 'remixicon-react/StarFillIcon'
 import SubtractLineIcon from 'remixicon-react/SubtractLineIcon'
 import User6LineIcon from 'remixicon-react/User6LineIcon'
 import { useShop } from '../context/ShopContext'
+import { useProductDestination } from '../hooks/useProductDestination'
 import type {
   ProductDetail,
   ProductDetailContext,
@@ -316,6 +317,11 @@ function ProductInfoPanel({
   onAddToCart: () => void
   onBuyNow: () => void
 }) {
+  // `discount` is derived from the API's `discountPercent` during mapping; the
+  // promotional-notice string it replaced is no longer sent, so the badge hides
+  // itself when the product has no discount.
+  const discountBadge = product.discount ?? ''
+
   return (
     <div className="min-w-0 flex-1 overflow-hidden bg-bg-primary xl:max-w-98 xl:rounded-[12px] xl:border xl:border-border-primary">
       <div className="border-b border-border-primary py-4 xl:p-4">
@@ -359,12 +365,16 @@ function ProductInfoPanel({
           <span className="text-sm leading-4 tracking-[-0.28px]">{detail.priceCurrency}</span>
           <span className="text-xl font-semibold leading-6 tracking-[-0.4px]">{detail.priceAmount}</span>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-lg bg-orange-light px-2 py-1">
-          <PriceTag3LineIcon className="size-4 text-primary-orange" aria-hidden />
-          <span className="text-xs font-medium leading-4 tracking-[-0.24px] text-primary-orange">
-            {detail.discountNotice}
-          </span>
-        </div>
+        {/* The promo notice string is deprecated, so the badge is driven by the
+            real discount percentage and hidden when there is no discount. */}
+        {discountBadge ? (
+          <div className="inline-flex items-center gap-2 rounded-lg bg-orange-light px-2 py-1">
+            <PriceTag3LineIcon className="size-4 text-primary-orange" aria-hidden />
+            <span className="text-xs font-medium leading-4 tracking-[-0.24px] text-primary-orange">
+              {discountBadge}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <div className="border-b border-border-primary py-4 xl:p-4">
@@ -411,6 +421,27 @@ function ProductInfoPanel({
           ))}
         </div>
       </div>
+
+      {product.attributes && product.attributes.length > 0 ? (
+        <div className="border-t border-border-primary py-4">
+          <p className="mb-3 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
+            Specifications
+          </p>
+          {/* `label` comes from the API, so the rows follow the order and wording
+              the category defines without a client change. */}
+          <dl className="flex flex-col gap-2">
+            {product.attributes.map((attribute) => (
+              <div
+                key={attribute.key}
+                className="flex items-start justify-between gap-4 text-sm leading-4 tracking-[-0.28px]"
+              >
+                <dt className="text-text-secondary">{attribute.label}</dt>
+                <dd className="text-right text-text-primary">{attribute.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : null}
 
       <div className="flex gap-4 py-4 xl:p-4">
         <button
@@ -559,6 +590,8 @@ export function ProductDetailView({
   const [reviews, setReviews] = useState<ProductReview[]>(detail.reviews)
 
   const isLiked = isProductLiked(product.id)
+  // Related cards show delivery quotes, which need a known destination.
+  const { country } = useProductDestination()
 
   useEffect(() => {
     let cancelled = false
@@ -566,13 +599,14 @@ export function ProductDetailView({
     async function loadProductExtras() {
       try {
         const [relatedResponse, reviewsResponse] = await Promise.all([
-          catalogApi.getRelatedProducts(product.id),
+          catalogApi.getRelatedProducts(product.id, { country }),
           catalogApi.getProductReviews(product.id),
         ])
 
         if (!cancelled) {
           setRelatedProducts(relatedResponse.items.map(mapApiProduct))
-          setReviews(reviewsResponse.reviews)
+          // The API sends `createdAt` instead of a preformatted `date` string.
+          setReviews(reviewsResponse.reviews.map(mapApiProductReview))
         }
       } catch {
         if (!cancelled) {
@@ -587,7 +621,7 @@ export function ProductDetailView({
     return () => {
       cancelled = true
     }
-  }, [detail.reviews, product.id])
+  }, [country, detail.reviews, product.id])
 
   const handleAddToCart = () => {
     void addToCart(product, quantity)

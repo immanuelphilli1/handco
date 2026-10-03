@@ -67,6 +67,9 @@ export function OrderSummaryPanel({
 
         <div className="flex flex-col gap-4 border-b border-border-primary p-4">
           <SummaryRow label="Shipping:" value={summary.shipping} />
+          {/* Tax only arrives once the destination country is known, so the row
+              appears only when the API actually charged it. */}
+          {summary.tax ? <SummaryRow label="Tax:" value={summary.tax} /> : null}
           <div className="flex items-center gap-2 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
             <span className="flex-1">Total</span>
             <span className="flex-1 text-right">{summary.total}</span>

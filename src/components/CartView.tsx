@@ -5,6 +5,7 @@ import { useShop } from '../context/ShopContext'
 import { useRecommendations } from '../hooks/useCatalogProducts'
 import { cartRecommendations } from '../data/wishlist'
 import { OrderSummaryPanel } from './OrderSummaryPanel'
+import { ListingLoader } from './ListingLoader'
 import { PageBreadcrumbs } from './PageBreadcrumbs'
 import { ProductCard } from './ProductCard'
 import { QuantityStepper } from './QuantityStepper'
@@ -54,6 +55,14 @@ function CartItemRow({
 }) {
   return (
     <article className="border-b border-border-primary py-4">
+      {item.available === false ? (
+        <p
+          role="alert"
+          className="mb-3 rounded-lg bg-orange-light px-3 py-2 text-xs font-medium leading-4 tracking-[-0.24px] text-primary-orange"
+        >
+          This item is no longer available. Remove it to continue.
+        </p>
+      ) : null}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-4">
         <div className="flex gap-4">
           <CartCheckbox
@@ -113,11 +122,14 @@ function CartItemRow({
             {item.variant}
           </span>
           <div className="mt-8 flex items-center justify-between">
-            <div className="flex items-center gap-1 text-text-primary">
-              <span className="text-sm leading-4.5 tracking-[-0.28px]">{item.currency}</span>
-              <span className="text-xl font-semibold leading-6 tracking-[-0.4px]">
-                {item.price.toLocaleString()}
-              </span>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1 text-text-primary">
+                <span className="text-sm leading-4.5 tracking-[-0.28px]">{item.currency}</span>
+                <span className="text-xl font-semibold leading-6 tracking-[-0.4px]">
+                  {item.price.toLocaleString()}
+                </span>
+              </div>
+              <CartPriceChangeNotice item={item} />
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary">
@@ -127,6 +139,7 @@ function CartItemRow({
                 quantity={item.quantity}
                 onDecrease={onDecrease}
                 onIncrease={onIncrease}
+                max={getMaxQuantity(item)}
               />
             </div>
           </div>
@@ -134,11 +147,14 @@ function CartItemRow({
       </div>
 
       <div className="mt-4 flex items-center justify-between lg:hidden">
-        <div className="flex items-center gap-1 text-text-primary">
-          <span className="text-sm leading-4.5 tracking-[-0.28px]">{item.currency}</span>
-          <span className="text-xl font-semibold leading-6 tracking-[-0.4px]">
-            {item.price.toLocaleString()}
-          </span>
+        <div className="flex flex-col">
+          <div className="flex items-center gap-1 text-text-primary">
+            <span className="text-sm leading-4.5 tracking-[-0.28px]">{item.currency}</span>
+            <span className="text-xl font-semibold leading-6 tracking-[-0.4px]">
+              {item.price.toLocaleString()}
+            </span>
+          </div>
+          <CartPriceChangeNotice item={item} />
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary">
@@ -148,6 +164,7 @@ function CartItemRow({
             quantity={item.quantity}
             onDecrease={onDecrease}
             onIncrease={onIncrease}
+            max={getMaxQuantity(item)}
           />
         </div>
       </div>
@@ -155,9 +172,45 @@ function CartItemRow({
   )
 }
 
+/**
+ * Flags a line whose price moved since it was added, and shows the new figure.
+ *
+ * The cart prices every line at today's price, so without this the shopper would
+ * only discover the change when `POST /orders` rejected the attempt.
+ */
+function CartPriceChangeNotice({ item }: { item: CartItem }) {
+  // Absent, or equal, means the price has not moved.
+  if (item.previousPrice === undefined || item.previousPrice === item.price) return null
+
+  return (
+    <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs leading-4 tracking-[-0.24px] text-primary-orange">
+      <span className="font-medium">Price changed</span>
+      <span className="text-text-secondary line-through">
+        {item.currency} {item.previousPrice.toLocaleString()}
+      </span>
+      <span aria-hidden className="text-text-secondary">
+        &rarr;
+      </span>
+      <span className="font-medium text-text-primary">
+        {item.currency} {item.price.toLocaleString()}
+      </span>
+    </p>
+  )
+}
+
+/** Caps the stepper at the stock on hand when the variant is stock-tracked. */
+function getMaxQuantity(item: CartItem): number | undefined {
+  // `null` means made-to-order: never sells out, so there is no cap.
+  if (item.stockQuantity === null || item.stockQuantity === undefined) return undefined
+  return Math.max(1, item.stockQuantity)
+}
+
 export function CartView({ onGoHome, onCheckout, onGoToProduct }: CartViewProps) {
   const {
     cartItems,
+    isCartLoading,
+    cartError,
+    clearCartError,
     updateCartItem,
     removeCartItem,
     removeSelectedCartItems,
@@ -169,16 +222,24 @@ export function CartView({ onGoHome, onCheckout, onGoToProduct }: CartViewProps)
   const selectedCount = useMemo(() => cartItems.filter((item) => item.selected).length, [cartItems])
   const allSelected = cartItems.length > 0 && selectedCount === cartItems.length
 
+  // Cart mutations reject on a 422 (e.g. exceeding stock). The context has
+  // already surfaced the reason in `cartError`, so the rejection is swallowed
+  // here rather than becoming an unhandled promise.
+  const runCartAction = (action: () => Promise<void>) => {
+    clearCartError()
+    void action().catch(() => undefined)
+  }
+
   const toggleAll = () => {
-    void selectAllCartItems(!allSelected)
+    runCartAction(() => selectAllCartItems(!allSelected))
   }
 
   const deleteSelected = () => {
-    void removeSelectedCartItems()
+    runCartAction(removeSelectedCartItems)
   }
 
   const moveSelected = () => {
-    void moveSelectedToWishlist()
+    runCartAction(moveSelectedToWishlist)
   }
 
   return (
@@ -194,6 +255,14 @@ export function CartView({ onGoHome, onCheckout, onGoToProduct }: CartViewProps)
       <section className="border-t border-border-primary px-4 pb-10 pt-6 lg:px-16 lg:pt-8">
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-4">
           <div className="min-w-0 flex-1">
+            {cartError ? (
+              <p
+                role="alert"
+                className="mb-4 rounded-xl bg-orange-light px-4 py-3 text-sm font-medium leading-4.5 tracking-[-0.28px] text-primary-orange"
+              >
+                {cartError}
+              </p>
+            ) : null}
             <div className="overflow-hidden rounded-2xl border border-border-primary bg-bg-primary">
               <div className="flex items-center gap-2 border-b border-border-primary px-4 py-4 lg:px-4">
                 <CartCheckbox
@@ -223,7 +292,9 @@ export function CartView({ onGoHome, onCheckout, onGoToProduct }: CartViewProps)
               </div>
 
               <div className="px-4">
-                {cartItems.length === 0 ? (
+                {isCartLoading ? (
+                  <ListingLoader label="Loading your cart" />
+                ) : cartItems.length === 0 ? (
                   <div className="flex min-h-48 flex-col items-center justify-center gap-2 py-10 text-center">
                     <p className="text-xl font-medium leading-6 tracking-[-0.4px] text-text-primary">
                       Your cart is empty
@@ -238,16 +309,22 @@ export function CartView({ onGoHome, onCheckout, onGoToProduct }: CartViewProps)
                       key={item.id}
                       item={item}
                       onToggleSelected={() =>
-                        void updateCartItem(item.id, { selected: !item.selected })
+                        runCartAction(() =>
+                          updateCartItem(item.id, { selected: !item.selected }),
+                        )
                       }
-                      onDelete={() => void removeCartItem(item.id)}
+                      onDelete={() => runCartAction(() => removeCartItem(item.id))}
                       onDecrease={() =>
-                        void updateCartItem(item.id, {
-                          quantity: Math.max(1, item.quantity - 1),
-                        })
+                        runCartAction(() =>
+                          updateCartItem(item.id, {
+                            quantity: Math.max(1, item.quantity - 1),
+                          }),
+                        )
                       }
                       onIncrease={() =>
-                        void updateCartItem(item.id, { quantity: item.quantity + 1 })
+                        runCartAction(() =>
+                          updateCartItem(item.id, { quantity: item.quantity + 1 }),
+                        )
                       }
                       onGoToProduct={() => {
                         if (item.productRid) onGoToProduct(item.productRid)

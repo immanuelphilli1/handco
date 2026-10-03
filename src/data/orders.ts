@@ -1,6 +1,15 @@
 import { images } from '../assets/images'
 
-export type OrderStatus = 'delivered' | 'processing' | 'shipped'
+/**
+ * Order lifecycle. `pending_payment` replaced `pending`, and `cancelled`
+ * replaced `failed`, since an order is now created before payment.
+ */
+export type OrderStatus =
+  | 'pending_payment'
+  | 'processing'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
 
 export type OrderFilter = 'all' | OrderStatus | 'returns'
 
@@ -180,6 +189,8 @@ export const refundCopy = {
   submitLabel: 'Submit return request',
   policyLabel: 'Read our Return & Refund Policy',
   submitError: 'We could not submit your return request. Please try again.',
+  /** Shown when the API reports the order is past its return window. */
+  notEligible: 'This order is outside its return window, so a return cannot be requested.',
   successTitle: 'Return request received',
   successDescription:
     'Our team will review your request and get back to you shortly. Once approved, we will arrange the refund.',
@@ -248,6 +259,10 @@ export function getOrdersEmptyStateMessage(
       return "You don't have any shipped orders"
     case 'delivered':
       return "You don't have any delivered orders"
+    case 'pending_payment':
+      return "You don't have any orders awaiting payment"
+    case 'cancelled':
+      return "You don't have any cancelled orders"
     case 'returns':
       return "You don't have any orders to return"
     default: {

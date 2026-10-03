@@ -18,7 +18,6 @@ export type ProductDetail = {
   soldCount: number
   priceAmount: string
   priceCurrency: string
-  discountNotice: string
   modelOptions: string[]
   descriptionLines: string[]
   reviews: ProductReview[]
@@ -98,7 +97,6 @@ export function buildProductDetail(product: Product): ProductDetail {
     soldCount: 20,
     priceAmount,
     priceCurrency,
-    discountNotice: 'Get 10% off on your first order',
     modelOptions: defaultModelOptions,
     descriptionLines: [
       `${product.name} with premium build quality and smart features.`,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { accountApi } from '../api'
-import { ApiError } from '../api/client'
+import { getReviewErrorMessage } from '../data/reviewErrors'
 import CheckLineIcon from 'remixicon-react/CheckLineIcon'
 import CloseFillIcon from 'remixicon-react/CloseFillIcon'
 import StarFillIcon from 'remixicon-react/StarFillIcon'
@@ -119,8 +119,8 @@ function ReviewSuccessContent({ onClose }: { onClose: () => void }) {
       </h2>
 
       <p className="text-center text-base font-medium leading-5 tracking-[-0.32px] text-text-secondary">
-        Your review has been successfully submitted. We appreciate your feedback and hope to see
-        you again soon.
+        Your review has been submitted and is awaiting approval. It will appear on the product
+        once our team has reviewed it. We appreciate your feedback and hope to see you again soon.
       </p>
     </div>
   )
@@ -201,11 +201,7 @@ export function AddReviewModal({ review, onClose, onSubmitSuccess }: AddReviewMo
       })
       setIsSubmitted(true)
     } catch (error) {
-      setErrorMessage(
-        error instanceof ApiError && error.message
-          ? error.message
-          : 'We could not submit your review. Please try again.',
-      )
+      setErrorMessage(getReviewErrorMessage(error))
     } finally {
       setIsSubmitting(false)
     }

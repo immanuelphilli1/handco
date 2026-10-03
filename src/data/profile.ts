@@ -11,6 +11,14 @@ export type DefaultAddress = {
   phone: string
   line1: string
   line2: string
+  /**
+   * ISO 3166-1 alpha-2 code (e.g. `AE`, `GH`) for the address country.
+   *
+   * The catalog needs this to resolve delivery quotes and tax, both of which the
+   * API only returns for a known destination. Kept as the code rather than the
+   * country name so it can be sent as `?country=` without a lookup.
+   */
+  countryCode?: string
 }
 
 export type PaymentMethod = {

@@ -4,6 +4,7 @@ import CheckLineIcon from 'remixicon-react/CheckLineIcon'
 import CloseFillIcon from 'remixicon-react/CloseFillIcon'
 import { refundCopy, returnReasons, type OrderRecord } from '../data/orders'
 import { ApiError } from '../api/client'
+import type { ApiReturnEligibility } from '../api/types'
 
 type ReturnRefundModalProps = {
   order: OrderRecord | null
@@ -12,6 +13,11 @@ type ReturnRefundModalProps = {
   onViewPolicy: () => void
   /** Submits the request through `POST /orders/:rid/return`. */
   onSubmit: (orderId: string, reason: string) => Promise<void>
+  /**
+   * Whether the order can still be returned. When the API says it cannot, the
+   * dialog explains why instead of offering a form that will be rejected.
+   */
+  returnEligibility?: ApiReturnEligibility | null
 }
 
 /**
@@ -24,6 +30,7 @@ export function ReturnRefundModal({
   onClose,
   onViewPolicy,
   onSubmit,
+  returnEligibility,
 }: ReturnRefundModalProps) {
   // Keyed by order so switching orders remounts with a clean form, instead of an
   // effect resetting each field after the fact.
@@ -36,6 +43,7 @@ export function ReturnRefundModal({
       onClose={onClose}
       onViewPolicy={onViewPolicy}
       onSubmit={onSubmit}
+      returnEligibility={returnEligibility}
     />
   )
 }
@@ -45,16 +53,25 @@ function ReturnRefundDialog({
   onClose,
   onViewPolicy,
   onSubmit,
+  returnEligibility,
 }: {
   order: OrderRecord
   onClose: () => void
   onViewPolicy: () => void
   onSubmit: (orderId: string, reason: string) => Promise<void>
+  returnEligibility?: ApiReturnEligibility | null
 }) {
   const [reason, setReason] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // When the API has already ruled the order ineligible, the form is replaced by
+  // the reason it gave rather than letting the customer submit and be rejected.
+  const isIneligible = returnEligibility?.eligible === false
+  const ineligibleNotice = isIneligible
+    ? (returnEligibility?.reason ?? refundCopy.notEligible)
+    : ''
 
   const handleClose = useCallback(() => {
     onClose()
@@ -167,7 +184,16 @@ function ReturnRefundDialog({
             </div>
 
             <div className="flex flex-col gap-3 px-6 py-4">
-              <fieldset className="flex flex-col gap-2">
+              {isIneligible ? (
+                <p
+                  role="status"
+                  className="rounded-xl bg-bg-secondary px-4 py-3 text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-secondary"
+                >
+                  {ineligibleNotice}
+                </p>
+              ) : (
+                <>
+                  <fieldset className="flex flex-col gap-2">
                 <legend className="mb-2 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
                   Why are you returning this order?
                 </legend>
@@ -191,21 +217,23 @@ function ReturnRefundDialog({
                 ))}
               </fieldset>
 
-              {error ? (
-                <p
-                  role="alert"
-                  className="rounded-xl bg-orange-light px-4 py-3 text-sm font-medium leading-4.5 tracking-[-0.28px] text-primary-orange"
-                >
-                  {error}
-                </p>
-              ) : null}
+                  {error ? (
+                    <p
+                      role="alert"
+                      className="rounded-xl bg-orange-light px-4 py-3 text-sm font-medium leading-4.5 tracking-[-0.28px] text-primary-orange"
+                    >
+                      {error}
+                    </p>
+                  ) : null}
+                </>
+              )}
             </div>
 
             <div className="flex flex-col gap-2 border-t border-border-primary px-6 py-4">
               <button
                 type="button"
                 onClick={() => void handleSubmit()}
-                disabled={!reason || isSubmitting}
+                disabled={isIneligible || !reason || isSubmitting}
                 className="btn-orange flex h-11 w-full cursor-pointer items-center justify-center rounded-full px-4 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting ? 'Submitting…' : refundCopy.submitLabel}

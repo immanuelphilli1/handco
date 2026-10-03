@@ -8,6 +8,7 @@ import {
   type CategoryListingSelection,
 } from '../data/categoryListing'
 import { useProductListing } from '../hooks/useCatalogProducts'
+import { useProductDestination } from '../hooks/useProductDestination'
 import {
   isNewReleasesSubcategory,
   useNewReleasesSubcategoryProducts,
@@ -15,6 +16,7 @@ import {
 import type { Product } from '../data/products'
 import { getProductPath } from '../data/shopRoutes'
 import { ALL_PRODUCTS_LABEL } from '../data/catalogCategories'
+import { deliveryOptionToParams } from '../data/deliveryFilter'
 import { useCatalog } from '../context/CatalogContext'
 import {
   ListingFiltersSidebar,
@@ -127,6 +129,9 @@ export function CategoryListingView({
   onSeeAllProducts,
 }: CategoryListingViewProps) {
   const { facets } = useCatalog()
+  // Delivery quotes are only returned for a known destination, so the listing
+  // query carries one just like the catalog load does.
+  const { country, isLoading: isDestinationLoading } = useProductDestination()
   const {
     activeCategory,
     setActiveCategory,
@@ -158,11 +163,17 @@ export function CategoryListingView({
 
   const listParams = useMemo(
     () => ({
+      country,
       // The sentinel is a UI-only label; sending it would match zero products.
       categoryId: isAllProducts ? undefined : selection.categoryId,
       subcategory: isAllProducts ? undefined : activeCategory,
+      // Delivery is filtered by the server (the API owns the quotes), unlike the
+      // other facets, which are applied to the fetched list below.
+      ...deliveryOptionToParams(filters.delivery),
     }),
-    [activeCategory, isAllProducts, selection.categoryId],
+    // `filters.delivery` is included so choosing a delivery option refetches;
+    // the remaining facets are handled locally and deliberately excluded.
+    [activeCategory, country, filters.delivery, isAllProducts, selection.categoryId],
   )
 
   const fallbackProducts = useMemo(
@@ -184,7 +195,11 @@ export function CategoryListingView({
   )
 
   const listingProducts = isNewArrivalsSubcategory ? newArrivalProducts : filteredProducts
-  const isLoading = isNewArrivalsSubcategory ? isNewArrivalsLoading : isQueryLoading
+  // The destination is still resolving on a signed-in customer's first visit, so
+  // the loader stays up rather than showing a quote-less list that refetches.
+  const isLoading =
+    isDestinationLoading ||
+    (isNewArrivalsSubcategory ? isNewArrivalsLoading : isQueryLoading)
 
   return (
     <>

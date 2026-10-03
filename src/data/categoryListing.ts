@@ -16,14 +16,6 @@ export function getAllCategoriesListingSelection(
   return buildAllCategoriesListingSelection(apiCategories)
 }
 
-export const deliveryFilterOptions = [
-  'Free delivery',
-  'Delivery in 1 day',
-  'Delivery in 3 days',
-  'Delivery in 5 days',
-  'Delivery in 7 days',
-]
-
 export const collapsedFilterSections = ['Brand', 'Color', 'Seller']
 
 export const mobileCollapsedFilterSections = ['Color', 'Connectivity', 'Storage']

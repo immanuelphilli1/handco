@@ -1,11 +1,18 @@
 import { useCallback, useState } from 'react'
 import { ordersApi } from '../api'
 import { mapApiOrderLines, mapApiOrderTracking } from '../api/mappers'
+import type { ApiReturnEligibility } from '../api/types'
 import type { OrderLine, OrderRecord, OrderTrackingEvent } from '../data/orders'
 
 type OrderDetailState = {
   lines: OrderLine[]
   events: OrderTrackingEvent[]
+  /**
+   * Whether this order can still be returned. Null until the detail is loaded or
+   * when the API omits it, in which case the return option stays available and
+   * the server has the final say.
+   */
+  returnEligibility: ApiReturnEligibility | null
   isLoading: boolean
   error: string | null
 }
@@ -30,6 +37,7 @@ export function useOrderDetail(): UseOrderDetailResult {
   const [state, setState] = useState<OrderDetailState>({
     lines: [],
     events: [],
+    returnEligibility: null,
     isLoading: false,
     error: null,
   })
@@ -58,6 +66,7 @@ export function useOrderDetail(): UseOrderDetailResult {
       setState({
         lines: mapApiOrderLines(detail),
         events,
+        returnEligibility: detail.returnEligibility ?? null,
         isLoading: false,
         error: null,
       })
@@ -65,6 +74,7 @@ export function useOrderDetail(): UseOrderDetailResult {
       setState((current) => ({
         lines: current.lines,
         events: current.events,
+        returnEligibility: current.returnEligibility,
         isLoading: false,
         error: 'We could not load the latest tracking for this order.',
       }))
@@ -77,7 +87,7 @@ export function useOrderDetail(): UseOrderDetailResult {
   }, [])
 
   const reset = useCallback(() => {
-    setState({ lines: [], events: [], isLoading: false, error: null })
+    setState({ lines: [], events: [], returnEligibility: null, isLoading: false, error: null })
   }, [])
 
   return { ...state, loadOrderDetail, seedLines, reset }

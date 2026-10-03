@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { catalogApi } from '../api'
-import { mapApiProduct } from '../api/mappers'
+import { emptyFacets, mapApiProduct, mapApiProductFacets } from '../api/mappers'
 import type { ApiSearchSuggestion } from '../api/types'
 import type { ProductFacets } from '../api/types'
 import type { Product } from '../data/products'
 import { rankProducts } from '../data/searchRelevance'
+import { useProductDestination } from './useProductDestination'
 
 /** Debounce for the typeahead so each keystroke does not hit the API. */
 const SUGGESTION_DEBOUNCE_MS = 250
@@ -34,6 +35,9 @@ export function useSearchResults(
   // synchronously in the effect body.
   const [pendingQuery, setPendingQuery] = useState<string | null>(null)
   const trimmedQuery = query.trim()
+  // Search results carry delivery quotes, which the API only returns for a known
+  // destination.
+  const { country } = useProductDestination()
 
   useEffect(() => {
     if (!trimmedQuery) return
@@ -48,7 +52,7 @@ export function useSearchResults(
       }
 
       try {
-        const response = await catalogApi.searchAllProducts({ q: trimmedQuery })
+        const response = await catalogApi.searchAllProducts({ q: trimmedQuery, country })
         if (!cancelled) {
           setProducts(response.items.map(mapApiProduct))
         }
@@ -67,7 +71,7 @@ export function useSearchResults(
     return () => {
       cancelled = true
     }
-  }, [trimmedQuery])
+  }, [country, trimmedQuery])
 
   const widened = useMemo(() => {
     if (catalog.length === 0) {
@@ -165,12 +169,10 @@ export function useSearchSuggestions(query: string, catalog: Product[] = []) {
 
 /** Search facets drive the same filter panel the category listing uses. */
 export function useSearchFacets(query: string): ProductFacets {
-  const [facets, setFacets] = useState<ProductFacets>({
-    brands: [],
-    colors: [],
-    deliveryOptions: [],
-    screenSizes: [],
-  })
+  const [facets, setFacets] = useState<ProductFacets>(emptyFacets)
+  // Search facets include delivery, which the API only computes for a known
+  // destination, so the query carries one.
+  const { country } = useProductDestination()
 
   useEffect(() => {
     const trimmed = query.trim()
@@ -180,9 +182,9 @@ export function useSearchFacets(query: string): ProductFacets {
 
     async function loadFacets() {
       try {
-        const response = await catalogApi.searchAllProducts({ q: trimmed })
+        const response = await catalogApi.searchAllProducts({ q: trimmed, country })
         if (!cancelled && response.facets) {
-          setFacets(response.facets)
+          setFacets(mapApiProductFacets(response.facets))
         }
       } catch {
         // Keep the previous facets rather than clearing the filter options.
@@ -194,7 +196,7 @@ export function useSearchFacets(query: string): ProductFacets {
     return () => {
       cancelled = true
     }
-  }, [query])
+  }, [country, query])
 
   return facets
 }

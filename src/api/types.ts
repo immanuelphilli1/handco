@@ -49,20 +49,104 @@ export type GoogleOAuthUrlResponse = {
   state: string
 }
 
+/** A delivery promise for a product, replacing the old `delivery` string. */
+export type ApiDeliveryQuote = {
+  free: boolean
+  fee: Money
+  minDays: number
+  maxDays: number
+}
+
+/** Inclusive day range for a delivery estimate, replacing `deliveryEstimate`. */
+export type ApiDeliveryDays = {
+  min: number
+  max: number
+}
+
+/** One line of a tax breakdown returned on cart and order payloads. */
+export type ApiTaxLine = {
+  name: string
+  amount: Money
+}
+
+/**
+ * Money fields the API sends alongside every display string. Per
+ * docs/backend-docs/CLIENT-CHANGE-NOTES.md the display strings are deprecated,
+ * so these are what the client should read.
+ */
 export type ApiProductCard = Product & {
   rid?: Rid
   priceMoney?: Money
+  originalPriceMoney?: Money | null
   brand?: string
   color?: string
   screenSize?: string | null
+  /** Positive percentage, e.g. `18` for 18% off. Replaces `discount`. */
+  discountPercent?: number | null
+  /** Numeric rating, e.g. `4.6`. Replaces the `rating` string. */
+  ratingValue?: number | null
+  /** Full delivery promise. Replaces the `delivery` string. */
+  deliveryQuote?: ApiDeliveryQuote | null
+  /** Tax-inclusive price, present only when the destination country is known. */
+  priceInclTaxMoney?: Money | null
+  /** Effective tax rate for this price, e.g. `20` for 20%. */
+  taxRatePercent?: number | null
+  reviewCount?: number
+  soldCount?: number
+  /** False when the default variant cannot currently be bought. */
+  inStock?: boolean
+  /**
+   * Every attribute with its display name, in category order. Rendered as
+   * `label: value` directly; `key` is what the attribute filters use.
+   */
+  attributes?: ApiProductAttribute[]
+}
+
+/** One attribute on a product, ready to display. */
+export type ApiProductAttribute = {
+  /** Stable identifier, and the key filters use (`?attributes[material]=...`). */
+  key: string
+  /** Display name, which staff can rename without an API change. */
+  label: string
+  value: string
 }
 
 /** Facet values the listing page renders as filter options. */
+/** Facet values for the filter panel. Normalize the wire shape with
+ * `mapApiProductFacets`, which guarantees every key is an array. */
 export type ProductFacets = {
   brands: string[]
   colors: string[]
-  deliveryOptions: string[]
   screenSizes: string[]
+  /**
+   * Delivery filter options, derived from `facets.delivery`. Empty when the
+   * request carried no destination, because the API only computes delivery
+   * facets for a known one.
+   */
+  deliveryOptions: string[]
+  /** How many products in the current result set have free delivery. */
+  freeDeliveryCount: number
+}
+
+/**
+ * The delivery facet as the API sends it. This is a summary of the result set,
+ * not a list of filter values: it reports how many products ship free and which
+ * maximum delivery day counts occur, so the client builds its own options.
+ */
+export type ApiDeliveryFacet = {
+  freeCount: number
+  maxDays: number[]
+}
+
+/** The facets object as the API actually sends it. */
+export type ApiProductFacets = {
+  brands?: string[]
+  colors?: string[]
+  screenSizes?: string[]
+  /** Null when the request had no known destination country. */
+  delivery?: ApiDeliveryFacet | null
+  attributes?: Record<string, string[]>
+  attributeLabels?: Record<string, string>
 }
 
 export type PaginatedProductsResponse = {
@@ -70,7 +154,8 @@ export type PaginatedProductsResponse = {
   total: number
   page?: number
   limit?: number
-  facets?: ProductFacets
+  /** Raw wire shape; normalize with `mapApiProductFacets` before use. */
+  facets?: ApiProductFacets
 }
 
 export type ApiProductVariant = {
@@ -79,35 +164,68 @@ export type ApiProductVariant = {
   sku: string
   priceMoney: Money
   isDefault: boolean
+  /** Per-variant option values, null when the product has no such axis. */
+  size?: string | null
+  color?: string | null
+  inStock?: boolean
+  /** Null when the variant is made to order and therefore never sells out. */
+  stockQuantity?: number | null
+  /** Extra handling time before dispatch, in business days. */
+  handlingDays?: number | null
+  /** Per-variant delivery quote, which differs from the product's. */
+  deliveryQuote?: ApiDeliveryQuote | null
+}
+
+/** A selectable option axis (e.g. size or colour) shown on the detail page. */
+export type ApiVariantOption = {
+  rid: Rid
+  name: string
+  size?: string | null
+  color?: string | null
 }
 
 export type ApiProductDetailResponse = {
   product: ApiProductCard
   images: string[]
+  /** Every image path, in order. Preferred over the fixed-length `images`. */
+  imageUrls?: string[]
   ratingValue: number
   reviewCount: number
   soldCount: number
-  priceAmount: string
-  priceCurrency: string
-  discountNotice?: string
+  priceMoney: Money
+  shippingFeeMoney?: Money | null
+  deliveryDays?: ApiDeliveryDays | null
   modelOptions: string[]
   variants?: ApiProductVariant[]
+  /** Replaces `modelOptions` when present; same shape as `variants`. */
+  variantOptions?: ApiVariantOption[]
   descriptionLines?: string[]
-  shippingFee?: string
-  deliveryEstimate?: string
 }
 
 export type ApiProductReview = {
   author: string
   location: string
-  date: string
+  /** ISO timestamp. Replaces the `date` display string. */
+  createdAt?: string
   rating: number
   text: string
+  /** Reviewed price. Replaces `priceAmount`. */
+  priceMoney?: Money
 }
 
 export type ApiCartItem = CartItem & {
   rid?: Rid
   productRid?: Rid
+  /** Per-unit price. Replaces the deprecated numeric `price`. */
+  priceMoney?: Money
+  /** Present when the unit price changed (e.g. after a promotion). */
+  previousPrice?: Money
+  variantRid?: Rid
+  sku?: string
+  /** Null when the variant is made to order and therefore never sells out. */
+  stockQuantity?: number | null
+  /** False when the default variant cannot currently be bought. */
+  available?: boolean
 }
 
 export type CartSummary = {
@@ -116,6 +234,12 @@ export type CartSummary = {
   subtotal: Money
   shipping: Money
   total: Money
+  /** Tax charged. Prices elsewhere are tax-exclusive unless stated. */
+  tax?: Money
+  /** Itemised tax lines (e.g. VAT + NHIL + GETFund). */
+  taxes?: ApiTaxLine[]
+  /** Whether `total` already includes `tax`. */
+  totalIncludesTax?: boolean
 }
 
 export type CartResponse = {
@@ -166,8 +290,10 @@ export type CheckoutPreviewResponse = {
   }
   defaultAddressRid?: Rid
   shipping?: {
-    fee: string
-    deliveryWindow: string
+    /** Replaces the deprecated `fee` string. */
+    feeMoney?: Money
+    /** Replaces the deprecated `deliveryWindow` string. */
+    deliveryDays?: ApiDeliveryDays
     courierLabel: string
   }
   paymentMethods?: Array<{
@@ -184,6 +310,8 @@ export type PaymentIntentResponse = {
   checkoutUrl: string
   paymentRid: Rid
   provider: string
+  orderId: Rid
+  amount: Money
 }
 
 /** Payment lifecycle states reported by `GET /payments/:paymentId`. */
@@ -206,22 +334,82 @@ export type PaymentStatusResponse = {
   orderId?: Rid | null
 }
 
+/**
+ * Result of `POST /orders` (order-first checkout).
+ *
+ * The order exists and holds stock at this point but is unpaid. Payment is
+ * opened afterwards via `POST /checkout/payment-intent`, which takes this
+ * `orderId`.
+ */
 export type PlaceOrderResponse = {
   orderId: Rid
   orderReference: string
   estimatedDelivery: string
-  status: string
+  status: ApiOrderStatus
+  paymentStatus: ApiOrderPaymentStatus
+  total: Money
 }
+
+/** Order lifecycle. `pending_payment` and `cancelled` replaced `pending`/`failed`. */
+export type ApiOrderStatus =
+  | 'pending_payment'
+  | 'processing'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+
+/** Payment lifecycle, tracked separately from the order status. */
+export type ApiOrderPaymentStatus = 'unpaid' | 'paid' | 'failed' | 'refunded'
+
+/**
+ * A line whose price moved since the shopper added it.
+ *
+ * Sent with the `409 price_changed` conflict so the shopper can review the new
+ * price before the order is placed again.
+ */
+export type PriceChangedItem = {
+  cartItemId: Rid
+  previousPrice: Money
+  price: Money
+}
+
+/**
+ * Order-time conflicts. All are `409`, and all mean the order was **not** created,
+ * so the cart is untouched and the shopper can retry after reviewing.
+ *
+ * `price_changed` is the expected one on a normal browse-then-checkout: the
+ * conflict records that the shopper has now seen the new price, so retrying
+ * with a fresh idempotency key succeeds.
+ */
+export const ORDER_CONFLICT_CODES = [
+  'price_changed',
+  'item_unavailable',
+  'insufficient_stock',
+  'currency_mismatch',
+  'cart_changed',
+] as const
+
+export type OrderConflictCode = (typeof ORDER_CONFLICT_CODES)[number]
+
+/** Cart mutations reject with this when the quantity exceeds available stock. */
+export const INSUFFICIENT_STOCK = 'insufficient_stock'
+
+/** A product in a different currency than the cart cannot be added. */
+export const CURRENCY_MISMATCH = 'currency_mismatch'
 
 export type ApiOrderRecord = {
   id: Rid
   rid?: Rid
-  status: 'delivered' | 'processing' | 'shipped'
-  statusDateLabel: string
-  statusBadgeLabel: string
+  status: ApiOrderStatus
+  /** Tracked separately from `status` since order-first checkout. */
+  paymentStatus?: ApiOrderPaymentStatus
+  /** ISO timestamp of the current status. Replaces `statusDateLabel`. */
+  statusDate?: string
+  /** ISO timestamp of when the order was placed. Replaces `orderTime`. */
+  placedAt?: string
   itemCount: number
-  total: string
-  orderTime: string
+  /** Order total including tax. Replaces the `total` display string. */
+  totalMoney?: Money
   productImages: string[]
 }
 
@@ -267,17 +455,26 @@ export type ApiOrderAddress = {
   country?: string
 }
 
+/** Whether and until when an order can still be returned. */
+export type ApiReturnEligibility = {
+  eligible: boolean
+  /** Why it is not eligible; only meaningful when `eligible` is false. */
+  reason?: string | null
+  windowDays?: number
+  /** ISO timestamp after which a return is no longer accepted. */
+  deadline?: string | null
+}
+
 export type ApiOrderDetail = {
   id: Rid
   rid?: Rid
   orderId?: Rid
   orderReference?: string
   status: ApiOrderRecord['status']
-  statusDateLabel: string
-  statusBadgeLabel: string
-  orderTime: string
+  statusDate?: string
+  placedAt?: string
   itemCount: number
-  total: string
+  totalMoney?: Money
   currency?: string
   estimatedDelivery?: string
   paymentMethod?: string
@@ -291,8 +488,16 @@ export type ApiOrderDetail = {
     itemsTotal: Money
     itemsDiscount: Money
     shipping: Money
+    /** Tax charged on the order. */
+    tax?: Money
+    /** Itemised tax lines. */
+    taxes?: ApiTaxLine[]
+    /** Order total; includes tax. */
     total: Money
+    totalIncludesTax?: boolean
   }
+  /** Whether this order can still be returned, and until when. */
+  returnEligibility?: ApiReturnEligibility
 }
 
 /** `GET /orders/:rid/tracking` wraps its events; the order detail nests them. */
@@ -352,6 +557,8 @@ export type ApiDefaultAddress = {
   phoneNumber?: string
   line1?: string
   line2?: string
+  /** ISO 3166-1 alpha-2 country code, used as the catalog destination. */
+  country?: string
 }
 
 export type ProfileResponse = {
@@ -408,13 +615,29 @@ export type ApiReviewSlot = {
   productImageUrl?: string
   orderId?: string
   orderReference?: string
-  deliveredOn?: string
-  priceCurrency?: string
-  priceAmount?: string
+  /** ISO timestamp. Replaces the `deliveredOn` display string. */
+  deliveredAt?: string
+  priceMoney?: Money
   quantity?: number
   rating?: number
   title?: string
   detailedReview?: string
+  /** ISO timestamp for an already-submitted review. */
+  createdAt?: string
+  /** Moderation state. A new review starts `pending` and appears on the
+   * product only once staff approve it. */
+  status?: 'pending' | 'published' | string
+}
+
+/**
+ * Response to `POST /reviews`.
+ *
+ * The review is created as pending, so the shopper is told it is awaiting
+ * approval rather than being shown as if it were already live.
+ */
+export type SubmitReviewResponse = {
+  rid?: Rid
+  status?: 'pending' | 'published' | string
 }
 
 export type ReviewsResponse = {

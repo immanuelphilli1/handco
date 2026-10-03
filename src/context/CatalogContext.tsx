@@ -7,9 +7,10 @@ import {
   type ReactNode,
 } from 'react'
 import { catalogApi } from '../api'
-import { mapApiProduct } from '../api/mappers'
+import { emptyFacets, mapApiProduct, mapApiProductFacets } from '../api/mappers'
 import type { ApiCategory, ProductFacets } from '../api/types'
 import type { Product } from '../data/products'
+import { useProductDestination } from '../hooks/useProductDestination'
 
 type CatalogContextValue = {
   categories: ApiCategory[]
@@ -26,13 +27,6 @@ type CatalogContextValue = {
   isReady: boolean
 }
 
-const emptyFacets: ProductFacets = {
-  brands: [],
-  colors: [],
-  deliveryOptions: [],
-  screenSizes: [],
-}
-
 const CatalogContext = createContext<CatalogContextValue | null>(null)
 
 export function CatalogProvider({ children }: { children: ReactNode }) {
@@ -43,6 +37,13 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const [facets, setFacets] = useState<ProductFacets>(emptyFacets)
   const [isReady, setIsReady] = useState(false)
 
+  // Delivery quotes and tax are only returned for a known destination, so every
+  // catalog read carries one. This changes when the customer's default address
+  // is resolved, which re-runs the load below. Only the `country` is sent; the
+  // hook's `isLoading` flag would otherwise leak in as an unknown query param.
+  const { country, isLoading: isDestinationLoading } = useProductDestination()
+  const destination = useMemo(() => ({ country }), [country])
+
   useEffect(() => {
     let cancelled = false
 
@@ -51,9 +52,9 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
         const [categoriesResponse, newArrivalsResponse, featuredResponse, allResponse] =
           await Promise.all([
             catalogApi.getCategories(),
-            catalogApi.getNewArrivals({ limit: 100 }),
-            catalogApi.getFeaturedProducts(),
-            catalogApi.listAllProducts(),
+            catalogApi.getNewArrivals({ limit: 100, ...destination }),
+            catalogApi.getFeaturedProducts(destination),
+            catalogApi.listAllProducts(destination),
           ])
 
         if (cancelled) {
@@ -64,7 +65,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
         setNewArrivalProducts(newArrivalsResponse.items.map(mapApiProduct))
         setFeaturedProducts(featuredResponse.items.map(mapApiProduct))
         setAllProducts(allResponse.items.map(mapApiProduct))
-        setFacets(allResponse.facets ?? emptyFacets)
+        setFacets(mapApiProductFacets(allResponse.facets))
       } catch {
         if (!cancelled) {
           setCategories([])
@@ -85,7 +86,10 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [])
+    // `isDestinationLoading` is a dependency so the catalog is not reported ready
+    // while the customer's real destination is still being resolved; the first
+    // load uses the default country and is superseded once the address is known.
+  }, [destination, isDestinationLoading])
 
   const value = useMemo(
     () => ({

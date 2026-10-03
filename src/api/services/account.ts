@@ -129,7 +129,10 @@ function toLookupOptions(rows: unknown): LookupOption[] {
         (typeof record.code === 'string' && record.code) ||
         label
 
-      return { rid, label }
+      const code = typeof record.code === 'string' ? record.code : undefined
+      const phoneCode = typeof record.phoneCode === 'string' ? record.phoneCode : undefined
+
+      return { rid, label, code, phoneCode }
     })
     .filter((row): row is LookupOption => row !== null)
 }
@@ -257,8 +260,16 @@ export type { AuthUser }
  * One option in a country/region/city dropdown. `rid` is what the API expects in
  * the query string (e.g. `region=...` when fetching cities); `label` is shown to
  * the user, so the two are kept separate.
+ *
+ * Countries additionally carry `code` (ISO 3166-1 alpha-2) and `phoneCode`.
+ * The address API stores the country as the code, not the name, and the
+ * catalog needs the code as `?country=` for delivery quotes and tax.
  */
 export type LookupOption = {
   rid: string
   label: string
+  /** ISO 3166-1 alpha-2 code, for country lookups only. */
+  code?: string
+  /** International dialling code, for country lookups only. */
+  phoneCode?: string
 }

@@ -37,6 +37,13 @@ type RequestOptions = {
    */
   guestCartId?: boolean
   searchParams?: Record<string, string | number | boolean | undefined | null>
+  /**
+   * `Idempotency-Key` for the two order-first endpoints (`POST /orders` and
+   * `POST /checkout/payment-intent`). A missing header is rejected with 428, and
+   * reusing a key with a different body is rejected with 422, so the caller must
+   * pass a fresh key per user action rather than a per-request one.
+   */
+  idempotencyKey?: string
 }
 
 let refreshPromise: Promise<boolean> | null = null
@@ -111,6 +118,10 @@ export async function apiRequest<T>(
 
   if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json'
+  }
+
+  if (options.idempotencyKey) {
+    headers['Idempotency-Key'] = options.idempotencyKey
   }
 
   let hasToken = false

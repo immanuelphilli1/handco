@@ -29,11 +29,18 @@ import { SearchResultsView } from '../components/SearchResultsView'
 import { useAuth } from '../context/AuthContext'
 import { useCatalog } from '../context/CatalogContext'
 import { useShop } from '../context/ShopContext'
+import { useProductDestination } from '../hooks/useProductDestination'
 import { getAllCategoriesListingSelection } from '../data/categoryListing'
 import type { SidebarCategoryId } from '../data/categoriesModal'
 import { useCategoryNavigation } from '../hooks/useCategoryNavigation'
 import type { CartStep, PaymentReturnStep } from '../data/navigation'
-import type { PendingPayment } from '../data/pendingPayment'
+import { getCheckoutAttemptKey, resetCheckoutAttemptKey } from '../api/idempotency'
+import type { OrderConflict } from '../data/orderConflicts'
+import { toOrderConflict } from '../data/orderConflicts'
+import {
+  ORDER_CONFLICT_CODES,
+  type OrderConflictCode,
+} from '../api/types'
 import type { Product } from '../data/products'
 import type { ProductDetailContext } from '../data/productDetail'
 import { EDIT_DEFAULT_ADDRESS_PARAM, getAccountPath } from '../data/accountRoutes'
@@ -53,6 +60,11 @@ import {
 
 export type { CartStep } from '../data/navigation'
 
+/** Narrows an API error code to a known order-time conflict. */
+function isOrderConflictCode(code: string): code is OrderConflictCode {
+  return (ORDER_CONFLICT_CODES as readonly string[]).includes(code)
+}
+
 export function HomePage() {
   const { authUser, requestSignIn } = useAuth()
   const { categories } = useCatalog()
@@ -65,6 +77,8 @@ export function HomePage() {
   const [isProductLoading, setIsProductLoading] = useState(false)
   const [isStartingPayment, setIsStartingPayment] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  /** Set when `POST /orders` returned a 409 the shopper needs to act on. */
+  const [orderConflict, setOrderConflict] = useState<OrderConflict | null>(null)
 
   const pathname = location.pathname
   const productId = pathname.startsWith('/products/') ? params.productId : undefined
@@ -116,6 +130,9 @@ export function HomePage() {
   const wishlistOpen = pathname === '/wishlist'
   const searchOpen = pathname === '/search'
   const searchQuery = getSearchQuery(searchParams)
+  // The detail response's delivery estimate and shipping fee are only populated
+  // for a known destination, so the fetch carries one.
+  const { country } = useProductDestination()
 
   useEffect(() => {
     if (!productId) {
@@ -128,7 +145,7 @@ export function HomePage() {
 
     async function loadProductDetail() {
       try {
-        const response = await catalogApi.getProductDetail(productId!)
+        const response = await catalogApi.getProductDetail(productId!, { country })
         const selection = buildSelectionForProduct(
           mapApiProduct(response.product),
           searchParams.get('from'),
@@ -159,7 +176,7 @@ export function HomePage() {
     return () => {
       cancelled = true
     }
-  }, [categories, navigate, productId, searchParams])
+  }, [categories, country, navigate, productId, searchParams])
 
   useEffect(() => {
     if (pathname.startsWith('/categories/') && params.categoryId && !categoryListing) {
@@ -291,14 +308,19 @@ export function HomePage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [navigate])
 
-  /**
- * Starts payment.
- *
- * The backend owns provider selection, the customer email and the return URLs,
- * so the request body is empty. We persist the rid/provider (needed to place the
- * order and to poll status after the redirect), then hand the browser to the
- * provider. The order itself is created on the return leg, not here.
- */
+/**
+ * Places the order, then opens payment for it.
+   *
+   * Order-first checkout: `POST /orders` creates the order awaiting payment with
+   * totals fixed and stock held, and the ordered lines leave the cart. Only then
+   * is `POST /checkout/payment-intent` called for that exact order, which opens
+   * provider checkout for the order total.
+   *
+   * Both calls carry the same idempotency key so a retry after a network error
+   * replays the stored response instead of creating a second order. The key is
+   * regenerated only after a `price_changed` conflict, which is a new decision
+   * rather than a retry of the same one.
+   */
   const handleSubmitOrder = useCallback(async () => {
     if (!authUser) return
 
@@ -306,6 +328,7 @@ export function HomePage() {
     if (selectedItemIds.length === 0) return
 
     setCheckoutError(null)
+    setOrderConflict(null)
 
     try {
       setIsStartingPayment(true)
@@ -317,54 +340,74 @@ export function HomePage() {
         return
       }
 
-      const intent = await checkoutApi.createPaymentIntent()
+      const attemptKey = getCheckoutAttemptKey()
 
-      // Kept so the return page can poll status, and so the order can be placed
-      // against this exact payment.
-      const pendingOrder: PendingPayment = {
+      const order = await checkoutApi.placeOrder(
+        { addressId, cartItemIds: selectedItemIds },
+        attemptKey,
+      )
+
+      // The order exists now, so its lines have already left the cart. Refresh
+      // before the redirect so a failed payment does not show them again.
+      await refreshCart()
+
+      const intent = await checkoutApi.createPaymentIntent(order.orderId, attemptKey)
+
+      // Kept so the return page can poll payment status. The order already
+      // exists, so only the payment details are pending.
+      savePendingPayment({
         paymentRid: intent.paymentRid,
         provider: intent.provider,
-        addressId,
-        cartItemIds: selectedItemIds,
-      }
-      savePendingPayment(pendingOrder)
+        orderId: order.orderId,
+        orderReference: order.orderReference,
+        estimatedDelivery: order.estimatedDelivery,
+      })
+
+      setLastOrder({
+        orderReference: order.orderReference,
+        estimatedDelivery: order.estimatedDelivery,
+      })
 
       // Full-page navigation is required: the provider page is external and
       // React Router cannot own it.
       window.location.href = intent.checkoutUrl
     } catch (error) {
-      setCheckoutError(
-        error instanceof ApiError && error.message
-          ? error.message
-          : 'We could not start the payment. Please try again.',
-      )
+      if (error instanceof ApiError && error.code && isOrderConflictCode(error.code)) {
+        // The order was not created and the cart is untouched. Show what changed
+        // and let the shopper decide; the next attempt needs a new key because
+        // they are agreeing to new prices.
+        setOrderConflict(toOrderConflict(error.code, error.details))
+      } else {
+        setCheckoutError(
+          error instanceof ApiError && error.message
+            ? error.message
+            : 'We could not start the payment. Please try again.',
+        )
+      }
     } finally {
       setIsStartingPayment(false)
     }
-  }, [authUser, cartItems])
+  }, [authUser, cartItems, refreshCart, setLastOrder])
 
   /**
-   * Return leg: the payment succeeded, so create the order against the payment
-   * rid the backend echoed back.
+   * Return leg: the payment succeeded.
    *
-   * Guarded on the stored rid so a re-render or a repeat visit cannot create a
-   * second order: the pending payment is consumed on the first placement.
+   * The order already exists -- order-first checkout created it before the
+   * redirect -- so there is nothing to place here. This only reconciles the
+   * confirmation, guarded on the stored rid so a re-render or a repeat visit
+   * cannot run it twice.
    */
-  const handlePlaceOrderForPayment = useCallback(
+  const handleCompletePaidOrder = useCallback(
     async (paymentRid: string) => {
       const stored = readPendingPayment()
       if (!stored || stored.paymentRid !== paymentRid) return
 
-      const response = await checkoutApi.placeOrder({
-        addressId: stored.addressId,
-        cartItemIds: stored.cartItemIds,
-        paymentToken: stored.paymentRid,
-      })
-
       clearPendingPayment()
+      // The attempt succeeded, so the next checkout is a new decision.
+      resetCheckoutAttemptKey()
       setLastOrder({
-        orderReference: response.orderReference,
-        estimatedDelivery: response.estimatedDelivery,
+        orderReference: stored.orderReference,
+        estimatedDelivery: stored.estimatedDelivery,
       })
       clearCart()
       await refreshCart()
@@ -375,15 +418,15 @@ export function HomePage() {
   )
 
   /**
-   * Once the payment is confirmed the order is placed, then the confirmation
+   * Once the payment is confirmed the order already exists, so the confirmation
    * page takes over. Errors are intentionally swallowed here — the return view
    * already reports the payment outcome and offers a retry.
    */
   useEffect(() => {
     if (paymentReturnStep !== 'payment-return' || !paymentReference) return
 
-    void handlePlaceOrderForPayment(paymentReference).catch(() => undefined)
-  }, [handlePlaceOrderForPayment, paymentReference, paymentReturnStep])
+    void handleCompletePaidOrder(paymentReference).catch(() => undefined)
+  }, [handleCompletePaidOrder, paymentReference, paymentReturnStep])
 
   const handlePaymentReturnHome = useCallback(() => {
     clearPendingPayment()
@@ -485,6 +528,13 @@ export function HomePage() {
                   onEditDefaultAddress={handleEditDefaultAddress}
                   isSubmitting={isStartingPayment}
                   submitError={checkoutError}
+                  orderConflict={orderConflict}
+                  onAcknowledgeConflict={() => {
+                    // Acknowledging the new prices is a new decision, so the
+                    // next attempt must not replay the previous one.
+                    resetCheckoutAttemptKey()
+                    setOrderConflict(null)
+                  }}
                 />
               ) : (
                 <OrderCompletedView onGoHome={handleGoHome} />

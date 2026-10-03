@@ -91,8 +91,7 @@ password field they cannot use.
 | `GET /products/featured` | Home — `FeaturedItemsSection` |
 | `GET /categories` | `CatalogContext` — category list, link bar, modal, listings |
 | `GET /categories/:id/panel` | Category panel sections — `catalogCategories` |
-| `GET /products` | Category listings — `CategoryListingView` |
-| `GET /products/search` | Search results — `SearchResultsView` via `useProductSearch` |
+| `GET /products` | Category listings — `CategoryListingView`; also search results via `?q=` |
 | `GET /search/suggestions` | Nav typeahead — `NavSearchBar` via `useSearchSuggestions` |
 | `GET /products/:productRid` | Product detail — `HomePage` + `ProductDetailView` |
 | `GET /products/:productRid/related` | “You may also like” on product detail |
@@ -105,6 +104,125 @@ password field they cannot use.
 - Add-to-cart and wishlist hearts use live product ids from the API.
 - Search is API-first; the local `searchRelevance` synonym map only widens the
   query so related terms (e.g. "shoe" → sneakers) reach the same endpoint.
+
+### API cleanup migration (2026-10-03)
+
+Migrated per `docs/backend-docs/CLIENT-CHANGE-NOTES.md`. The server no longer
+owns wording or formatting, so raw values are read and formatted in the client.
+
+| Deprecated wire field | Now read from | Rendered by |
+|-----------------------|---------------|-------------|
+| product `price`, `originalPrice` | `priceMoney`, `originalPriceMoney` | `formatAmount` |
+| detail `priceAmount` + `priceCurrency` | `priceMoney` | `formatAmount` |
+| detail `shippingFee` | `shippingFeeMoney` | `formatAmount` |
+| cart item `price` (number) | `priceMoney`, `previousPrice` | `formatAmount` |
+| order list `total` | `totalMoney` | `formatAmount` |
+| review `priceAmount` | `priceMoney` | `formatAmount` |
+| product `discount` (`"-18%"`) | `discountPercent: number` | `formatDiscountPercent` |
+| product `rating` (`"4.6"`) | `ratingValue: number` | `String(...)` |
+| product `delivery` | `deliveryQuote: { free, fee, minDays, maxDays }` | `formatDeliveryQuote` |
+| detail `deliveryEstimate` | `deliveryDays: { min, max }` | `formatDeliveryDays` |
+| checkout `fee`, `deliveryWindow` | `feeMoney`, `deliveryDays` | `formatAmount` / `formatDeliveryDays` |
+| order `statusDateLabel`, `statusBadgeLabel` | `status` + `statusDate` | `getOrderStatusLabel` |
+| order `orderTime` | `placedAt` (ISO) | `formatIsoDate` |
+| review `date`, waiting `deliveredOn` | `createdAt`, `deliveredAt` | `formatIsoDate` |
+| `GET /products/search` | `GET /products?q=` | `catalogApi.searchProducts` |
+
+New fields also wired: `imageUrls`, `variantOptions[].size/color`,
+`taxRatePercent`/`priceInclTaxMoney` (typed, not yet displayed),
+cart `summary.tax` (shown on the checkout summary), and
+`order.returnEligibility` (the return dialog now explains an ineligible order
+instead of submitting a request the API would reject with `return_not_allowed`).
+
+All formatting lives in `src/data/format.ts`; `src/api/mappers.ts` normalizes
+wire shapes into domain models.
+
+### Catalog destination & delivery (2026-10-03)
+
+The API only computes `deliveryQuote`, `deliveryDays`, `shippingFeeMoney` and
+`priceInclTaxMoney` for a **known destination**, supplied as `?country=<ISO
+alpha-2>`. Without it every product returns `deliveryQuote: null` and
+`facets.delivery: null`. A delivery filter without a destination is rejected
+with 422 `destination_required`.
+
+`src/hooks/useProductDestination.ts` resolves the country once and shares it:
+
+1. the signed-in customer's default address country;
+2. otherwise `DEFAULT_DESTINATION_COUNTRY` (`AE`), so signed-out browsing still
+   gets delivery information.
+
+It is threaded through every catalog read: `listAllProducts`, `getFeaturedProducts`,
+`getNewArrivals`, `getProductDetail`, `getRelatedProducts`, `searchAllProducts`.
+
+**Delivery filter.** `facets.delivery` is a summary — `{ freeCount, maxDays[] }` —
+not a list of values, so `mapApiProductFacets` builds the panel options from it
+(`Free delivery`, `Within N days`), ascending. `deliveryOptionToParams` in
+`src/data/deliveryFilter.ts` translates the selected option back into the
+`freeDelivery=true` / `maxDeliveryDays=N` params the API accepts. The section
+hides entirely when no options are available. Verified live against the API: the
+facet's `freeCount: 8` matches `GET /products?country=AE&freeDelivery=true`
+(`total: 8`).
+
+**Note:** the old `delivery=<label>` param the panel previously sent is silently
+ignored by the API (total unchanged), so it never actually filtered anything.
+
+### Stock and price changes (2026-10-03)
+
+Cart lines are always priced at today's price, so the cart surfaces movement
+before checkout rather than letting `POST /orders` reject the attempt:
+
+- `previousPrice` is mapped onto `CartItem` and rendered as a "Price changed"
+  strike-through next to the new figure on both the mobile and desktop rows;
+- `stockQuantity` (null = made to order, never sells out) caps the
+  `QuantityStepper`, so the shopper cannot select more than exists;
+- `available: false` marks the line as no longer orderable;
+- `POST /cart/items` and `PATCH /cart/items/:id` return `422 insufficient_stock`
+  or `422 currency_mismatch`. `src/data/cartErrors.ts` turns those into a
+  shopper-facing message shown in `ShopContext.cartError`; the cart re-reads the
+  authoritative list on a rejected quantity so the stepper snaps back.
+
+### Order status and payment status (2026-10-03)
+
+`status` and `paymentStatus` are now separate. `status` gained `pending_payment`
+and `cancelled` (replacing `pending` and `failed`), and
+`ApiOrderRecord.paymentStatus` (`unpaid`/`paid`/`failed`/`refunded`) is carried
+but not yet rendered as its own badge — only `status` drives the badge label.
+`pending_payment` uses the server's documented wording, "Awaiting payment".
+
+### Product attributes (2026-10-03)
+
+List items carry `attributes[]` as `{ key, label, value }`, rendered directly as
+`label: value` on a new Specifications section in `ProductDetailView` — the
+`label` comes from the API, so renaming an attribute in the admin needs no client
+change. Facets also expose `attributes` (`{ name: [values] }`) and
+`attributeLabels` (`{ name: "Screen size" }`).
+
+Attribute filters serialize as `?attributes[material]=Leather` via
+`toAttributeSearchParams` (verified live: `attributes[color]=Black` -> 9 products,
+`attributes[color]=Beige` -> 1). **The generic attribute filter UI is not yet
+built** — the filter panel still exposes only brand, colour, screen size, price,
+rating and delivery. See NOT-INTEGRATED.md.
+
+### Reviews are moderated (2026-10-03)
+
+`POST /reviews` creates the review as `pending`, so the success copy now says it
+is awaiting approval instead of implying it went live. `GET /reviews/reviewed`
+items carry `status`. A `404` (line already left the waiting list) and
+`409 review_exists` (two submits raced) are translated by
+`src/data/reviewErrors.ts`.
+
+### Address country codes (2026-10-03)
+
+The addresses API stores the country as the ISO 3166-1 alpha-2 **code**
+(`"GH"`), not the name, but the form previously submitted the name. The country
+dropdown now displays the name while storing the code, and fills the country's
+dialling prefix into the phone field. `AddressRecord` keeps both `country` (the
+code, used as the catalog destination) and `countryName` (for display).
+
+Region and city are now sent as `regionId`/`cityId` when they came from a lookup
+list, so the backend can match shipping rules by identity rather than by name. A
+typed region or city still works and is matched by name, and its rid is cleared
+when the country changes.
 
 ---
 
@@ -135,21 +253,59 @@ password field they cannot use.
 | Endpoint | UI / behavior |
 |----------|----------------|
 | `GET /checkout/preview` | Checkout address & shipping preview — `CheckoutView` |
-| `POST /checkout/payment-intent` | Starts payment on checkout submit — `HomePage` |
+| `POST /orders` | **First** step of submit — creates the order awaiting payment |
+| `POST /checkout/payment-intent` | **Second** step — opens payment for that order |
 | `GET /payments/:paymentId` | Polled on the return page — `PaymentReturnView` |
-| `POST /orders` | Places the order after payment is confirmed — `HomePage` |
 | `GET /orders` | Account → Your orders — `YourOrdersView` / `OrdersPanel` |
 | `GET /orders/buy-again` | “Buy this again” sidebar on orders page |
 
-### Payment flow
+### Payment flow (order-first)
 
-The API owns payment end to end; the client never collects card details.
+Checkout was reversed: the order is now created **before** payment, so totals are
+fixed at current prices and stock is held, and the provider is opened for exactly
+that order total. Previously the cart was paid first and the order attached
+afterwards, which allowed unpaid orders and mismatched payments. The client still
+never collects card details.
 
-1. **Submit** — `handleSubmitOrder` resolves the address from `GET /checkout/preview`, then calls `POST /checkout/payment-intent` with an **empty body**. The backend picks the provider per currency, supplies the customer email, and builds the return/cancel URLs. Requires auth.
-2. **Persist & redirect** — `paymentRid`, `provider`, the address id and the selected cart line ids are written to `sessionStorage` (`api/pendingPayment.ts`), because the provider handoff is a full page load that discards React state. The browser then navigates to `checkoutUrl`.
+1. **Place order** — `handleSubmitOrder` resolves the address from `GET /checkout/preview`, then `POST /orders` with `{ addressId, cartItemIds }`. `paymentToken` is gone. Requires auth. The ordered lines leave the cart at this point, so the cart is refreshed before the redirect.
+2. **Open payment** — `POST /checkout/payment-intent` with `{ orderId }` returns `checkoutUrl`, `paymentRid`, `provider` and the `amount`. `paymentRid`/`provider`/`orderId`/order reference are written to `sessionStorage` (`api/pendingPayment.ts`), because the provider handoff is a full page load that discards React state. The browser then navigates to `checkoutUrl`.
 3. **Return** — `/checkout/return` and `/checkout/cancel` (`getPaymentReturnPath` / `getPaymentCancelPath`). Only `?reference=<payment rid>` is trusted; provider params like `session_id` are ignored.
 4. **Confirm** — `PaymentReturnView` polls `GET /payments/:reference` every 2s (max 10 attempts) until the payment settles. 401/404 stop polling immediately. A cancel or missing reference resolves without a request.
-5. **Place order** — on `succeeded`, `POST /orders` sends `addressId`, `cartItemIds` and `paymentToken` (the payment rid). `paymentMethodId` is no longer sent. The stored pending payment is consumed on first placement so a re-render or repeat visit cannot create a duplicate order, then the cart is cleared and `OrderCompletedView` is shown.
+5. **Reconcile** — on `succeeded` there is nothing left to place: the order already exists. The stored pending payment is consumed once (guarded on the payment rid) so a re-render or repeat visit cannot run it twice, then the cart is cleared and `OrderCompletedView` is shown.
+
+### Idempotency-Key
+
+`POST /orders` and `POST /checkout/payment-intent` both require
+`Idempotency-Key: <uuid>` (missing header -> `428 idempotency_key_required`).
+`src/api/idempotency.ts` holds one key per checkout **attempt**, which is the
+granularity the backend expects:
+
+- a retry after a timeout or network error **reuses** the key, so the stored
+  response is replayed instead of creating a duplicate order;
+- acknowledging a `price_changed` conflict **resets** the key, because agreeing
+  to a new price is a new decision rather than a retry of the same one.
+
+The same key is used for both endpoints: the order is created once and the
+payment intent is opened for that order.
+
+### Order-time conflicts
+
+`POST /orders` returns `409` for several expected conditions. All mean the order
+was **not** created and the cart is untouched. `src/data/orderConflicts.ts`
+normalises them into a shopper-facing message:
+
+| Code | Shown as |
+|---|---|
+| `price_changed` | Old and new price per line, with an "Accept new prices" action. The conflict records that the shopper has now seen the new price, so resubmitting succeeds. |
+| `insufficient_stock` | Remaining quantity per variant. |
+| `item_unavailable` | Tells the shopper to remove the lines. |
+| `cart_changed` | Plain retry. |
+| `currency_mismatch` | Not retryable — explains the mixed currencies. |
+
+Unpaid orders are cancelled after 60 minutes
+(`PAYMENTS_ORDER_PAYMENT_WINDOW_MINUTES`), and the window restarts on each
+payment attempt. A cancelled order returns `409 order_not_payable` on
+payment-intent, which sends the shopper back to place a new order.
 
 ### Cart identity
 

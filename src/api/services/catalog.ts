@@ -10,6 +10,56 @@ import type {
   SearchSuggestionsResponse,
 } from '../types'
 
+/**
+ * Destination used to resolve delivery quotes and tax.
+ *
+ * The API only returns `deliveryQuote` and `priceInclTaxMoney` for a known
+ * destination, and rejects a delivery filter without one (422
+ * `destination_required`). An ISO 3166-1 alpha-2 code (`AE`, `GH`) is expected;
+ * the country rid is also accepted by the API, but the code is what the address
+ * records store.
+ */
+export type ProductDestination = {
+  /** ISO 3166-1 alpha-2 country code. */
+  country?: string
+}
+
+/** Delivery filters the API understands. A `delivery` string is not one of them. */
+export type DeliveryFilterParams = {
+  /** `true` restricts to products with free delivery. */
+  freeDelivery?: boolean
+  /** Restricts to products whose delivery window ends within N days. */
+  maxDeliveryDays?: number
+}
+
+/**
+ * Attribute filters, keyed by the attribute's stable `key`.
+ *
+ * Sent as `?attributes[material]=Leather`. Which attributes exist is configured
+ * per category in the admin, so new ones appear here without an API change.
+ */
+export type AttributeFilters = Record<string, string>
+
+/**
+ * Serializes attribute filters into the bracketed query the API expects.
+ *
+ * `buildUrl` only handles flat keys, so each attribute is written as a literal
+ * `attributes[key]` parameter.
+ */
+export function toAttributeSearchParams(
+  attributes: AttributeFilters | undefined,
+): Record<string, string> | undefined {
+  if (!attributes) return undefined
+
+  const params: Record<string, string> = {}
+  for (const [key, value] of Object.entries(attributes)) {
+    if (!key || !value) continue
+    params[`attributes[${key}]`] = value
+  }
+
+  return Object.keys(params).length > 0 ? params : undefined
+}
+
 export type ProductSearchParams = {
   q: string
   categoryId?: string
@@ -18,11 +68,11 @@ export type ProductSearchParams = {
   minPrice?: number
   maxPrice?: number
   minRating?: number
-  delivery?: string
   brand?: string
   color?: string
   screenSize?: string
-}
+} & ProductDestination &
+  DeliveryFilterParams
 
 export type ProductListParams = {
   page?: number
@@ -33,12 +83,12 @@ export type ProductListParams = {
   minPrice?: number
   maxPrice?: number
   minRating?: number
-  delivery?: string
   brand?: string
   color?: string
   screenSize?: string
   sort?: string
-}
+} & ProductDestination &
+  DeliveryFilterParams
 
 export async function getCategories(): Promise<CategoriesResponse> {
   return cachedGet('categories', () =>
@@ -133,14 +183,20 @@ export async function listAllProducts(
   }
 }
 
-export async function getFeaturedProducts(): Promise<PaginatedProductsResponse> {
-  return cachedGet('products/featured', () =>
-    apiRequest<PaginatedProductsResponse>('/products/featured', { auth: false, cart: false }),
+export async function getFeaturedProducts(
+  destination: ProductDestination = {},
+): Promise<PaginatedProductsResponse> {
+  return cachedGet(buildCacheKey('products/featured', destination), () =>
+    apiRequest<PaginatedProductsResponse>('/products/featured', {
+      auth: false,
+      cart: false,
+      searchParams: destination,
+    }),
   )
 }
 
 export async function getNewArrivals(
-  params: { limit?: number; categoryId?: string } = {},
+  params: { limit?: number; categoryId?: string } & ProductDestination = {},
 ): Promise<PaginatedProductsResponse> {
   return cachedGet(buildCacheKey('products/new-arrivals', params), () =>
     apiRequest<PaginatedProductsResponse>('/products/new-arrivals', {
@@ -151,17 +207,32 @@ export async function getNewArrivals(
   )
 }
 
-export async function getProductDetail(productRid: string): Promise<ApiProductDetailResponse> {
-  return cachedGet(buildCacheKey(`products/${productRid}`), () =>
-    apiRequest<ApiProductDetailResponse>(`/products/${productRid}`, { auth: false, cart: false }),
+/**
+ * Product detail. `destination` populates the detail's `deliveryDays` and
+ * `shippingFeeMoney`, which are null without a known destination.
+ */
+export async function getProductDetail(
+  productRid: string,
+  destination: ProductDestination = {},
+): Promise<ApiProductDetailResponse> {
+  return cachedGet(buildCacheKey(`products/${productRid}`, destination), () =>
+    apiRequest<ApiProductDetailResponse>(`/products/${productRid}`, {
+      auth: false,
+      cart: false,
+      searchParams: destination,
+    }),
   )
 }
 
-export async function getRelatedProducts(productRid: string): Promise<PaginatedProductsResponse> {
-  return cachedGet(buildCacheKey(`products/${productRid}/related`), () =>
+export async function getRelatedProducts(
+  productRid: string,
+  destination: ProductDestination = {},
+): Promise<PaginatedProductsResponse> {
+  return cachedGet(buildCacheKey(`products/${productRid}/related`, destination), () =>
     apiRequest<PaginatedProductsResponse>(`/products/${productRid}/related`, {
       auth: false,
       cart: false,
+      searchParams: destination,
     }),
   )
 }
@@ -179,11 +250,18 @@ export async function getProductReviews(
   )
 }
 
+/**
+ * One page of search results.
+ *
+ * Search is `?q=` on `GET /products`. The old `/products/search` path is a
+ * deprecated alias that now returns Deprecation/Sunset headers and will be
+ * removed, so the listing endpoint is queried directly.
+ */
 export async function searchProducts(
   params: ProductSearchParams & { page?: number; limit?: number },
 ): Promise<PaginatedProductsResponse> {
   return cachedGet(buildCacheKey('products/search', params), () =>
-    apiRequest<PaginatedProductsResponse>('/products/search', {
+    apiRequest<PaginatedProductsResponse>('/products', {
       auth: false,
       cart: false,
       searchParams: params,

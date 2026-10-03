@@ -8,11 +8,18 @@ import { getProfileInitials } from '../data/profile'
 import type { DefaultAddress, UserProfile } from '../data/profile'
 import type { PaymentMethodRecord, PaymentMethodType } from '../data/paymentMethods'
 import type { WaitingReviewRecord } from '../data/reviews'
-import type { OrderLine, OrderRecord, OrderTrackingEvent } from '../data/orders'
-import type { Product } from '../data/products'
-import type { ProductDetail, ProductDetailContext } from '../data/productDetail'
+import type { OrderLine, OrderRecord, OrderStatus, OrderTrackingEvent } from '../data/orders'
+import type { Product, ProductAttribute } from '../data/products'
+import type { ProductDetail, ProductDetailContext, ProductReview } from '../data/productDetail'
 import type { CategoryListingSelection } from '../data/categoryListing'
 import { getCategoryLabel, getSubcategoryOptions } from '../data/catalogCategories'
+import { DELIVERY_OPTION_FREE, getDeliveryOptionByMaxDays } from '../data/deliveryFilter'
+import {
+  formatAmount,
+  formatDeliveryDays,
+  formatDiscountPercent,
+  formatIsoDate,
+} from '../data/format'
 import { getApiOrigin } from './config'
 import type {
   AddressesResponse,
@@ -21,12 +28,16 @@ import type {
   ApiCartItem,
   ApiCategory,
   ApiDefaultAddress,
+  ApiDeliveryFacet,
+  ApiDeliveryQuote,
   ApiNotificationSetting,
   ApiOrderDetail,
   ApiOrderRecord,
   ApiPaymentMethod,
+  ApiProductAttribute,
   ApiProductCard,
   ApiProductDetailResponse,
+  ApiProductFacets,
   ApiProductReview,
   ApiProfile,
   ApiReviewSlot,
@@ -36,6 +47,7 @@ import type {
   NotificationSettingsResponse,
   OrderTrackingResponse,
   PaymentMethodsResponse,
+  ProductFacets,
   ReviewsResponse,
 } from './types'
 
@@ -50,7 +62,103 @@ export function formatMoney(money: Money): string {
   return `${money.currency} ${money.amount.toFixed(2)}`
 }
 
+/** A facets value with no selectable options, used before/without API data. */
+export const emptyFacets: ProductFacets = {
+  brands: [],
+  colors: [],
+  screenSizes: [],
+  deliveryOptions: [],
+  freeDeliveryCount: 0,
+}
+
+function toFacetList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []
+}
+
+/**
+ * Builds the delivery filter options from the API's delivery facet.
+ *
+ * The facet is a summary rather than a list of choices: it reports how many
+ * products in the result set ship free, and which maximum delivery day counts
+ * occur. The options are therefore reconstructed here — "Free delivery" when any
+ * product is free, plus one option per distinct maximum window ("Within 4 days",
+ * "Within 6 days"), ascending. An empty option list means the request had no
+ * known destination, so the caller hides the section.
+ */
+function buildDeliveryOptions(
+  delivery: ApiDeliveryFacet | null | undefined,
+): { options: string[]; freeCount: number } {
+  if (!delivery) return { options: [], freeCount: 0 }
+
+  const options: string[] = []
+  if (delivery.freeCount > 0) {
+    options.push(DELIVERY_OPTION_FREE)
+  }
+
+  const maxDays = [...new Set(delivery.maxDays ?? [])].sort((a, b) => a - b)
+  for (const days of maxDays) {
+    options.push(getDeliveryOptionByMaxDays(days))
+  }
+
+  return { options, freeCount: delivery.freeCount ?? 0 }
+}
+
+/** Reads the leading number out of a legacy display string such as `"4.6"`. */
+function parseLeadingNumber(value: string | undefined): number | undefined {
+  if (!value) return undefined
+
+  const parsed = Number.parseFloat(value)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
+
+/**
+ * Renders a delivery promise as the short label the product cards show. Free
+ * delivery is reported as "Free delivery" rather than a fee of zero, because a
+ * `AED 0.00` fee reads like a bug. Returns '' when the API sent no quote, so
+ * callers can fall back to the deprecated string.
+ */
+function formatDeliveryQuote(deliveryQuote: ApiDeliveryQuote | null | undefined): string {
+  if (!deliveryQuote) return ''
+
+  const days = formatDeliveryDays({
+    min: deliveryQuote.minDays,
+    max: deliveryQuote.maxDays,
+  })
+  const window = days ? ` in ${days}` : ''
+
+  return deliveryQuote.free ? `Free delivery${window}` : `Delivery${window}`
+}
+
+/**
+ * Normalizes the API's facets payload into the shape the filter panel expects.
+ *
+ * The wire format does not match `ProductFacets`: brand, colour and screen-size
+ * values are duplicated under a nested `attributes` object, and `delivery` is a
+ * summary (`{ freeCount, maxDays }`) rather than a list of options — it is null
+ * entirely unless the request carried a destination country. Every key is
+ * guaranteed to be present, so consumers can read `.length` without guarding.
+ */
+export function mapApiProductFacets(facets: ApiProductFacets | undefined): ProductFacets {
+  const attributes = facets?.attributes ?? {}
+  const delivery = buildDeliveryOptions(facets?.delivery)
+
+  return {
+    brands: toFacetList(facets?.brands ?? attributes.brand),
+    colors: toFacetList(facets?.colors ?? attributes.color),
+    screenSizes: toFacetList(facets?.screenSizes ?? attributes.screenSize),
+    deliveryOptions: delivery.options,
+    freeDeliveryCount: delivery.freeCount,
+  }
+}
+
 export function mapApiProduct(product: ApiProductCard): Product {
+  // The API's display strings are deprecated, so the Money/percent fields are the
+  // source of truth and the strings the UI still reads are derived from them.
+  const priceMoney = product.priceMoney
+  const originalPriceMoney = product.originalPriceMoney ?? undefined
+  const price = priceMoney ? formatAmount(priceMoney) : product.price
+  const ratingValue = product.ratingValue ?? parseLeadingNumber(product.rating)
+
   return {
     id: product.rid ?? product.id,
     categoryId: product.categoryId as SidebarCategoryId,
@@ -59,48 +167,116 @@ export function mapApiProduct(product: ApiProductCard): Product {
     tag: product.tag,
     category: product.category,
     name: product.name,
-    price: product.price,
-    originalPrice: product.originalPrice,
-    discount: product.discount,
-    delivery: product.delivery,
-    rating: product.rating,
+    price,
+    originalPrice: originalPriceMoney ? formatAmount(originalPriceMoney) : product.originalPrice ?? undefined,
+    discount: formatDiscountPercent(product.discountPercent) || product.discount || undefined,
+    delivery: formatDeliveryQuote(product.deliveryQuote) || product.delivery,
+    rating: ratingValue ? String(ratingValue) : product.rating,
     liked: product.liked ?? undefined,
     showAddButton: product.showAddButton,
     priceOrange: product.priceOrange,
     imageObjectPosition: product.imageObjectPosition,
     // Facets power the listing filters, so they are carried onto the domain
     // model rather than being dropped during mapping.
-    priceAmount: product.priceMoney?.amount,
+    priceAmount: priceMoney?.amount,
     brand: product.brand,
     color: product.color,
     screenSize: product.screenSize,
+    attributes: mapApiProductAttributes(product.attributes),
+    inStock: product.inStock,
   }
 }
 
+/**
+ * Normalizes the API's `attributes[]` into display-ready pairs.
+ *
+ * Each entry already carries its display `label`, so it is rendered directly
+ * rather than matched against a local copy of the attribute names — staff can
+ * rename an attribute in the admin and the new wording appears without a client
+ * change. Entries missing a label or value are dropped, since an empty row is
+ * worse than no row.
+ */
+function mapApiProductAttributes(
+  attributes: ApiProductAttribute[] | undefined,
+): ProductAttribute[] | undefined {
+  if (!Array.isArray(attributes)) return undefined
+
+  const mapped = attributes.flatMap((attribute) => {
+    if (!attribute?.key || !attribute.label || !attribute.value) return []
+    return [{ key: attribute.key, label: attribute.label, value: attribute.value }]
+  })
+
+  return mapped.length > 0 ? mapped : undefined
+}
+
 export function mapApiCartItem(item: ApiCartItem): CartItem {
+  // Cart lines are always priced at today's price. `previousPrice` is present
+  // only when the price moved since the shopper added the line, and is what the
+  // cart highlights so the shopper notices before `POST /orders` rejects them.
+  const priceMoney = item.priceMoney
+  const previousPriceMoney = item.previousPrice
+
   return {
     id: item.rid ?? item.id,
     productRid: item.productRid,
     name: item.name,
     variant: item.variant,
     image: resolveAssetUrl(item.image),
-    currency: item.currency,
-    price: item.price,
+    currency: priceMoney?.currency ?? item.currency,
+    price: priceMoney?.amount ?? item.price,
     quantity: item.quantity,
     selected: item.selected,
+    previousPrice: previousPriceMoney?.amount,
+    stockQuantity: item.stockQuantity,
+    available: item.available,
   }
 }
 
+/**
+ * Badge copy per status. The server used to send `statusBadgeLabel`, but wording
+ * is now the client's responsibility, so it is derived from the raw status.
+ */
+const orderStatusBadgeLabels: Record<OrderStatus, string> = {
+  // The server's documented wording for an order awaiting payment.
+  pending_payment: 'Awaiting payment',
+  processing: 'Processing Order',
+  shipped: 'Order Shipped',
+  delivered: 'Delivered on time',
+  cancelled: 'Order cancelled',
+}
+
 export function mapApiOrder(order: ApiOrderRecord): OrderRecord {
+  const statusDate = formatIsoDate(order.statusDate)
+
   return {
     id: order.rid ?? order.id,
     status: order.status,
-    statusDateLabel: order.statusDateLabel,
-    statusBadgeLabel: order.statusBadgeLabel,
+    statusDateLabel: statusDate ? `${getOrderStatusLabel(order.status)} on ${statusDate}` : '',
+    statusBadgeLabel: orderStatusBadgeLabels[order.status],
     itemCount: order.itemCount,
-    total: order.total,
-    orderTime: order.orderTime,
+    total: formatAmount(order.totalMoney),
+    orderTime: formatIsoDate(order.placedAt),
     productImages: order.productImages.map(resolveAssetUrl),
+  }
+}
+
+/** Human-readable name for an order status, used in the status date line. */
+function getOrderStatusLabel(status: OrderStatus): string {
+  switch (status) {
+    case 'pending_payment':
+      return 'Awaiting payment'
+    case 'processing':
+      return 'Processing'
+    case 'shipped':
+      return 'Shipped'
+    case 'delivered':
+      return 'Delivered'
+    case 'cancelled':
+      return 'Cancelled'
+    default: {
+      const exhaustiveCheck: never = status
+      return exhaustiveCheck
+    }
   }
 }
 
@@ -141,15 +317,24 @@ export function mapApiProductDetail(
   selection: CategoryListingSelection,
 ): ProductDetailContext {
   const product = mapApiProduct(response.product)
+  // `priceMoney` is required by the current API, but falling back to the card's
+  // price keeps the detail page rendering if a deployment omits it.
+  const priceMoney = response.priceMoney ?? { amount: 0, currency: 'AED' }
+  const priceAmount = priceMoney.amount.toFixed(2)
+  const priceCurrency = priceMoney.currency
+  // `imageUrls` is the full ordered set; `images` is a fixed-length subset.
+  const images = (response.imageUrls ?? response.images).map(resolveAssetUrl)
+  const shippingFee = formatAmount(response.shippingFeeMoney ?? priceMoney)
+  const deliveryEstimate = formatDeliveryDays(response.deliveryDays)
+
   const detail: ProductDetail = {
     product,
-    images: response.images.map(resolveAssetUrl),
+    images,
     ratingValue: response.ratingValue,
     reviewCount: response.reviewCount,
     soldCount: response.soldCount,
-    priceAmount: response.priceAmount,
-    priceCurrency: response.priceCurrency,
-    discountNotice: response.discountNotice ?? 'Get 10% off on your first order',
+    priceAmount,
+    priceCurrency,
     modelOptions: response.modelOptions,
     descriptionLines: response.descriptionLines ?? [
       `${product.name} with premium build quality and smart features.`,
@@ -162,10 +347,10 @@ export function mapApiProductDetail(
       line1: 'Hse 8 M Street',
       line2: 'Accra Ghana',
     },
-    shippingFee: response.shippingFee ?? product.price,
-    deliveryEstimate: response.deliveryEstimate ?? '2-5 business days',
-    itemsTotal: `${response.priceCurrency} ${response.priceAmount}`,
-    subtotal: `${response.priceCurrency} ${response.priceAmount}`,
+    shippingFee,
+    deliveryEstimate,
+    itemsTotal: `${priceCurrency} ${priceAmount}`,
+    subtotal: `${priceCurrency} ${priceAmount}`,
   }
 
   return { detail, selection }
@@ -222,17 +407,26 @@ export function buildSelectionForProduct(
   }
 }
 
-export function mapApiReviews(reviews: ApiProductReview[]) {
-  return reviews
+export function mapApiProductReview(review: ApiProductReview): ProductReview {
+  return {
+    author: review.author,
+    location: review.location,
+    // `createdAt` is ISO; the review card wants a readable short date.
+    date: formatIsoDate(review.createdAt),
+    rating: review.rating,
+    text: review.text,
+  }
 }
 
 export function mapCartSummaryToDisplay(summary: CartSummary) {
   return {
-    itemsTotal: formatMoney(summary.itemsTotal),
-    itemsDiscount: formatMoney(summary.itemsDiscount),
-    subtotal: formatMoney(summary.subtotal),
-    shipping: formatMoney(summary.shipping),
-    total: formatMoney(summary.total),
+    itemsTotal: formatAmount(summary.itemsTotal),
+    itemsDiscount: formatAmount(summary.itemsDiscount),
+    subtotal: formatAmount(summary.subtotal),
+    shipping: formatAmount(summary.shipping),
+    // Tax is optional: it only appears when the destination country is known.
+    tax: summary.tax ? formatAmount(summary.tax) : '',
+    total: formatAmount(summary.total),
   }
 }
 
@@ -245,12 +439,34 @@ export function getApiAddressId(address: ApiAddress): string {
   return address.rid ?? address.id ?? ''
 }
 
+/**
+ * Display names for country codes, so an address saved as `GH` reads as "Ghana"
+ * rather than showing the bare ISO code. Countries outside this map fall back to
+ * their stored value rather than being blanked out.
+ */
+const countryCodeNames: Record<string, string> = {
+  AE: 'United Arab Emirates',
+  GH: 'Ghana',
+  US: 'United States',
+  GB: 'United Kingdom',
+  NG: 'Nigeria',
+}
+
+/** Renders a stored country as a name, falling back to the raw value. */
+function getCountryDisplayName(country: string): string {
+  if (!country) return ''
+  return countryCodeNames[country.toUpperCase()] ?? country
+}
+
 export function mapApiAddress(address: ApiAddress): AddressRecord {
   const firstName = address.firstName ?? ''
   const lastName = address.lastName ?? ''
   const city = address.city ?? ''
   const region = address.region ?? ''
-  const country = address.country ?? ''
+  const countryCode = address.country ?? ''
+  // The card shows a country name; `country` keeps the raw code, which is what
+  // the catalog needs as `?country=`.
+  const country = getCountryDisplayName(countryCode)
 
   // The API only guarantees the individual parts, but the cards read a single
   // "city line", so compose one and fall back to whatever is available.
@@ -259,7 +475,8 @@ export function mapApiAddress(address: ApiAddress): AddressRecord {
 
   return {
     id: getApiAddressId(address),
-    country,
+    country: countryCode,
+    countryName: country,
     firstName,
     lastName,
     phoneCountryCode: address.phoneCountryCode ?? '',
@@ -343,7 +560,40 @@ export function mapApiDefaultAddress(address?: ApiDefaultAddress): DefaultAddres
     phone,
     line1: address?.line1 ?? '',
     line2: address?.line2 ?? '',
+    // Addresses store the ISO code, which is exactly what the catalog needs as
+    // `?country=` for delivery quotes and tax.
+    countryCode: normalizeCountryCode(address?.country),
   }
+}
+
+/**
+ * Coerces a stored country into an ISO 3166-1 alpha-2 code.
+ *
+ * Addresses are supposed to hold the code (`GH`), but a name (`Ghana`) is also
+ * accepted defensively so a legacy record still resolves. An unrecognised value
+ * returns undefined rather than a guess, and the caller falls back to its
+ * default destination.
+ */
+function normalizeCountryCode(country: string | undefined): string | undefined {
+  const value = (country ?? '').trim()
+  if (!value) return undefined
+
+  // A bare two-letter value is already the code.
+  if (/^[A-Za-z]{2}$/.test(value)) return value.toUpperCase()
+
+  const nameToCode: Record<string, string> = {
+    ghana: 'GH',
+    'united arab emirates': 'AE',
+    uae: 'AE',
+    'united states': 'US',
+    'united states of america': 'US',
+    usa: 'US',
+    'united kingdom': 'GB',
+    uk: 'GB',
+    nigeria: 'NG',
+  }
+
+  return nameToCode[value.toLowerCase()]
 }
 
 /**
@@ -359,7 +609,7 @@ export function addressRecordToDefaultPreview(address: AddressRecord): DefaultAd
   const contactName = [address.firstName, address.lastName].filter(Boolean).join(' ').trim()
   const phone = [address.phoneCountryCode, address.phoneNumber].filter(Boolean).join(' ').trim()
 
-  const cityParts = [address.city, address.region, address.country].filter(Boolean)
+  const cityParts = [address.city, address.region, address.countryName].filter(Boolean)
 
   return {
     contactName,
@@ -367,18 +617,21 @@ export function addressRecordToDefaultPreview(address: AddressRecord): DefaultAd
     line1: address.addressLine,
     // `cityLine` is already composed as "city, region, country" by the mapper.
     line2: address.cityLine ?? cityParts.join(', '),
+    countryCode: normalizeCountryCode(address.country),
   }
 }
 
 export function mapApiReviewSlot(slot: ApiReviewSlot): WaitingReviewRecord {
+  const priceMoney = slot.priceMoney
+
   return {
     id: slot.rid ?? slot.id ?? '',
     productName: slot.productName ?? '',
     productImage: resolveAssetUrl(slot.productImageUrl ?? slot.productImage),
     orderId: slot.orderReference ?? slot.orderId ?? '',
-    deliveredOn: slot.deliveredOn ?? '',
-    priceCurrency: slot.priceCurrency ?? '',
-    priceAmount: slot.priceAmount ?? '',
+    deliveredOn: formatIsoDate(slot.deliveredAt),
+    priceCurrency: priceMoney?.currency ?? '',
+    priceAmount: priceMoney ? priceMoney.amount.toFixed(2) : '',
     quantity: slot.quantity ?? 1,
   }
 }

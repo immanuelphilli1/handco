@@ -4,11 +4,12 @@ import ArrowDownSLineIcon from 'remixicon-react/ArrowDownSLineIcon'
 import CloseFillIcon from 'remixicon-react/CloseFillIcon'
 import LockFillIcon from 'remixicon-react/LockFillIcon'
 import { accountApi } from '../api'
+import type { LookupOption } from '../api'
 import {
-  addressCities,
   addressCountries,
   addressRegions,
   emptyAddressForm,
+  fallbackCountryCodes,
   type AddressFormValues,
 } from '../data/addresses'
 import { privacyNotice } from '../data/profile'
@@ -20,6 +21,12 @@ type AddAddressModalProps = {
   onClose: () => void
   onSubmit: (values: AddressFormValues) => void
 }
+
+/** Cap on address suggestions shown beneath a text input. */
+const MAX_ADDRESS_SUGGESTIONS = 6
+
+/** Lets a suggestion click land before the input's blur hides the list. */
+const SUGGESTION_BLUR_MS = 120
 
 function FloatingField({
   id,
@@ -101,6 +108,88 @@ function SelectField({
   )
 }
 
+/**
+ * A text input that also offers the lookup suggestions.
+ *
+ * Region and city are typed rather than chosen from a `<select>`: the lookup
+ * endpoints only cover a few countries, so a closed list would leave users
+ * unable to enter an address anywhere else. Suggestions still appear as they
+ * type, and picking one is optional.
+ */
+function TextFieldWithSuggestions({
+  id,
+  label,
+  value,
+  onChange,
+  suggestions,
+  placeholder,
+  isDisabled = false,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  suggestions: string[]
+  placeholder?: string
+  isDisabled?: boolean
+}) {
+  const [isFocused, setIsFocused] = useState(false)
+  // Suggestions are scoped to what the user has typed so far.
+  const matchingSuggestions = suggestions
+    .filter((suggestion) => suggestion.toLowerCase().includes(value.trim().toLowerCase()))
+    .slice(0, MAX_ADDRESS_SUGGESTIONS)
+
+  const showSuggestions =
+    !isDisabled && isFocused && value.trim().length > 0 && matchingSuggestions.length > 0
+
+  return (
+    <div className="relative flex w-full flex-col">
+      <label
+        htmlFor={id}
+        className="flex h-14 w-full flex-col justify-center overflow-hidden rounded-2xl border-[1.5px] border-border-primary px-4"
+      >
+        <span className="text-xs font-medium leading-4 tracking-[-0.24px] text-text-secondary">
+          {label}
+        </span>
+        <input
+          id={id}
+          type="text"
+          value={value}
+          disabled={isDisabled}
+          placeholder={placeholder}
+          autoComplete="off"
+          onFocus={() => setIsFocused(true)}
+          // Blurring is deferred so a click on a suggestion still registers.
+          onBlur={() => window.setTimeout(() => setIsFocused(false), SUGGESTION_BLUR_MS)}
+          onChange={(event) => onChange(event.target.value)}
+          className="w-full bg-transparent text-base font-medium leading-5 tracking-[-0.32px] text-text-primary outline-none placeholder:text-text-tertiary disabled:cursor-not-allowed disabled:opacity-60"
+        />
+      </label>
+
+      {showSuggestions ? (
+        <ul className="absolute top-full z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-border-primary bg-bg-primary shadow-lg">
+          {matchingSuggestions.map((suggestion) => (
+            <li key={suggestion}>
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  // Prevents the input's blur from firing before the click lands.
+                  event.preventDefault()
+                  onChange(suggestion)
+                  setIsFocused(false)
+                }}
+                className="w-full cursor-pointer px-4 py-2 text-left text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary hover:bg-bg-secondary"
+              >
+                {suggestion}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
 function DefaultAddressToggle({
   selected,
   onToggle,
@@ -142,23 +231,20 @@ export function AddAddressModal({
   // from an effect, which would paint one frame with the previous address.
   const [form, setForm] = useState<AddressFormValues>(initialValues ?? emptyAddressForm)
 
-  /**
-   * Country → region → city, loaded from the public lookup endpoints. Each level
-   * is only fetched once its parent is chosen, and the local seed lists act as
-   * the fallback when a lookup fails so the form stays usable offline.
-   *
-   * The dropdowns show names, but the lookups are keyed by different things:
-   * regions are fetched by country **code** (`?country=GH`), while cities are
-   * fetched by region **rid** (`?region=5chrwcah51au`). Both id maps are kept so
-   * the form can translate the selected label into the value the API expects.
-   */
+/**
+ * Country and region options come from the public lookup endpoints, with the
+ * local seed lists as the fallback so the form stays usable when a lookup
+ * fails. Region stays a free-text field; its fetched options are only offered
+ * as suggestions.
+ */
   const [countries, setCountries] = useState<string[]>(addressCountries)
-  const [countryCodes, setCountryCodes] = useState<string[]>([])
+  const [countryCodes, setCountryCodes] = useState<string[]>(fallbackCountryCodes)
+  /** Full country lookup rows, indexed to match `countries`. */
+  const [countryMeta, setCountryMeta] = useState<LookupOption[]>([])
+  /** Full region lookup rows, so a picked region can be sent as its rid. */
+  const [regionMeta, setRegionMeta] = useState<LookupOption[]>([])
   const [regions, setRegions] = useState<string[]>(addressRegions)
-  const [regionRids, setRegionRids] = useState<string[]>([])
-  const [cities, setCities] = useState<string[]>(addressCities)
   const [isLoadingRegions, setIsLoadingRegions] = useState(false)
-  const [isLoadingCities, setIsLoadingCities] = useState(false)
 
   useEffect(() => {
     if (!isOpen) return
@@ -171,6 +257,9 @@ export function AddAddressModal({
         if (cancelled || options.length === 0) return
         setCountries(options.map((option) => option.label))
         setCountryCodes(options.map((option) => option.rid))
+        // Kept alongside the labels so the selected country's ISO code and
+        // dialling prefix can be looked up when the choice changes.
+        setCountryMeta(options)
       } catch {
         // Keep the local seed list.
       }
@@ -183,64 +272,89 @@ export function AddAddressModal({
     }
   }, [isOpen])
 
+/** Resolves a stored ISO country code to the name shown in the dropdown. */
+  const getCountryLabel = (countryCode: string) => {
+    if (!countryCode) return ''
+
+    const index = countryMeta.findIndex((option) => option.code === countryCode)
+    if (index >= 0) return countries[index]
+
+    const fallbackIndex = fallbackCountryCodes.indexOf(countryCode)
+    if (fallbackIndex >= 0) return countries[fallbackIndex] ?? countryCode
+
+    // Legacy records may hold the country name instead of the code.
+    return countries.includes(countryCode) ? countryCode : ''
+  }
+
   /**
    * Regions depend on the selected country, and the endpoint is keyed by the
-   * country's code rather than its name. Changing country also clears the two
-   * child fields, because the previous region/city are no longer valid.
-   */
-  const handleCountryChange = async (country: string) => {
-    setForm((current) => ({ ...current, country, region: '', city: '' }))
-    setCities(addressCities)
-    setRegionRids([])
+ * country's code rather than its name. Changing country also clears the
+ * region, because the previous one is no longer valid.
+ *
+ * The address is stored with the ISO country **code**, not the name, so the
+ * saved value is translated here and the dropdown keeps showing the name. The
+ * country's dialling prefix is filled in alongside it, since the user would
+ * otherwise have to look it up.
+ */
+  const handleCountryChange = async (countryName: string) => {
+    const countryIndex = countries.indexOf(countryName)
+    const meta = countryMeta[countryIndex]
+    // The lookup row carries the authoritative ISO code; the seed list supplies
+    // one when the lookup has not resolved.
+    const countryCode = meta?.code ?? fallbackCountryCodes[countryIndex] ?? ''
 
-    if (!country) {
+    setForm((current) => ({
+      ...current,
+      country: countryCode,
+      region: '',
+      // The previous region's rid belongs to the previous country.
+      regionId: undefined,
+      // Only prefill the prefix while it is untouched, so editing an existing
+      // address never discards a number the user already entered.
+      phoneCountryCode: current.phoneCountryCode || (meta?.phoneCode ?? ''),
+    }))
+
+    if (!countryName) {
       setRegions(addressRegions)
       return
     }
 
     // The seed list has no codes, so fall back to the label if the id map is
     // empty; the lookup simply returns nothing in that case.
-    const countryIndex = countries.indexOf(country)
-    const countryCode = countryCodes[countryIndex] ?? country
+    const countryRid = countryCodes[countryIndex] ?? countryName
 
     setIsLoadingRegions(true)
     try {
-      const options = await accountApi.getRegions(countryCode)
-      const labels = options.map((option) => option.label)
-      const usesApiOptions = labels.length > 0
-      setRegions(usesApiOptions ? labels : addressRegions)
-      setRegionRids(usesApiOptions ? options.map((option) => option.rid) : [])
+      const options = await accountApi.getRegions(countryRid)
+      if (options.length > 0) {
+        setRegions(options.map((option) => option.label))
+        // Kept so a region chosen from this list can be linked by rid, which
+        // matches shipping rules more reliably than the typed name.
+        setRegionMeta(options)
+      } else {
+        setRegions(addressRegions)
+      }
     } catch {
       setRegions(addressRegions)
-      setRegionRids([])
     } finally {
       setIsLoadingRegions(false)
     }
   }
 
-  /** Cities depend on the selected region's rid, which the lookup requires. */
-  const handleRegionChange = async (regionLabel: string) => {
-    setForm((current) => ({ ...current, region: regionLabel, city: '' }))
-    setCities(addressCities)
+  /** Resolves the lookup rid for a region name, if it came from a lookup list. */
+  const getRegionId = (regionName: string) =>
+    regionMeta.find((option) => option.label === regionName)?.rid
 
-    if (!regionLabel) {
-      setIsLoadingCities(false)
-      return
-    }
-
-    const regionIndex = regions.indexOf(regionLabel)
-    const regionRid = regionRids[regionIndex] ?? regionLabel
-
-    setIsLoadingCities(true)
-    try {
-      const options = await accountApi.getCities(regionRid)
-      const labels = options.map((option) => option.label)
-      setCities(labels.length > 0 ? labels : addressCities)
-    } catch {
-      setCities(addressCities)
-    } finally {
-      setIsLoadingCities(false)
-    }
+  /**
+   * The city lookup is deliberately not used: with city and region both typed,
+   * nothing is sent to the API, so a region the lookup does not know about still
+   * accepts a city.
+   */
+  const handleRegionChange = (region: string) => {
+    // A region picked from the lookup list also sends its rid, which lets the
+    // backend match the shipping rule by identity rather than by name. A typed
+    // region has no rid and is matched by name instead.
+    setForm((current) => ({ ...current, region, regionId: getRegionId(region) }))
   }
 
   const handleClose = useCallback(() => {
@@ -329,7 +443,9 @@ export function AddAddressModal({
             <SelectField
               id="address-country"
               label="Country"
-              value={form.country}
+              // The form stores the ISO code but the dropdown lists country
+              // names, so the matching name is derived for display.
+              value={getCountryLabel(form.country)}
               onChange={(value) => void handleCountryChange(value)}
               options={countries}
               placeholder="Select country"
@@ -380,25 +496,27 @@ export function AddAddressModal({
               placeholder="Street, apartment/house/unit etc"
             />
 
-            <SelectField
-              id="address-region"
-              label="Region"
-              value={form.region}
-              onChange={(value) => void handleRegionChange(value)}
-              options={regions}
-              placeholder={isLoadingRegions ? 'Loading regions…' : 'State/Province/house/Region*'}
-              isDisabled={isLoadingRegions}
-            />
-
-            <SelectField
-              id="address-city"
-              label="City"
-              value={form.city}
-              onChange={(value) => updateField('city', value)}
-              options={cities}
-              placeholder={isLoadingCities ? 'Loading cities…' : 'City*'}
-              isDisabled={isLoadingCities}
-            />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {/* City and region are free text: the lookup endpoints cover only a
+                  handful of countries, so a dropdown would block every address
+                  outside them. The region field still keeps its suggestions. */}
+              <TextFieldWithSuggestions
+                id="address-region-input"
+                label="State/Province/Region*"
+                value={form.region}
+                onChange={handleRegionChange}
+                suggestions={regions}
+                placeholder={isLoadingRegions ? 'Loading regions…' : 'State/Province/Region*'}
+                isDisabled={isLoadingRegions}
+              />
+              <FloatingField
+                id="address-city"
+                label="City*"
+                value={form.city}
+                onChange={(value) => updateField('city', value)}
+                placeholder="City"
+              />
+            </div>
 
             <DefaultAddressToggle
               selected={form.isDefault}

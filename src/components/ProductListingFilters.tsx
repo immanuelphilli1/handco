@@ -7,7 +7,6 @@ import SubtractLineIcon from 'remixicon-react/SubtractLineIcon'
 import {
   collapsedFilterSections,
   defaultListingFilters,
-  deliveryFilterOptions,
   mobileCollapsedFilterSections,
   PRICE_CEILING,
   PRICE_FLOOR,
@@ -295,15 +294,16 @@ function ListingFiltersContent({
   const categoryPreviewCount = Math.max(1, (isMobile ? 4 : 4) - leadingOptionCount)
   const categoryOverflowThreshold = categoryPreviewCount
 
-  // Facets come from the API. The previous hardcoded lists (e.g. "55 Inches",
-  // "75 Inches") matched no product and always produced an empty result, so the
-  // options are now exactly the values the catalog can be filtered by.
-  const deliveryOptions = facets.deliveryOptions.length > 0
-    ? facets.deliveryOptions
-    : deliveryFilterOptions
-  const screenSizeOptions = facets.screenSizes
-  const colorOptions = facets.colors
-  const brandOptions = facets.brands
+  // Facets come from the API, so the options are exactly the values the catalog
+  // can be filtered by. Delivery options are derived from the API's delivery
+  // facet, which is null unless the request carried a destination country; when
+  // that happens the section hides entirely rather than offering options that
+  // match nothing. Each list is defaulted to [] so a missing or malformed facet
+  // can never throw on .length.
+  const deliveryOptions = facets.deliveryOptions ?? []
+  const screenSizeOptions = facets.screenSizes ?? []
+  const colorOptions = facets.colors ?? []
+  const brandOptions = facets.brands ?? []
 
   // Each section only offers Clear once it actually deviates from the default,
   // so an untouched panel stays free of dead links.
@@ -453,7 +453,7 @@ function ListingFiltersContent({
             ))}
           </FilterSection>
         ) : null
-      ) : (
+      ) : deliveryOptions.length > 0 ? (
         <FilterSection
           title="Delivery"
           isOpen={openSections.delivery}
@@ -480,7 +480,7 @@ function ListingFiltersContent({
             />
           ))}
         </FilterSection>
-      )}
+      ) : null}
 
       {brandOptions.length > 0 ? (
         <FilterSection

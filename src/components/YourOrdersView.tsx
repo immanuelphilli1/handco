@@ -116,6 +116,11 @@ function statusBadgeClassName(status: OrderStatus): string {
       return 'bg-[#f0b100]'
     case 'shipped':
       return 'bg-primary-orange'
+    case 'pending_payment':
+      // Matches the yellow "processing" badge; the order is live but unpaid.
+      return 'bg-[#f0b100]'
+    case 'cancelled':
+      return 'bg-text-secondary'
     default: {
       const exhaustiveCheck: never = status
       return exhaustiveCheck
@@ -366,10 +371,19 @@ function OrdersPanel({
   const { applyCartResponse: applyCart } = useShop()
   const [trackingOrder, setTrackingOrder] = useState<OrderRecord | null>(null)
   const [returnOrderTarget, setReturnOrderTarget] = useState<OrderRecord | null>(null)
+  /** Order the loaded `returnEligibility` belongs to. */
+  const [returnEligibilityOrderId, setReturnEligibilityOrderId] = useState<string | null>(null)
   const [isBuyingAgain, setIsBuyingAgain] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const { buyOrderAgain, addBuyAgainProductToCart } = useBuyAgain()
-  const { lines, events, isLoading: isDetailLoading, loadOrderDetail, reset } = useOrderDetail()
+  const {
+    lines,
+    events,
+    returnEligibility,
+    isLoading: isDetailLoading,
+    loadOrderDetail,
+    reset,
+  } = useOrderDetail()
 
   useEffect(() => {
     let cancelled = false
@@ -470,9 +484,16 @@ function OrdersPanel({
       />
       <ReturnRefundModal
         order={returnOrderTarget}
-        onClose={() => setReturnOrderTarget(null)}
+        onClose={() => {
+          setReturnOrderTarget(null)
+          setReturnEligibilityOrderId(null)
+          reset()
+        }}
         onViewPolicy={onViewRefundPolicy}
         onSubmit={handleReturnRequest}
+        returnEligibility={
+          returnEligibilityOrderId === returnOrderTarget?.id ? returnEligibility : null
+        }
       />
       {notice ? (
         <p
@@ -531,7 +552,14 @@ function OrdersPanel({
               order={order}
               onBuyAgain={handleBuyAgain}
               isBuyingAgain={isBuyingAgain}
-              onReturnRefund={(order) => setReturnOrderTarget(order)}
+              onReturnRefund={(order) => {
+                // Eligibility only exists on the detail payload, so it is fetched
+                // before the dialog opens. The order id is remembered so a
+                // previous order's eligibility is never shown for this one.
+                setReturnOrderTarget(order)
+                setReturnEligibilityOrderId(order.id)
+                void loadOrderDetail(order)
+              }}
               onTrackOrder={openTracking}
               onViewDetails={openTracking}
             />

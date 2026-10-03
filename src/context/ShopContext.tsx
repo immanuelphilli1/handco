@@ -11,6 +11,7 @@ import { cartApi, wishlistApi } from '../api'
 import { mapApiCartItem, mapApiProduct } from '../api/mappers'
 import type { CartSummary } from '../api/types'
 import type { CartItem } from '../data/cart'
+import { getCartErrorMessage } from '../data/cartErrors'
 import type { Product } from '../data/products'
 import { getProductKey } from '../data/products'
 import { useAuth } from './AuthContext'
@@ -20,6 +21,9 @@ type ShopContextValue = {
   cartItemCount: number
   cartSummary: CartSummary | null
   isCartLoading: boolean
+  /** Explains a rejected cart mutation, e.g. exceeding available stock. */
+  cartError: string | null
+  clearCartError: () => void
   refreshCart: () => Promise<void>
   /** Applies a cart response the caller already has, avoiding a redundant GET. */
   applyCartResponse: (response: Awaited<ReturnType<typeof cartApi.getCart>>) => void
@@ -59,7 +63,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const { authUser, requestSignIn } = useAuth()
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [cartSummary, setCartSummary] = useState<CartSummary | null>(null)
-  const [isCartLoading, setIsCartLoading] = useState(false)
+  // Starts true so the first paint waits for the cart instead of flashing the
+  // empty state before the fetch resolves. `refreshCart` clears it on settle.
+  const [isCartLoading, setIsCartLoading] = useState(true)
+  /** Explains a rejected cart mutation (e.g. not enough stock). */
+  const [cartError, setCartError] = useState<string | null>(null)
   const [wishlistProducts, setWishlistProducts] = useState<Product[]>([])
   const [isWishlistLoading, setIsWishlistLoading] = useState(false)
   const [lastOrder, setLastOrder] = useState<{
@@ -120,8 +128,16 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   )
 
   const addToCart = useCallback(async (product: Product, quantity = 1) => {
-    const response = await cartApi.addCartItem(product.id, quantity)
-    applyCartResponse(setCartItems, setCartSummary, response)
+    try {
+      const response = await cartApi.addCartItem(product.id, quantity)
+      applyCartResponse(setCartItems, setCartSummary, response)
+    } catch (error) {
+      // `insufficient_stock` and `currency_mismatch` arrive as 422 with a
+      // shopper-readable reason, so they are surfaced instead of swallowed.
+      const message = getCartErrorMessage(error)
+      if (message) setCartError(message)
+      throw error
+    }
   }, [])
 
   /**
@@ -140,10 +156,20 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
   const updateCartItem = useCallback(
     async (itemId: string, patch: { quantity?: number; selected?: boolean }) => {
-      const response = await cartApi.updateCartItem(itemId, patch)
-      applyCartResponse(setCartItems, setCartSummary, response)
+      try {
+        const response = await cartApi.updateCartItem(itemId, patch)
+        applyCartResponse(setCartItems, setCartSummary, response)
+      } catch (error) {
+        // A rejected quantity leaves the cart untouched server-side, so the
+        // authoritative list is re-read to correct the stepper the user just
+        // pressed, and the reason is surfaced rather than silently ignored.
+        const message = getCartErrorMessage(error)
+        if (message) setCartError(message)
+        await refreshCart()
+        throw error
+      }
     },
-    [],
+    [refreshCart],
   )
 
   const removeCartItem = useCallback(async (itemId: string) => {
@@ -200,6 +226,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     [authUser, isLiked, removeFromWishlist, requestSignIn],
   )
 
+  const clearCartError = useCallback(() => {
+    setCartError(null)
+  }, [])
+
   const clearCart = useCallback(() => {
     setCartItems([])
     setCartSummary(null)
@@ -211,6 +241,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       cartItemCount,
       cartSummary,
       isCartLoading,
+      cartError,
+      clearCartError,
       refreshCart,
       applyCartResponse: applyCart,
       addToCart,
@@ -238,6 +270,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       cartItems,
       cartSummary,
       clearCart,
+      cartError,
+      clearCartError,
       isCartLoading,
       isLiked,
       isWishlistLoading,
