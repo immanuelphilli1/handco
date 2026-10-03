@@ -649,6 +649,13 @@ export type ApiBrowsingHistoryItem = {
   id?: Rid
   rid?: Rid
   productRid?: Rid
+  /**
+   * The full product card, nested on the item. This is what the endpoint
+   * actually sends, and it carries the price, rating, category and delivery a
+   * card needs, so it is mapped rather than reconstructed from the sparse
+   * sibling fields.
+   */
+  product?: ApiProductCard
   name?: string
   image?: string
   imageUrl?: string

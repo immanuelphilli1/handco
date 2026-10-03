@@ -20,7 +20,7 @@ export function FeaturedItemsSection({ onProductSelect }: FeaturedItemsSectionPr
         <h2 className="text-base font-medium leading-6 tracking-[-0.32px] text-text-primary lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
           Featured items
         </h2>
-        <div className="grid grid-cols-2 items-stretch gap-2 lg:grid-cols-5">
+        <div className="grid grid-cols-2 items-stretch gap-2 lg:grid-cols-4">
           {homeFeaturedProducts.map((product, index) => (
             <ProductCard
               key={`${product.id}-${index}`}

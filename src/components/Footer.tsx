@@ -244,13 +244,14 @@ export function Footer({ onOpenCategories }: FooterProps) {
 
       <div className="border-b border-border-primary px-4 lg:px-16">
         <div className="flex flex-col gap-2 p-4 lg:flex-row lg:items-center lg:justify-between lg:p-6">
-          <img alt="Compliance badges" className="h-12 w-38 object-contain" src={images.footer.compliance} />
+          <div />
+          {/* <img alt="Compliance badges" className="h-12 w-38 object-contain" src={images.footer.compliance} /> */}
           <div className="lg:w-68 lg:text-right">
             <p className="text-sm font-medium tracking-[-0.28px] text-text-tertiary">
             H&CO • Nordbær • Gridvolt • Gründen
             </p>
             <p className="text-base font-medium tracking-[-0.32px] text-text-secondary">
-              © 2026 HDTN. All rights reserved.
+              © 2026 Hayes Distribution and Trade Network. All rights reserved.
             </p>
           </div>
         </div>

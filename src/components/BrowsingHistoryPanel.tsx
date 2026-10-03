@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { accountApi } from '../api'
 import { ApiError } from '../api/client'
 import { mapApiBrowsingHistory } from '../api/mappers'
-import { useCatalog } from '../context/CatalogContext'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import {
   getAllHistoryItemIds,
@@ -254,9 +253,6 @@ function ClearAllConfirm({
 }
 
 export function BrowsingHistoryPanel() {
-  // The history endpoint returns only id/name/image, so the catalog the app
-  // already loaded is used to fill in price, category and rating on each card.
-  const { allProducts } = useCatalog()
   // Starts empty: the API is the only source of truth, so an account with no
   // browsing shows the empty state rather than sample products.
   const [sections, setSections] = useState<BrowsingHistorySection[]>([])
@@ -274,7 +270,7 @@ export function BrowsingHistoryPanel() {
       setIsLoading(true)
       try {
         const response = await accountApi.getBrowsingHistory()
-        const items = mapApiBrowsingHistory(response, allProducts)
+        const items = mapApiBrowsingHistory(response)
         // Set unconditionally, including for an empty result, so a genuinely
         // empty history is not masked by leftover rows.
         if (!cancelled) {
@@ -292,7 +288,7 @@ export function BrowsingHistoryPanel() {
     return () => {
       cancelled = true
     }
-  }, [allProducts])
+  }, [])
 
   const allItemIds = useMemo(() => getAllHistoryItemIds(sections), [sections])
   const selectedCount = selectedIds.size
