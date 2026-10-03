@@ -207,6 +207,8 @@ export type ApiProductReview = {
   location: string
   /** ISO timestamp. Replaces the `date` display string. */
   createdAt?: string
+  /** @deprecated Server-formatted date. Only read while `createdAt` is absent. */
+  date?: string
   rating: number
   text: string
   /** Reviewed price. Replaces `priceAmount`. */
@@ -296,14 +298,36 @@ export type CheckoutPreviewResponse = {
     deliveryDays?: ApiDeliveryDays
     courierLabel: string
   }
-  paymentMethods?: Array<{
-    id: string
-    label: string
-    icon?: string
-    secondaryIcon?: string
-    note?: string
-  }>
+  paymentMethods?: ApiCheckoutPaymentMethod[]
   summary?: CartSummary
+}
+
+/**
+ * A checkout payment option as the backend now returns it, sourced from admin
+ * settings rather than a fixed client list.
+ *
+ * `icon` is either a short artwork key (`card`, `apple_pay`, `tabby`, ...) or an
+ * uploaded path/URL; `iconUrl` is only set for the path/URL case. A bare key is
+ * never turned into a URL — see `resolvePaymentMethodArtwork`.
+ */
+export type ApiCheckoutPaymentMethod = {
+  id?: string
+  rid?: Rid
+  code?: string
+  label: string
+  icon?: string
+  iconUrl?: string
+}
+
+/**
+ * `GET /payment-methods/checkout`. Reachable without a cart and without auth,
+ * for when the method list is needed before a checkout session exists.
+ */
+export type CheckoutPaymentMethodsResponse = {
+  paymentMethods?: ApiCheckoutPaymentMethod[]
+  items?: ApiCheckoutPaymentMethod[]
+  currencies?: string[]
+  countries?: string[]
 }
 
 export type PaymentIntentResponse = {
@@ -312,6 +336,8 @@ export type PaymentIntentResponse = {
   provider: string
   orderId: Rid
   amount: Money
+  /** Echoes the method that was actually opened, as the backend resolved it. */
+  paymentMethodId?: string
 }
 
 /** Payment lifecycle states reported by `GET /payments/:paymentId`. */
@@ -617,13 +643,24 @@ export type ApiReviewSlot = {
   orderReference?: string
   /** ISO timestamp. Replaces the `deliveredOn` display string. */
   deliveredAt?: string
+  /** @deprecated Server-formatted delivery date. Only read while `deliveredAt`
+   * is absent. */
+  deliveredOn?: string
   priceMoney?: Money
+  /** @deprecated Server-formatted price. Only read while `priceMoney` is
+   * absent. */
+  priceAmount?: number
+  /** @deprecated Server-formatted currency. Only read while `priceMoney` is
+   * absent. */
+  priceCurrency?: string
   quantity?: number
   rating?: number
   title?: string
   detailedReview?: string
   /** ISO timestamp for an already-submitted review. */
   createdAt?: string
+  /** @deprecated Server-formatted date. Only read while `createdAt` is absent. */
+  date?: string
   /** Moderation state. A new review starts `pending` and appears on the
    * product only once staff approve it. */
   status?: 'pending' | 'published' | string

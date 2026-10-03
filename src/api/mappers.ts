@@ -7,7 +7,7 @@ import type { NotificationSetting, NotificationSettingId } from '../data/notific
 import { getProfileInitials } from '../data/profile'
 import type { DefaultAddress, UserProfile } from '../data/profile'
 import type { PaymentMethodRecord, PaymentMethodType } from '../data/paymentMethods'
-import type { WaitingReviewRecord } from '../data/reviews'
+import type { ReviewedReviewRecord, WaitingReviewRecord } from '../data/reviews'
 import type { OrderLine, OrderRecord, OrderStatus, OrderTrackingEvent } from '../data/orders'
 import type { Product, ProductAttribute } from '../data/products'
 import type { ProductDetail, ProductDetailContext, ProductReview } from '../data/productDetail'
@@ -411,8 +411,9 @@ export function mapApiProductReview(review: ApiProductReview): ProductReview {
   return {
     author: review.author,
     location: review.location,
-    // `createdAt` is ISO; the review card wants a readable short date.
-    date: formatIsoDate(review.createdAt),
+    // `createdAt` is ISO; the review card wants a readable short date. The
+    // server-formatted `date` is only the fallback while `createdAt` is absent.
+    date: formatIsoDate(review.createdAt) || review.date || '',
     rating: review.rating,
     text: review.text,
   }
@@ -621,18 +622,50 @@ export function addressRecordToDefaultPreview(address: AddressRecord): DefaultAd
   }
 }
 
-export function mapApiReviewSlot(slot: ApiReviewSlot): WaitingReviewRecord {
+/**
+ * A waiting slot and a reviewed row share the same payload shape, so both start
+ * from this. `deliveredAt`, `createdAt` and `priceMoney` are the source of truth;
+ * the preformatted `deliveredOn`/`date`/`priceAmount` strings are only read when
+ * the raw field is missing, because they are deprecated but still served.
+ */
+function mapApiReviewSlotBase(slot: ApiReviewSlot): WaitingReviewRecord {
   const priceMoney = slot.priceMoney
+  const currency = priceMoney?.currency ?? slot.priceCurrency ?? ''
+  const amount =
+    priceMoney?.amount.toFixed(2) ??
+    (typeof slot.priceAmount === 'number' ? slot.priceAmount.toFixed(2) : '')
 
   return {
     id: slot.rid ?? slot.id ?? '',
     productName: slot.productName ?? '',
     productImage: resolveAssetUrl(slot.productImageUrl ?? slot.productImage),
     orderId: slot.orderReference ?? slot.orderId ?? '',
-    deliveredOn: formatIsoDate(slot.deliveredAt),
-    priceCurrency: priceMoney?.currency ?? '',
-    priceAmount: priceMoney ? priceMoney.amount.toFixed(2) : '',
+    deliveredOn: formatIsoDate(slot.deliveredAt) || slot.deliveredOn || '',
+    priceCurrency: currency,
+    priceAmount: amount,
     quantity: slot.quantity ?? 1,
+  }
+}
+
+/** Anything that is not explicitly `published` is treated as still in moderation. */
+function mapApiReviewStatus(status: string | undefined): 'pending' | 'published' {
+  return status === 'published' ? 'published' : 'pending'
+}
+
+/**
+ * A row from `GET /reviews/reviewed` is a waiting slot plus the review the
+ * shopper submitted, so the tab can show what they wrote and whether it is live
+ * yet. `createdAt` is the submission time; the deprecated `date` string is only
+ * the fallback.
+ */
+export function mapApiReviewedReviewSlot(slot: ApiReviewSlot): ReviewedReviewRecord {
+  return {
+    ...mapApiReviewSlotBase(slot),
+    submittedOn: formatIsoDate(slot.createdAt) || slot.date || '',
+    status: mapApiReviewStatus(slot.status),
+    rating: typeof slot.rating === 'number' ? slot.rating : null,
+    title: slot.title ?? '',
+    text: slot.detailedReview ?? '',
   }
 }
 
@@ -642,7 +675,19 @@ export function mapApiReviewSlot(slot: ApiReviewSlot): WaitingReviewRecord {
  */
 export function mapApiReviewSlots(response: ReviewsResponse): WaitingReviewRecord[] {
   const source = response.items ?? response.reviews ?? []
-  return source.filter((slot) => (slot.rid ?? slot.id ?? '') !== '').map(mapApiReviewSlot)
+  return source
+    .filter((slot) => (slot.rid ?? slot.id ?? '') !== '')
+    .map(mapApiReviewSlotBase)
+}
+
+/** `GET /reviews/reviewed`, mapped to the richer submitted-review shape. */
+export function mapApiReviewedReviewSlots(
+  response: ReviewsResponse,
+): ReviewedReviewRecord[] {
+  const source = response.items ?? response.reviews ?? []
+  return source
+    .filter((slot) => (slot.rid ?? slot.id ?? '') !== '' || slot.createdAt !== undefined)
+    .map(mapApiReviewedReviewSlot)
 }
 
 /**

@@ -35,7 +35,7 @@ const accountMenuItems: AccountMenuItem[] = [
   { label: 'Your profile', icon: UserLineIcon },
   { label: 'Browsing history', icon: HistoryLineIcon },
   { label: 'Addresses', icon: UserLocationLineIcon },
-  { label: 'Your payment methods', icon: Wallet3LineIcon },
+  { label: 'Saved cards', icon: Wallet3LineIcon },
   { label: 'Notifications', icon: Notification3LineIcon },
 ]
 
@@ -139,7 +139,7 @@ export function AccountMenu({
                             onClose()
                             onAddressesClick?.()
                           }
-                        : item.label === 'Your payment methods'
+                        : item.label === 'Saved cards'
                           ? () => {
                               onClose()
                               onPaymentMethodsClick?.()

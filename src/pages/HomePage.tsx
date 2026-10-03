@@ -38,6 +38,7 @@ import type { CartStep, PaymentReturnStep } from '../data/navigation'
 import { getCheckoutAttemptKey, resetCheckoutAttemptKey } from '../api/idempotency'
 import type { OrderConflict } from '../data/orderConflicts'
 import { toOrderConflict } from '../data/orderConflicts'
+import { isPaymentMethodRejection } from '../data/checkoutPaymentMethods'
 import {
   ORDER_CONFLICT_CODES,
   type OrderConflictCode,
@@ -78,6 +79,8 @@ export function HomePage() {
   const [isProductLoading, setIsProductLoading] = useState(false)
   const [isStartingPayment, setIsStartingPayment] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  /** The shopper's chosen payment method, sent as `paymentMethodId`. */
+  const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null)
   /** Set when checkout was blocked because no default address is set. */
   const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false)
   /** Set when `POST /orders` returned a 409 the shopper needs to act on. */
@@ -356,7 +359,12 @@ export function HomePage() {
       // before the redirect so a failed payment does not show them again.
       await refreshCart()
 
-      const intent = await checkoutApi.createPaymentIntent(order.orderId, attemptKey)
+      const intent = await checkoutApi.createPaymentIntent(
+        order.orderId,
+        attemptKey,
+        // Resolved by the backend from either a rid or a code.
+        paymentMethodId ?? undefined,
+      )
 
       // Kept so the return page can poll payment status. The order already
       // exists, so only the payment details are pending.
@@ -382,6 +390,21 @@ export function HomePage() {
         // and let the shopper decide; the next attempt needs a new key because
         // they are agreeing to new prices.
         setOrderConflict(toOrderConflict(error.code, error.details))
+      } else if (isPaymentMethodRejection(error)) {
+        // The chosen method is no longer payable: unknown (404), does not serve
+        // the order currency (422), or the provider declined the shopper (422,
+        // e.g. Tabby). The order exists awaiting payment, so this is recoverable
+        // by retrying with a different method — and a retry of the same decision
+        // reuses the idempotency key.
+        //
+        // Clearing the selection forces the list to reload, so the shopper
+        // cannot silently resubmit the method that just failed.
+        setPaymentMethodId(null)
+        setCheckoutError(
+          error instanceof ApiError && error.message
+            ? error.message
+            : 'That payment method is unavailable. Please choose another.',
+        )
       } else {
         setCheckoutError(
           error instanceof ApiError && error.message
@@ -392,7 +415,7 @@ export function HomePage() {
     } finally {
       setIsStartingPayment(false)
     }
-  }, [authUser, cartItems, refreshCart, setLastOrder])
+  }, [authUser, cartItems, paymentMethodId, refreshCart, setLastOrder])
 
   /**
    * Return leg: the payment succeeded.
@@ -530,6 +553,7 @@ export function HomePage() {
                   onGoToProduct={handleCartProductSelect}
                   onSubmitOrder={() => void handleSubmitOrder()}
                   onGoToAddresses={handleGoToAddresses}
+                  onPaymentMethodChange={setPaymentMethodId}
                   onEditDefaultAddress={handleEditDefaultAddress}
                   isSubmitting={isStartingPayment}
                   submitError={checkoutError}

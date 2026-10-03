@@ -1,4 +1,3 @@
-import { images } from '../assets/images'
 import type { Product } from './products'
 import { defaultAddress } from './profile'
 
@@ -23,23 +22,6 @@ export type CartItem = {
   stockQuantity?: number | null
   /** False when the variant cannot currently be bought. */
   available?: boolean
-}
-
-export type CheckoutPaymentMethodId =
-  | 'card'
-  | 'apple_pay'
-  | 'google_pay'
-  | 'paypal'
-  | 'mobile_money'
-  | 'tabby'
-  | 'tamara'
-
-export type CheckoutPaymentMethod = {
-  id: CheckoutPaymentMethodId
-  label: string
-  icon?: string
-  secondaryIcon?: string
-  note?: string
 }
 
 export const cartOrderSummary = {
@@ -96,30 +78,6 @@ export function productToCartItem(product: Product): CartItem {
     selected: true,
   }
 }
-
-export const checkoutPaymentMethods: CheckoutPaymentMethod[] = [
-  {
-    id: 'card',
-    label: 'Card',
-    icon: images.footer.mastercard,
-    secondaryIcon: images.footer.visa,
-  },
-  { id: 'apple_pay', label: 'Apple Pay', icon: images.footer.applePay },
-  { id: 'google_pay', label: 'Google Pay', icon: images.footer.googlePay },
-  { id: 'paypal', label: 'Paypal', icon: images.footer.paypal },
-  {
-    id: 'mobile_money',
-    label: 'Mobile Money',
-    icon: images.footer.mobileMoney,
-  },
-  { id: 'tabby', label: 'Tabby', icon: images.footer.tabby, note: 'pay in instalment' },
-  {
-    id: 'tamara',
-    label: 'Tamara',
-    icon: images.footer.tamaraIcon,
-    note: 'pay in instalment',
-  },
-]
 
 export const checkoutItemCount = 0
 

@@ -37,8 +37,8 @@ const promoSlides = [
     image: images.categories.homeGarden,
     alt: 'Home and garden essentials',
     badge: 'Home & Garden',
-    title: 'Make home feel like yours.',
-    description: 'Hand-picked furniture and garden essentials, delivered to your door.',
+    // title: 'Make home feel like yours.',
+    // description: 'Hand-picked furniture and garden essentials, delivered to your door.',
   },
 ] as const
 
@@ -107,12 +107,12 @@ export function PromoBannerSection({ onShopAllCategories: _onShopAllCategories }
             <span className="inline-flex w-fit rounded-full bg-primary-green px-2 py-1 text-sm tracking-[-0.28px] text-text-inverse">
               {activeSlide.badge}
             </span>
-            <h2 className="max-w-50 text-xl font-medium leading-8 tracking-[-0.48px] text-text-inverse lg:max-w-xl lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
+            {/* <h2 className="max-w-50 text-xl font-medium leading-8 tracking-[-0.48px] text-text-inverse lg:max-w-xl lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
               {activeSlide.title}
             </h2>
             <p className="max-w-50 text-base tracking-[-0.32px] text-text-inverse lg:max-w-xl">
               {activeSlide.description}
-            </p>
+            </p> */}
           </div>
         </div>
 

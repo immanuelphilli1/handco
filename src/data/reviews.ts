@@ -11,7 +11,40 @@ export type WaitingReviewRecord = {
   quantity: number
 }
 
-export type ReviewedReviewRecord = WaitingReviewRecord
+/**
+ * A review the shopper has already submitted. It is a waiting record plus
+ * everything the shopper wrote and the moderation state, which the waiting list
+ * has no reason to carry.
+ */
+export type ReviewedReviewRecord = WaitingReviewRecord & {
+  /** ISO timestamp the review was submitted, formatted for display. */
+  submittedOn: string
+  /** `pending` until staff approve it, then `published`. */
+  status: 'pending' | 'published'
+  rating: number | null
+  title: string
+  text: string
+}
+
+/**
+ * The request body for `POST /reviews`. Kept separate from what comes back,
+ * because only the response carries the moderation state.
+ */
+export type ReviewSubmission = {
+  reviewId: string
+  rating: number
+  title: string
+  detailedReview: string
+}
+
+/**
+ * What the shopper just submitted. `POST /reviews` creates the review as
+ * `pending`, so a freshly submitted row lands in the Reviewed tab carrying the
+ * server's own moderation state rather than an assumed one.
+ */
+export type SubmittedReview = ReviewSubmission & {
+  status: 'pending' | 'published'
+}
 
 export const reviewFilterTabs: { id: ReviewFilter; label: string }[] = [
   { id: 'waiting', label: 'Waiting for review' },

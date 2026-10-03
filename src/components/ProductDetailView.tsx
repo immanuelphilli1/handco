@@ -13,7 +13,6 @@ import Refund2LineIcon from 'remixicon-react/Refund2LineIcon'
 import ShareForwardBoxFillIcon from 'remixicon-react/ShareForwardBoxFillIcon'
 import ShieldCheckLineIcon from 'remixicon-react/ShieldCheckLineIcon'
 import ShieldUserFillIcon from 'remixicon-react/ShieldUserFillIcon'
-import StarFillIcon from 'remixicon-react/StarFillIcon'
 import SubtractLineIcon from 'remixicon-react/SubtractLineIcon'
 import User6LineIcon from 'remixicon-react/User6LineIcon'
 import { useShop } from '../context/ShopContext'
@@ -27,6 +26,7 @@ import type {
 import type { Product } from '../data/products'
 import { getProductPath } from '../data/shopRoutes'
 import { ProductCard } from './ProductCard'
+import { RatingStars } from './RatingStars'
 
 type ProductDetailViewProps = {
   context: ProductDetailContext
@@ -34,23 +34,6 @@ type ProductDetailViewProps = {
   onBackToListing: () => void
   onGoToCart: () => void
   onProductSelect: (product: Product) => void
-}
-
-function RatingStars({ value, size = 'md' }: { value: number; size?: 'sm' | 'md' }) {
-  const filled = Math.round(value)
-  const iconClass = size === 'sm' ? 'size-4' : 'size-5'
-
-  return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }, (_, index) => (
-        <StarFillIcon
-          key={index}
-          className={`${iconClass} ${index < filled ? 'text-primary-gold' : 'text-bg-tertiary'}`}
-          aria-hidden
-        />
-      ))}
-    </div>
-  )
 }
 
 function ProductDetailBreadcrumbs({

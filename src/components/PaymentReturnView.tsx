@@ -3,6 +3,7 @@ import { checkoutApi } from '../api'
 import { ApiError } from '../api/client'
 import CheckLineIcon from 'remixicon-react/CheckLineIcon'
 import CloseCircleLineIcon from 'remixicon-react/CloseCircleLineIcon'
+import TimeLineIcon from 'remixicon-react/TimeLineIcon'
 import { useShop } from '../context/ShopContext'
 
 type PaymentReturnViewProps = {
@@ -18,6 +19,15 @@ type PaymentReturnViewProps = {
 const SETTLED_STATUSES = new Set(['succeeded', 'failed', 'cancelled', 'refunded'])
 const MAX_POLLS = 10
 const POLL_INTERVAL_MS = 2000
+/**
+ * Statuses that are still legitimately in flight when polling gives up.
+ *
+ * Approval-style methods (PayPal, Tabby, Tamara) approve first and capture after,
+ * so `pending` can outlive the poll budget. Reporting that as a failure would tell
+ * a shopper their payment failed while it is still being captured — so the UI
+ * says it is still processing and points at the order instead.
+ */
+const IN_FLIGHT_STATUSES = new Set(['pending'])
 
 function PaymentMessage({
   heading,
@@ -28,11 +38,15 @@ function PaymentMessage({
 }: {
   heading: string
   description: string
-  tone: 'success' | 'error'
+  tone: 'success' | 'error' | 'info'
   onGoHome: () => void
   onGoToCart: () => void
 }) {
   const isSuccess = tone === 'success'
+  // `info` means the payment is still in flight, so it must not read as either
+  // a success or a failure: neutral colours and an hourglass rather than a tick
+  // or a cross.
+  const isInfo = tone === 'info'
 
   return (
     <section className="border-t border-border-primary px-4 pb-10 pt-6 lg:px-16 lg:pt-8">
@@ -40,11 +54,13 @@ function PaymentMessage({
         <div className="rounded-xl bg-bg-secondary p-4 text-center lg:p-6">
           <div
             className={`mx-auto flex size-32 items-center justify-center rounded-full p-2 ${
-              isSuccess ? 'bg-primary-green' : 'bg-primary-orange'
+              isSuccess ? 'bg-primary-green' : isInfo ? 'bg-bg-tertiary' : 'bg-primary-orange'
             }`}
           >
             {isSuccess ? (
               <CheckLineIcon className="size-24 text-text-inverse" aria-hidden />
+            ) : isInfo ? (
+              <TimeLineIcon className="size-24 text-text-secondary" aria-hidden />
             ) : (
               <CloseCircleLineIcon className="size-24 text-text-inverse" aria-hidden />
             )}
@@ -58,7 +74,15 @@ function PaymentMessage({
         </div>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:justify-center">
-          {isSuccess ? (
+          {isInfo ? (
+            <button
+              type="button"
+              onClick={onGoHome}
+              className="btn-orange flex h-11 w-full cursor-pointer items-center justify-center rounded-full px-4 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse lg:w-auto"
+            >
+              Go to home
+            </button>
+          ) : isSuccess ? (
             <button
               type="button"
               onClick={onGoHome}
@@ -183,6 +207,20 @@ export function PaymentReturnView({
         tone="success"
         heading="Payment received"
         description="Your payment is confirmed. We are preparing your order now."
+        onGoHome={onGoHome}
+        onGoToCart={onGoToCart}
+      />
+    )
+  }
+
+  // Still `pending` after the poll budget is not a failure, so it must not be
+  // reported as one.
+  if (status !== null && IN_FLIGHT_STATUSES.has(status)) {
+    return (
+      <PaymentMessage
+        tone="info"
+        heading="Your payment is still processing"
+        description="Your bank or payment provider is still confirming this payment. We will update your order as soon as it completes — you can safely close this page and check back shortly."
         onGoHome={onGoHome}
         onGoToCart={onGoToCart}
       />

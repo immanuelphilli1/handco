@@ -227,7 +227,7 @@ export function Nav({
         className="fixed inset-x-0 top-0 z-50 w-full max-w-[100vw] overflow-x-clip bg-bg-primary"
       >
         <div className="relative mx-auto w-full min-w-0 max-w-full border-b border-border-primary">
-          <div className="relative h-7 overflow-hidden lg:h-10">
+          <div className="relative h-10 overflow-hidden lg:h-12">
             <video
               className="size-full object-cover"
               src={images.nav.bannerVid}

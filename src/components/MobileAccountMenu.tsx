@@ -33,7 +33,7 @@ const menuItems: MenuItem[] = [
   { id: 'profile', label: 'Your profile' },
   { id: 'history', label: 'Browsing history' },
   { id: 'addresses', label: 'Addresses' },
-  { id: 'payments', label: 'Your payment methods' },
+  { id: 'payments', label: 'Saved cards' },
   { id: 'notifications', label: 'Notifications' },
 ]
 

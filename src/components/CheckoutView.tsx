@@ -3,12 +3,12 @@ import { checkoutApi } from '../api'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import EditBoxLineIcon from 'remixicon-react/EditBoxLineIcon'
+import { shippingSummary, type CartItem } from '../data/cart'
 import {
-  checkoutPaymentMethods,
-  shippingSummary,
-  type CartItem,
-  type CheckoutPaymentMethodId,
-} from '../data/cart'
+  getMethodHint,
+  mapCheckoutPaymentMethods,
+  type CheckoutPaymentMethod,
+} from '../data/checkoutPaymentMethods'
 import { formatAmount, formatDeliveryDays } from '../data/format'
 import type { OrderConflict } from '../data/orderConflicts'
 import { useShop } from '../context/ShopContext'
@@ -37,6 +37,11 @@ type CheckoutViewProps = {
   orderConflict?: OrderConflict | null
   /** Clears the conflict and prepares a fresh attempt. */
   onAcknowledgeConflict?: () => void
+  /**
+   * Reports which method the shopper picked, by the backend's rid or code, so
+   * `POST /checkout/payment-intent` can send it as `paymentMethodId`.
+   */
+  onPaymentMethodChange?: (paymentMethodId: string | null) => void
 }
 
 function PaymentRadio({
@@ -184,6 +189,7 @@ export function CheckoutView({
   submitError = null,
   orderConflict = null,
   onAcknowledgeConflict,
+  onPaymentMethodChange,
 }: CheckoutViewProps) {
   const { cartItems, cartItemCount } = useShop()
   // Selected lines are what the order summary bills, so item details mirrors them.
@@ -191,7 +197,11 @@ export function CheckoutView({
     () => cartItems.filter((item) => item.selected),
     [cartItems],
   )
-  const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethodId>('card')
+  // Methods come from the backend and are keyed by its rid/code; the first one
+  // is preselected. A `null` id means nothing is chosen yet, which is also what
+  // payment-intent receives.
+  const [paymentMethods, setPaymentMethods] = useState<CheckoutPaymentMethod[]>([])
+  const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null)
   const [previewShipping, setPreviewShipping] = useState(shippingSummary)
   const trackRef = useRef<HTMLDivElement>(null)
 
@@ -219,6 +229,20 @@ export function CheckoutView({
       try {
         const preview = await checkoutApi.getCheckoutPreview()
         if (cancelled) return
+
+        // Methods are admin-configured, so the preview is the source of truth.
+        // An empty list is respected: the backend withheld every method for this
+        // currency/destination, and inventing local defaults would offer a method
+        // that cannot pay for the order.
+        const methods = mapCheckoutPaymentMethods(preview.paymentMethods)
+        setPaymentMethods(methods)
+        setPaymentMethodId((current) => {
+          if (current && methods.some((method) => method.id === current)) return current
+
+          const firstId = methods[0]?.id ?? null
+          onPaymentMethodChange?.(firstId)
+          return firstId
+        })
         // The address comes from the account's default, not the preview copy,
         // which can be stale. Shipping quotes still come from the preview.
         if (preview.shipping) {
@@ -243,7 +267,13 @@ export function CheckoutView({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [onPaymentMethodChange])
+
+  // Selecting a method is the only place the choice is published.
+  const handleSelectPaymentMethod = (id: string) => {
+    setPaymentMethodId(id)
+    onPaymentMethodChange?.(id)
+  }
 
   const scrollCarousel = (direction: 'prev' | 'next') => {
     const track = trackRef.current
@@ -374,15 +404,24 @@ export function CheckoutView({
                 Payment methods
               </h2>
               <div className="flex flex-col gap-6">
-                {checkoutPaymentMethods.map((method) => {
-                  const isSelected = paymentMethod === method.id
+                {/* The backend withholds methods that cannot serve this order's
+                    currency or destination, so an empty list is reported rather
+                    than replaced with a local default that would fail on submit. */}
+                {paymentMethods.length === 0 ? (
+                  <p className="text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
+                    No payment methods are available for your delivery destination. Please contact
+                    us to complete your order.
+                  </p>
+                ) : null}
+                {paymentMethods.map((method) => {
+                  const isSelected = paymentMethodId === method.id
 
                   return (
                     <div key={method.id} className="flex flex-col gap-4">
                       <div className="flex items-center gap-4">
                         <PaymentRadio
                           selected={isSelected}
-                          onSelect={() => setPaymentMethod(method.id)}
+                          onSelect={() => handleSelectPaymentMethod(method.id)}
                           label={method.label}
                         />
                         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -414,9 +453,7 @@ export function CheckoutView({
                       </div>
                       {isSelected ? (
                         <p className="text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
-                          {method.id === 'card'
-                            ? 'You will be redirected to a secure payment page to enter your card details.'
-                            : 'You will be redirected to complete this payment.'}
+                          {getMethodHint(method)}
                         </p>
                       ) : null}
                     </div>

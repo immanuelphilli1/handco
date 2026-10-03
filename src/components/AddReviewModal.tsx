@@ -6,12 +6,12 @@ import CheckLineIcon from 'remixicon-react/CheckLineIcon'
 import CloseFillIcon from 'remixicon-react/CloseFillIcon'
 import StarFillIcon from 'remixicon-react/StarFillIcon'
 import StarLineIcon from 'remixicon-react/StarLineIcon'
-import type { WaitingReviewRecord } from '../data/reviews'
+import type { ReviewSubmission, SubmittedReview, WaitingReviewRecord } from '../data/reviews'
 
 type AddReviewModalProps = {
   review: WaitingReviewRecord | null
   onClose: () => void
-  onSubmitSuccess?: (reviewId: string) => void
+  onSubmitSuccess?: (submitted: SubmittedReview) => void
 }
 
 function ReviewStarRating({
@@ -134,6 +134,8 @@ export function AddReviewModal({ review, onClose, onSubmitSuccess }: AddReviewMo
   const [title, setTitle] = useState('')
   const [detailedReview, setDetailedReview] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
+  /** Kept so the parent can rebuild the row with what was actually submitted. */
+  const [submitted, setSubmitted] = useState<SubmittedReview | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -141,11 +143,11 @@ export function AddReviewModal({ review, onClose, onSubmitSuccess }: AddReviewMo
 
   /** Hands the submitted review back so the row can move to the Reviewed tab. */
   const handleClose = useCallback(() => {
-    if (isSubmitted && review) {
-      onSubmitSuccess?.(review.id)
+    if (submitted) {
+      onSubmitSuccess?.(submitted)
     }
     onClose()
-  }, [isSubmitted, onClose, onSubmitSuccess, review])
+  }, [submitted, onClose, onSubmitSuccess])
 
   useEffect(() => {
     if (!isOpen) return
@@ -192,12 +194,20 @@ export function AddReviewModal({ review, onClose, onSubmitSuccess }: AddReviewMo
     setErrorMessage(null)
     setIsSubmitting(true)
 
+    const payload: ReviewSubmission = {
+      reviewId: review.id,
+      rating,
+      title: title.trim(),
+      detailedReview: detailedReview.trim(),
+    }
+
     try {
-      await accountApi.submitReview({
-        reviewId: review.id,
-        rating,
-        title: title.trim(),
-        detailedReview: detailedReview.trim(),
+      const created = await accountApi.submitReview(payload)
+      setSubmitted({
+        ...payload,
+        // `POST /reviews` returns the moderation state it created the review
+        // with, so the Reviewed tab shows the server's word rather than a guess.
+        status: created?.status === 'published' ? 'published' : 'pending',
       })
       setIsSubmitted(true)
     } catch (error) {

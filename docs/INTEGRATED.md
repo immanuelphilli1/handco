@@ -211,6 +211,34 @@ items carry `status`. A `404` (line already left the waiting list) and
 `409 review_exists` (two submits raced) are translated by
 `src/data/reviewErrors.ts`.
 
+### Review payload fields (2026-10-03)
+
+Review rows now carry raw values instead of server-formatted strings. The mappers
+treat the new field as the source of truth and only read the deprecated string as
+a fallback, so the UI keeps working until the deprecation window closes:
+
+| Deprecated string | Raw field | Formatter |
+|-------------------|-----------|-----------|
+| review `date` | `createdAt` (ISO) | `formatIsoDate` |
+| waiting-review `deliveredOn` | `deliveredAt` (ISO) | `formatIsoDate` |
+| review `priceAmount` | `priceMoney` (`{ amount, currency }`) | `formatAmount` |
+
+`ReviewedReviewRecord` was an alias of `WaitingReviewRecord`, so the Reviewed tab
+physically could not carry what the shopper wrote. It is now a waiting record
+plus `submittedOn`, `status`, `rating`, `title` and `text`, mapped by
+`mapApiReviewedReviewSlots` (the waiting mapper keeps its own name and shape).
+The Reviewed tab renders that: an `Awaiting approval` / `Published` badge from
+`status`, the review title and body, the star rating, and the submission date.
+
+On submit, `AddReviewModal` hands back the values the server accepted plus the
+`status` from the response, so the row moves to the Reviewed tab already in the
+state the server reported. That row is a preview; the next load replaces it with
+the real `createdAt` and `status`.
+
+The read-only `RatingStars` moved to `src/components/RatingStars.tsx` so the
+product detail and the Reviewed row share one implementation instead of two
+copies.
+
 ### Address country codes (2026-10-03)
 
 The addresses API stores the country as the ISO 3166-1 alpha-2 **code**
@@ -252,7 +280,8 @@ when the country changes.
 
 | Endpoint | UI / behavior |
 |----------|----------------|
-| `GET /checkout/preview` | Checkout address & shipping preview — `CheckoutView` |
+| `GET /checkout/preview` | Checkout address, shipping & payment methods — `CheckoutView` |
+| `GET /payment-methods/checkout` | Payment methods without a cart — `checkoutApi.getCheckoutPaymentMethods` (public, no auth) |
 | `POST /orders` | **First** step of submit — creates the order awaiting payment |
 | `POST /checkout/payment-intent` | **Second** step — opens payment for that order |
 | `GET /payments/:paymentId` | Polled on the return page — `PaymentReturnView` |
@@ -268,10 +297,49 @@ afterwards, which allowed unpaid orders and mismatched payments. The client stil
 never collects card details.
 
 1. **Place order** — `handleSubmitOrder` resolves the address from `GET /checkout/preview`, then `POST /orders` with `{ addressId, cartItemIds }`. `paymentToken` is gone. Requires auth. The ordered lines leave the cart at this point, so the cart is refreshed before the redirect.
-2. **Open payment** — `POST /checkout/payment-intent` with `{ orderId }` returns `checkoutUrl`, `paymentRid`, `provider` and the `amount`. `paymentRid`/`provider`/`orderId`/order reference are written to `sessionStorage` (`api/pendingPayment.ts`), because the provider handoff is a full page load that discards React state. The browser then navigates to `checkoutUrl`.
+2. **Open payment** — `POST /checkout/payment-intent` with `{ orderId, paymentMethodId }` returns `checkoutUrl`, `paymentRid`, `provider`, the `amount`, and echoes `paymentMethodId`. `paymentRid`/`provider`/`orderId`/order reference are written to `sessionStorage` (`api/pendingPayment.ts`), because the provider handoff is a full page load that discards React state. The browser then navigates to `checkoutUrl`.
 3. **Return** — `/checkout/return` and `/checkout/cancel` (`getPaymentReturnPath` / `getPaymentCancelPath`). Only `?reference=<payment rid>` is trusted; provider params like `session_id` are ignored.
-4. **Confirm** — `PaymentReturnView` polls `GET /payments/:reference` every 2s (max 10 attempts) until the payment settles. 401/404 stop polling immediately. A cancel or missing reference resolves without a request.
+4. **Confirm** — `PaymentReturnView` polls `GET /payments/:reference` every 2s (max 10 attempts) until the payment settles. 401/404 stop polling immediately. A cancel or missing reference resolves without a request. `pending` is **not** a failure: approval-style methods (PayPal, Tabby, Tamara) approve first and capture after, so if the poll budget runs out while the status is still `pending` the page shows a neutral "still processing" state (`tone="info"`) rather than an error.
 5. **Reconcile** — on `succeeded` there is nothing left to place: the order already exists. The stored pending payment is consumed once (guarded on the payment rid) so a re-render or repeat visit cannot run it twice, then the cart is cleared and `OrderCompletedView` is shown.
+
+### Checkout payment methods
+
+The method list is **backend-driven** — admin settings, not a client constant.
+`data/checkoutPaymentMethods.ts` owns the mapping and brand artwork.
+
+The fixed six-method list that used to live in `data/cart.ts` has been **removed**;
+that module no longer exports any payment method types or data.
+
+| Source | When |
+|--------|------|
+| `GET /checkout/preview` → `paymentMethods[]` | Normal checkout — `CheckoutView` loads it with the rest of the preview and preselects the first method |
+| `GET /payment-methods/checkout?currency=&country=` | When the list is needed with no cart. Public, no auth. `currency` is sent alone when the destination is unknown, so the backend withholds country-scoped methods rather than showing one that cannot pay |
+
+Each entry is `{ id, rid, code, label, icon, iconUrl }`.
+
+- **`paymentMethodId`** — the shopper's pick, sent as the backend's `rid` when
+  present, else `code`. Both are accepted by the backend. Reported upward from
+  `CheckoutView` via `onPaymentMethodChange` and held in `HomePage`.
+- **Artwork** — `iconUrl` (uploaded path or absolute URL) is used as-is. Otherwise
+  `icon` or `code` is a short artwork key mapped to local brand assets. A bare key
+  is **never** turned into a URL: an unrecognised key renders the label with no
+  image rather than a broken one, so a newly configured method degrades cleanly.
+- **Card rails** (`card`, `visa`, `mastercard`) get the card-specific redirect copy
+  and show Visa as a secondary mark next to Mastercard.
+- **Empty list is respected.** The backend withholds methods that cannot serve the
+  order's currency or destination; the checkout page says so rather than
+  substituting a local default that would fail on submit.
+
+**Rejections** (`isPaymentMethodRejection`) recover by asking for a different
+method. All leave the order awaiting payment, so the shopper retries with the same
+idempotency key — it is the same decision, not a new one. The selection is cleared
+so the list reloads and the failed method cannot be silently resubmitted.
+
+| Code | Status | Meaning |
+|------|--------|---------|
+| `payment_method_not_found` | 404 | Unknown id (admin removed it, or a stale list) |
+| `payment_method_unavailable` | 422 | Method does not serve the order currency |
+| `payment_method_declined` | 422 | Provider declined this shopper (Tabby rejects here) |
 
 ### Idempotency-Key
 

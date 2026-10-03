@@ -5,6 +5,7 @@ import {
   mapApiProduct,
   mapApiProfile,
   mapApiReviewSlots,
+  mapApiReviewedReviewSlots,
 } from '../api/mappers'
 import { accountApi, ordersApi } from '../api'
 import { ApiError } from '../api/client'
@@ -52,12 +53,14 @@ import {
   type ProfileTab,
 } from '../data/profile'
 import { paymentTypeLabel, type PaymentMethodRecord } from '../data/paymentMethods'
+import { formatIsoDate } from '../data/format'
 import { images } from '../assets/images'
 import { AddReviewModal } from './AddReviewModal'
 import { EditProfileModal } from './EditProfileModal'
 import { BrowsingHistoryPanel } from './BrowsingHistoryPanel'
 import { AddressesPanel } from './AddressesPanel'
 import { PaymentMethodsPanel } from './PaymentMethodsPanel'
+import { RatingStars } from './RatingStars'
 import { NotificationsPanel } from './NotificationsPanel'
 import { ListingLoader } from './ListingLoader'
 import { AccountEmptyState } from './AccountEmptyState'
@@ -103,7 +106,7 @@ const accountNavItems: AccountNavItem[] = [
   { id: 'profile', label: 'Your profile', icon: UserLineIcon },
   { id: 'history', label: 'Browsing history', icon: HistoryLineIcon },
   { id: 'addresses', label: 'Addresses', icon: UserLocationLineIcon },
-  { id: 'payments', label: 'Your payment methods', icon: Wallet3LineIcon },
+  { id: 'payments', label: 'Saved cards', icon: Wallet3LineIcon },
   { id: 'notifications', label: 'Notifications', icon: Notification3LineIcon },
 ]
 
@@ -698,6 +701,60 @@ function WaitingReviewRow({
   )
 }
 
+/**
+ * A submitted review is not published until staff approve it, so the row says
+ * which state it is in and shows what the shopper actually wrote rather than an
+ * empty shell.
+ */
+function ReviewStatusBadge({ status }: { status: ReviewedReviewRecord['status'] }) {
+  const isPublished = status === 'published'
+
+  return (
+    <span
+      className={`rounded-lg px-2 py-1 text-xs font-medium leading-4 tracking-[-0.24px] ${
+        isPublished ? 'bg-green-light text-primary-green' : 'bg-bg-secondary text-text-secondary'
+      }`}
+    >
+      {isPublished ? 'Published' : 'Awaiting approval'}
+    </span>
+  )
+}
+
+function ReviewedReviewContent({ review }: { review: ReviewedReviewRecord }) {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="flex flex-col gap-2 lg:gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <ReviewStatusBadge status={review.status} />
+          {review.submittedOn ? (
+            <span className="text-xs font-medium leading-4 tracking-[-0.24px] text-text-tertiary">
+              Reviewed on {review.submittedOn}
+            </span>
+          ) : null}
+        </div>
+
+        {review.title ? (
+          <p className="text-sm font-semibold leading-4.5 tracking-[-0.28px] text-text-primary">
+            {review.title}
+          </p>
+        ) : null}
+
+        {review.text ? (
+          <p className="line-clamp-2 text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
+            {review.text}
+          </p>
+        ) : null}
+      </div>
+
+      {review.rating !== null ? (
+        <div className="mt-2 flex items-center gap-1 lg:mt-4">
+          <RatingStars value={review.rating} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function ReviewedReviewRow({
   review,
   onViewDetails,
@@ -712,7 +769,12 @@ function ReviewedReviewRow({
           <img alt="" className="size-full object-cover" src={review.productImage} />
         </div>
 
-        <ReviewProductDetails review={review} />
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
+            {review.productName}
+          </p>
+          <ReviewedReviewContent review={review} />
+        </div>
       </div>
 
       <ReviewRowActions
@@ -754,7 +816,7 @@ function ReviewsPanel() {
         // Set unconditionally, including for empty results, so an account with
         // nothing to review is not masked by the removed seed rows.
         setWaitingItems(mapApiReviewSlots(waiting))
-        setReviewedItems(mapApiReviewSlots(reviewed))
+        setReviewedItems(mapApiReviewedReviewSlots(reviewed))
       } catch {
         // Keep whatever is on screen; a load failure should not blank the tabs.
       } finally {
@@ -772,7 +834,6 @@ function ReviewsPanel() {
   const pageSize =
     activeFilter === 'waiting' ? WAITING_REVIEWS_PAGE_SIZE : REVIEWED_REVIEWS_PAGE_SIZE
   const filteredReviews = filterReviews(activeFilter, waitingItems, reviewedItems)
-  const visibleReviews = filteredReviews.slice(0, visibleCount)
   const hasMore = visibleCount < filteredReviews.length
   const emptyStateMessage = getReviewsEmptyStateMessage()
 
@@ -840,20 +901,24 @@ function ReviewsPanel() {
         key={reviewModalTarget?.id ?? 'closed'}
         review={reviewModalTarget}
         onClose={() => setReviewModalTarget(null)}
-        onSubmitSuccess={(reviewId) => {
-          setWaitingItems((items) => {
-            const submitted = items.find((item) => item.id === reviewId)
-            if (submitted) {
-              setReviewedItems((reviewed) => [
-                {
-                  ...submitted,
-                  id: `reviewed-${reviewId}`,
-                },
-                ...reviewed,
-              ])
-            }
-            return items.filter((item) => item.id !== reviewId)
-          })
+        onSubmitSuccess={(submitted) => {
+          // The row moves out of waiting and into reviewed using the values the
+          // server accepted. The next load replaces this with the real
+          // `createdAt` and `status`, so it is a preview rather than a guess.
+          const waiting = waitingItems.find((item) => item.id === submitted.reviewId)
+          if (!waiting) return
+
+          const reviewed: ReviewedReviewRecord = {
+            ...waiting,
+            submittedOn: formatIsoDate(new Date().toISOString()),
+            status: submitted.status,
+            rating: submitted.rating,
+            title: submitted.title,
+            text: submitted.detailedReview,
+          }
+
+          setWaitingItems((items) => items.filter((item) => item.id !== submitted.reviewId))
+          setReviewedItems((items) => [reviewed, ...items])
         }}
       />
 
@@ -891,8 +956,11 @@ function ReviewsPanel() {
       ) : filteredReviews.length > 0 ? (
         <div className="px-4">
           <div className="flex flex-col">
+            {/* Each branch reads its own array: the two record types differ, so a
+                single mapped union would narrow to the waiting shape and lose
+                the review content on the reviewed row. */}
             {activeFilter === 'waiting'
-              ? visibleReviews.map((review) => (
+              ? waitingItems.slice(0, visibleCount).map((review) => (
                   <WaitingReviewRow
                     key={review.id}
                     review={review}
@@ -900,7 +968,7 @@ function ReviewsPanel() {
                     onViewDetails={() => void openOrderDetails(review)}
                   />
                 ))
-              : visibleReviews.map((review) => (
+              : reviewedItems.slice(0, visibleCount).map((review) => (
                   <ReviewedReviewRow
                     key={review.id}
                     review={review}

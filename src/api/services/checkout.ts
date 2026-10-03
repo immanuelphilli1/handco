@@ -48,10 +48,13 @@ export async function getShippingQuote(addressRid: string): Promise<{
 export async function createPaymentIntent(
   orderId: string,
   idempotencyKey: string,
+  paymentMethodId?: string,
 ): Promise<PaymentIntentResponse> {
   return apiRequest<PaymentIntentResponse>('/checkout/payment-intent', {
     method: 'POST',
-    body: { orderId },
+    // Sent only when a method was chosen; the backend resolves either a rid or a
+    // code, and the field is omitted entirely when nothing has been picked.
+    body: paymentMethodId ? { orderId, paymentMethodId } : { orderId },
     idempotencyKey,
   })
 }
