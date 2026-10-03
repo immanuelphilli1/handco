@@ -64,6 +64,96 @@ const footerColumns: FooterColumn[] = [
   },
 ]
 
+/**
+ * Phones show one short COMPANY group instead of the five desktop columns,
+ * which are far too long to scan on a small screen. Tablet and up keep the full
+ * column layout.
+ *
+ * These are labels rather than new link objects so each link keeps a single
+ * definition and its href stays in one place. The order below is the order they
+ * appear on mobile, which does not match the column order (Live Chat is a
+ * Customer Support link and Terms is a Terms link).
+ */
+const mobileFooterLinkLabels = [
+  'About H&CO.',
+  'Affiliate, Partnership & Influencer Program',
+  'Live Chat',
+  'Press Releases',
+  'Terms & Conditions',
+]
+
+/** Resolves a label back to its configured link so the href is never duplicated. */
+function findFooterLink(label: string): FooterLink | undefined {
+  for (const column of footerColumns) {
+    const match = column.links.find((link) => link.label === label)
+    if (match) return match
+  }
+
+  return undefined
+}
+
+const mobileFooterLinks = mobileFooterLinkLabels.flatMap((label) => {
+  const link = findFooterLink(label)
+  return link ? [link] : []
+})
+
+const footerHeadingClass = 'text-sm font-medium tracking-[-0.28px] text-text-tertiary'
+const footerLinkClass =
+  'block py-2 text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary'
+const footerLinkButtonClass =
+  'block w-full cursor-pointer py-2 text-left text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary'
+
+/**
+ * One footer link. Navigation, category-modal and placeholder links are all
+ * resolved here so the mobile and desktop layouts cannot render them
+ * differently.
+ */
+function FooterLinkItem({
+  link,
+  onCategoryClick,
+}: {
+  link: FooterLink
+  onCategoryClick?: (link: FooterLink) => void
+}) {
+  if (link.href) {
+    return (
+      <Link to={link.href} className={footerLinkClass}>
+        {link.label}
+      </Link>
+    )
+  }
+
+  if (link.categoryId && onCategoryClick) {
+    return (
+      <button
+        type="button"
+        onClick={() => onCategoryClick(link)}
+        className={footerLinkButtonClass}
+      >
+        {link.label}
+      </button>
+    )
+  }
+
+  return (
+    <a href="#" className={footerLinkClass}>
+      {link.label}
+    </a>
+  )
+}
+
+function FooterSocialIcons() {
+  return (
+    <div className="flex items-center gap-4 lg:gap-1 xl:gap-4">
+      {socialIcons.map((icon) => (
+        <a key={icon.label} href="#" aria-label={icon.label}>
+          <Icon src={icon.src} />
+        </a>
+      ))}
+    </div>
+  )
+}
+
 const socialIcons = [
   { src: images.footer.facebook, label: 'Facebook' },
   { src: images.footer.instagram, label: 'Instagram' },
@@ -98,10 +188,14 @@ export function Footer({ onOpenCategories }: FooterProps) {
   const [email, setEmail] = useState('')
   const [subscribeMessage, setSubscribeMessage] = useState('')
 
-  const handleCategoryLink = (link: FooterLink) => {
-    const categoryId = link.categoryId ?? resolveCategoryId(link.label)
-    onOpenCategories?.(categoryId, link.label)
-  }
+  // Only wired up when the modal can actually be opened, so a category link
+  // falls back to a plain link instead of rendering a button that does nothing.
+  const onCategoryClick = onOpenCategories
+    ? (link: FooterLink) => {
+        const categoryId = link.categoryId ?? resolveCategoryId(link.label)
+        onOpenCategories(categoryId, link.label)
+      }
+    : undefined
 
   const handleSubscribe = async () => {
     if (!email.trim()) return
@@ -122,7 +216,9 @@ export function Footer({ onOpenCategories }: FooterProps) {
       <div className="border border-border-primary px-4 lg:px-16">
         <div className="flex flex-col gap-14 border-x border-border-primary px-4 py-8 lg:px-6 lg:py-16">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+            <div className="hidden lg:block">
             <img alt="H&CO." className="size-22" src={images.footer.logo} />
+            </div>
             <div className="w-full lg:ml-auto lg:w-124">
               <p className="mb-2 text-base font-medium tracking-[-0.32px] text-text-primary lg:text-center">
                 Stay updated with H&CO. newsletters and promotions
@@ -154,48 +250,36 @@ export function Footer({ onOpenCategories }: FooterProps) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-6 md:gap-y-6 md:gap-x-0 lg:gap-6 md:flex-row w-full md:flex-wrap lg:flex-nowrap">
+          {/* Phones: a single COMPANY group with the five links that matter. */}
+          <div className="flex w-full flex-col gap-4 md:hidden">
+            <p className={footerHeadingClass}>COMPANY</p>
+            <ul className="flex flex-col">
+              {mobileFooterLinks.map((link) => (
+                <li key={link.label}>
+                  <FooterLinkItem link={link} onCategoryClick={onCategoryClick} />
+                </li>
+              ))}
+            </ul>
+            <div className="mt-8">
+              <FooterSocialIcons />
+            </div>
+          </div>
+
+          {/* Tablet and up: the full column layout, unchanged. */}
+          <div className="hidden w-full md:flex md:flex-wrap md:gap-y-6 lg:flex-nowrap lg:gap-6">
             {footerColumns.map((column, index) => (
               <div key={column.heading} className="flex min-w-0 flex-col gap-4 md:w-1/3 lg:flex-1">
-                <p className="text-sm font-medium tracking-[-0.28px] text-text-tertiary">
-                  {column.heading}
-                </p>
+                <p className={footerHeadingClass}>{column.heading}</p>
                 <ul className="flex flex-col">
                   {column.links.map((link) => (
                     <li key={link.label}>
-                      {link.href ? (
-                        <Link
-                          to={link.href}
-                          className="block py-2 text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary"
-                        >
-                          {link.label}
-                        </Link>
-                      ) : link.categoryId && onOpenCategories ? (
-                        <button
-                          type="button"
-                          onClick={() => handleCategoryLink(link)}
-                          className="block w-full cursor-pointer py-2 text-left text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary"
-                        >
-                          {link.label}
-                        </button>
-                      ) : (
-                        <a
-                          href="#"
-                          className="block py-2 text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary"
-                        >
-                          {link.label}
-                        </a>
-                      )}
+                      <FooterLinkItem link={link} onCategoryClick={onCategoryClick} />
                     </li>
                   ))}
                 </ul>
                 {index === footerColumns.length - 1 && (
-                  <div className="mt-8 flex items-center gap-4 lg:gap-1 xl:gap-4 lg:mt-0">
-                    {socialIcons.map((icon) => (
-                      <a key={icon.label} href="#" aria-label={icon.label}>
-                        <Icon src={icon.src} />
-                      </a>
-                    ))}
+                  <div className="mt-8 lg:mt-0">
+                    <FooterSocialIcons />
                   </div>
                 )}
               </div>
@@ -244,9 +328,9 @@ export function Footer({ onOpenCategories }: FooterProps) {
 
       <div className="border-b border-border-primary px-4 lg:px-16">
         <div className="flex flex-col gap-2 p-4 lg:flex-row lg:items-center lg:justify-between lg:p-6">
-          <div />
+          {/* <div /> */}
           {/* <img alt="Compliance badges" className="h-12 w-38 object-contain" src={images.footer.compliance} /> */}
-          <div className="lg:w-68 lg:text-right">
+          <div className="lg:w-full lg:text-left">
             <p className="text-sm font-medium tracking-[-0.28px] text-text-tertiary">
             H&CO • Nordbær • Gridvolt • Gründen
             </p>
