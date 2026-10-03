@@ -61,7 +61,10 @@ export function AboutPage() {
         onMobileHome={handleGoHome}
       />
       <div className="mx-auto w-full min-w-0 max-w-360 overflow-x-clip bg-bg-primary">
-        <AboutPageContent onGoHome={handleGoHome} onProductSelect={handleProductSelect} />
+        <AboutPageContent
+          onGoHome={handleGoHome}
+          onProductSelect={handleProductSelect}
+        />
         <Footer onOpenCategories={toggleCategoriesFromLinkBar} />
       </div>
       <BackToTopButton />

@@ -239,6 +239,28 @@ The read-only `RatingStars` moved to `src/components/RatingStars.tsx` so the
 product detail and the Reviewed row share one implementation instead of two
 copies.
 
+### Checkout address resolution (2026-10-03)
+
+`POST /orders` requires an `addressId`, and submit-order read it only from
+`preview.defaultAddressRid ?? preview.address?.rid`. The preview does not send
+`defaultAddressRid` unless the backend has resolved which saved address is
+default, and its `address` object is `null` when it cannot — so a shopper who had
+already added an address (and one flagged default) was still shown the
+"add an address" modal and could never reach payment.
+
+`DefaultAddress` now carries the saved address's `rid`, populated from the
+addresses-list entry in `addressRecordToDefaultPreview` (`AddressRecord.id` is
+that rid). `HomePage` reads it through the same `useDefaultAddress` hook Checkout
+and Your Profile use, and falls back to it:
+
+```ts
+const addressId = preview.defaultAddressRid ?? preview.address?.rid ?? defaultAddress?.rid
+```
+
+The addresses **list** stays the source of truth — the entry flagged `isDefault`
+is what `useDefaultAddress` resolves — so this cannot drift from the profile page.
+The profile payload's embedded copy carries no rid and is still display-only.
+
 ### Address country codes (2026-10-03)
 
 The addresses API stores the country as the ISO 3166-1 alpha-2 **code**
@@ -312,8 +334,21 @@ that module no longer exports any payment method types or data.
 
 | Source | When |
 |--------|------|
-| `GET /checkout/preview` → `paymentMethods[]` | Normal checkout — `CheckoutView` loads it with the rest of the preview and preselects the first method |
-| `GET /payment-methods/checkout?currency=&country=` | When the list is needed with no cart. Public, no auth. `currency` is sent alone when the destination is unknown, so the backend withholds country-scoped methods rather than showing one that cannot pay |
+| `GET /checkout/preview` → `paymentMethods[]` | Baseline list, loaded with the rest of the preview |
+| `GET /payment-methods/checkout?currency=&country=` | Merged on top of the preview with the destination's own currency. Public, no auth. `currency` is sent alone when the destination is unknown, so the backend withholds country-scoped methods rather than showing one that cannot pay |
+
+**Destination currency (mobile money).** The preview prices the cart in the store
+currency (`AED`) when it has no destination, and it only reports methods for the
+currency it priced in. That hid every currency-scoped rail — mobile money is
+configured for `GHS`/`GH`, so a Ghanaian shopper saw only card, Apple Pay and
+Google Pay. `getCheckoutCurrency` maps the default address's country to the
+currency the order will actually be billed in (`GH` → `GHS`, everything else
+`AED`), and the checkout list is fetched with that. `mergeCheckoutPaymentMethods`
+adds those methods to the preview's, keyed by the id that is sent as
+`paymentMethodId`, so neither list can drop a method the other had.
+
+Verified live: `?currency=AED` returns the three card rails,
+`?currency=GHS&country=GH` returns mobile money.
 
 Each entry is `{ id, rid, code, label, icon, iconUrl }`.
 
@@ -410,6 +445,24 @@ payment-intent, which sends the shopper back to place a new order.
 | `GET /content/pages/:slug` | `terms-of-use` | Terms of Use |
 
 **Hook:** `useCmsPage(slug, fallback)` — uses API content when available, otherwise static copy from `src/data/*`.
+
+---
+
+## About page redesign (2026-10-03)
+
+`AboutPageContent` was rebuilt as an editorial layout in the style of
+`ebayinc.com` — oversized hero headline over a full-bleed image, a lede-style
+intro, a numbers band, alternating image/copy splits, a values grid and a
+departments band — while keeping **every** line of the existing copy
+(`aboutIntroParagraphs`, `aboutVisionText`, `aboutValues`,
+`aboutCommitmentParagraphs`). Only two short strings were added for the hero:
+`aboutHeroTitle` and `aboutHeroSubtitle`.
+
+| Decision | Reason |
+|----------|--------|
+| **Numbers band is derived, not written** | It reads `allProducts.length`, `categories.length` and the subcategory count from `CatalogContext`, so it cannot drift from the store. It renders **nothing** until `isReady`, because a "0 products" figure would be false and a hardcoded one would rot. |
+| **One reusable image** | `images.about.placeholder` is used in both split sections until the final photography lands. Swapping it is a one-line change in `src/assets/images.ts`. |
+| **Departments band is a route, not decoration** | Each category links to `getCategoryPath(categoryId)` via the new `onGoToCategory` prop, so About is a way into the catalog rather than a dead end. |
 
 ---
 

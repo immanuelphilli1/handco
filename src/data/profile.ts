@@ -7,6 +7,11 @@ export type UserProfile = {
 }
 
 export type DefaultAddress = {
+  /**
+   * The saved address's rid. `POST /orders` requires an `addressId`, so checkout
+   * needs this and not just the formatted lines.
+   */
+  rid?: string
   contactName: string
   phone: string
   line1: string

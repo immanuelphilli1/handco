@@ -1,6 +1,32 @@
 import { images } from '../assets/images'
 import type { ApiCheckoutPaymentMethod } from '../api/types'
 
+/**
+ * The store's own currency, used when the destination is unknown. The catalog
+ * prices in AED for an unknown destination, so an unknown checkout does too.
+ */
+export const DEFAULT_CHECKOUT_CURRENCY = 'AED'
+
+/**
+ * Currency per destination country.
+ *
+ * `GET /payment-methods/checkout` filters methods by currency, so asking for the
+ * wrong one hides every country-scoped method — that is why mobile money (GHS,
+ * GH) disappears when the store currency is requested instead. Only the countries
+ * this store actually serves need an entry; anything else falls back to the
+ * store currency rather than guessing.
+ */
+const countryCurrency: Record<string, string> = {
+  GH: 'GHS',
+}
+
+/** The currency an order in `countryCode` will be billed in. */
+export function getCheckoutCurrency(countryCode?: string): string {
+  if (!countryCode) return DEFAULT_CHECKOUT_CURRENCY
+
+  return countryCurrency[countryCode.toUpperCase()] ?? DEFAULT_CHECKOUT_CURRENCY
+}
+
 export type CheckoutPaymentMethod = {
   /**
    * The backend's `rid` when it has one, otherwise its `code`. This is what is
@@ -128,6 +154,28 @@ export function mapCheckoutPaymentMethods(
   return (methods ?? [])
     .map(mapCheckoutPaymentMethod)
     .filter((method): method is CheckoutPaymentMethod => method !== null)
+}
+
+/**
+ * Merges a second backend list into the first, keyed by the id that would be sent
+ * as `paymentMethodId`. Entries already present are dropped rather than
+ * duplicated, so calling this with the same list twice is a no-op.
+ */
+export function mergeCheckoutPaymentMethods(
+  existing: CheckoutPaymentMethod[],
+  additional: ApiCheckoutPaymentMethod[] | undefined,
+): CheckoutPaymentMethod[] {
+  const seen = new Set(existing.map((method) => method.id))
+  const merged = [...existing]
+
+  for (const method of mapCheckoutPaymentMethods(additional)) {
+    if (seen.has(method.id)) continue
+
+    seen.add(method.id)
+    merged.push(method)
+  }
+
+  return merged
 }
 
 /**

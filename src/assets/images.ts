@@ -125,5 +125,22 @@ export const images = {
   about: {
     hero: "/assets/about/hero.png",
     shoppingCart: "/assets/about/shopping-cart.png",
+    /**
+     * Photography for the About page. Each entry is named for the band it
+     * serves rather than its filename, so the page can be re-laid-out without
+     * renaming assets. Falls back to `hero` where a slot has no photo yet.
+     */
+    peopleShopping: "/assets/about/IMG_2012.JPG",
+    portrait: "/assets/about/IMG_2047.JPG",
+    mosaicTop: "/assets/about/IMG_2013.JPG",
+    mosaicBottom: "/assets/about/IMG_2018.JPG",
+    vision: "/assets/about/IMG_2020.JPG",
+    featureWide: "/assets/about/IMG_2011.JPG",
+    storefront: "/assets/about/IMG_2052.JPG",
+    /**
+     * Fallback artwork. Kept pointing at the hero so an unphotographed slot
+     * still renders rather than collapsing.
+     */
+    placeholder: "/assets/about/hero.png",
   },
 } as const

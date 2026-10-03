@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import { images } from '../assets/images'
 import { CarouselDots } from './CarouselDots'
-import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
-import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 
 type PromoBannerSectionProps = {
   onShopAllCategories: () => void
@@ -44,27 +42,17 @@ const promoSlides = [
 
 const AUTO_PLAY_INTERVAL_MS = 5000
 
-const promoArrowButton =
-  'group flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-3 transition-colors hover:bg-orange-light active:bg-orange-light'
-const promoArrowIcon =
-  'size-5 text-text-secondary transition-colors group-hover:text-primary-orange'
-
 /**
  * Promotional carousel. Matches `HeroSection`: the same banner height
- * (`h-40 lg:h-80`), the same crossfade, the same desktop arrows, the same dots,
- * the same 5s auto-play that pauses on hover.
+ * (`h-40 lg:h-80`), the same crossfade, the same dots and the same 5s auto-play.
+ *
+ * There are no arrows here by design — the rotation drives itself and the dots
+ * are the only manual control, so the promo band stays a passive promotion rather
+ * than something that has to be operated.
  */
 export function PromoBannerSection({ onShopAllCategories: _onShopAllCategories }: PromoBannerSectionProps) {
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
-
-  const showPreviousSlide = () => {
-    setCurrentSlide((slide) => (slide - 1 + promoSlides.length) % promoSlides.length)
-  }
-
-  const showNextSlide = () => {
-    setCurrentSlide((slide) => (slide + 1) % promoSlides.length)
-  }
 
   useEffect(() => {
     if (isPaused) return
@@ -114,27 +102,6 @@ export function PromoBannerSection({ onShopAllCategories: _onShopAllCategories }
               {activeSlide.description}
             </p> */}
           </div>
-        </div>
-
-        <div className="absolute inset-y-0 left-12 hidden w-12 items-center lg:flex">
-          <button
-            type="button"
-            onClick={showPreviousSlide}
-            className={promoArrowButton}
-            aria-label="Previous offer"
-          >
-            <ArrowLeftSLineIcon className={promoArrowIcon} aria-hidden />
-          </button>
-        </div>
-        <div className="absolute inset-y-0 right-12 hidden w-12 items-center lg:flex">
-          <button
-            type="button"
-            onClick={showNextSlide}
-            className={promoArrowButton}
-            aria-label="Next offer"
-          >
-            <ArrowRightSLineIcon className={promoArrowIcon} aria-hidden />
-          </button>
         </div>
 
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-glass p-1 lg:bottom-4 lg:gap-2 lg:p-2">

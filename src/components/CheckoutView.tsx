@@ -5,8 +5,10 @@ import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import EditBoxLineIcon from 'remixicon-react/EditBoxLineIcon'
 import { shippingSummary, type CartItem } from '../data/cart'
 import {
+  getCheckoutCurrency,
   getMethodHint,
   mapCheckoutPaymentMethods,
+  mergeCheckoutPaymentMethods,
   type CheckoutPaymentMethod,
 } from '../data/checkoutPaymentMethods'
 import { formatAmount, formatDeliveryDays } from '../data/format'
@@ -230,11 +232,30 @@ export function CheckoutView({
         const preview = await checkoutApi.getCheckoutPreview()
         if (cancelled) return
 
-        // Methods are admin-configured, so the preview is the source of truth.
-        // An empty list is respected: the backend withheld every method for this
+        // The preview prices the cart in the store currency when it has no
+        // destination, so its method list hides country-scoped rails (mobile
+        // money in Ghana is configured for GHS, not AED). The endpoint takes the
+        // destination explicitly, so ask it with the address's currency and merge
+        // the result, keeping any preview-only method the second call omits.
+        const currency = getCheckoutCurrency(defaultAddress?.countryCode)
+        let methods = mapCheckoutPaymentMethods(preview.paymentMethods)
+
+        try {
+          const scoped = await checkoutApi.getCheckoutPaymentMethods({
+            currency,
+            country: defaultAddress?.countryCode,
+          })
+          if (cancelled) return
+
+          methods = mergeCheckoutPaymentMethods(methods, scoped.paymentMethods ?? scoped.items)
+        } catch {
+          // The scoped list is an enhancement; the preview list still stands.
+        }
+
+        // Methods are admin-configured, so the backend is the source of truth. An
+        // empty list is respected: the backend withheld every method for this
         // currency/destination, and inventing local defaults would offer a method
         // that cannot pay for the order.
-        const methods = mapCheckoutPaymentMethods(preview.paymentMethods)
         setPaymentMethods(methods)
         setPaymentMethodId((current) => {
           if (current && methods.some((method) => method.id === current)) return current
@@ -267,7 +288,7 @@ export function CheckoutView({
     return () => {
       cancelled = true
     }
-  }, [onPaymentMethodChange])
+  }, [onPaymentMethodChange, defaultAddress?.countryCode])
 
   // Selecting a method is the only place the choice is published.
   const handleSelectPaymentMethod = (id: string) => {

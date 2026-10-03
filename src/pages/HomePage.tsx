@@ -31,6 +31,7 @@ import { useAuth } from '../context/AuthContext'
 import { useCatalog } from '../context/CatalogContext'
 import { useShop } from '../context/ShopContext'
 import { useProductDestination } from '../hooks/useProductDestination'
+import { useDefaultAddress } from '../hooks/useDefaultAddress'
 import { getAllCategoriesListingSelection } from '../data/categoryListing'
 import type { SidebarCategoryId } from '../data/categoriesModal'
 import { useCategoryNavigation } from '../hooks/useCategoryNavigation'
@@ -71,6 +72,10 @@ export function HomePage() {
   const { authUser, requestSignIn } = useAuth()
   const { categories } = useCatalog()
   const { cartItems, clearCart, setLastOrder, refreshCart } = useShop()
+  // The account's default address, resolved from the addresses list. Checkout
+  // reads the same record, and `POST /orders` needs its rid when the checkout
+  // preview omits `defaultAddressRid`.
+  const { address: defaultAddress } = useDefaultAddress()
   const location = useLocation()
   const navigate = useNavigate()
   const params = useParams()
@@ -340,7 +345,13 @@ export function HomePage() {
       setIsStartingPayment(true)
 
       const preview = await checkoutApi.getCheckoutPreview()
-      const addressId = preview.defaultAddressRid ?? preview.address?.rid
+      // `defaultAddressRid` is only sent once the backend knows which address it
+      // should treat as default, so it can be absent even when the account has a
+      // saved default address. `useDefaultAddress` already resolved that record
+      // from the addresses list (the entry flagged `isDefault`), and its rid is
+      // the same value `POST /orders` expects. Falling back to it is what stops a
+      // shopper who has an address from being told they have none.
+      const addressId = preview.defaultAddressRid ?? preview.address?.rid ?? defaultAddress?.rid
       if (!addressId) {
         // An inline error here would leave the shopper stuck on a page with no
         // way forward, so prompt them to add an address instead.
@@ -415,7 +426,7 @@ export function HomePage() {
     } finally {
       setIsStartingPayment(false)
     }
-  }, [authUser, cartItems, paymentMethodId, refreshCart, setLastOrder])
+  }, [authUser, cartItems, defaultAddress, paymentMethodId, refreshCart, setLastOrder])
 
   /**
    * Return leg: the payment succeeded.

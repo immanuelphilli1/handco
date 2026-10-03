@@ -557,6 +557,8 @@ export function mapApiDefaultAddress(address?: ApiDefaultAddress): DefaultAddres
     [address?.phoneCountryCode, address?.phoneNumber].filter(Boolean).join(' ').trim()
 
   return {
+    // The profile's embedded copy is display-only and carries no rid, so this is
+    // only usable when no list entry flagged itself default.
     contactName,
     phone,
     line1: address?.line1 ?? '',
@@ -613,6 +615,8 @@ export function addressRecordToDefaultPreview(address: AddressRecord): DefaultAd
   const cityParts = [address.city, address.region, address.countryName].filter(Boolean)
 
   return {
+    // `POST /orders` needs the address rid, which lives on the list entry.
+    rid: address.id || undefined,
     contactName,
     phone,
     line1: address.addressLine,
