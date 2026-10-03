@@ -20,10 +20,16 @@ const DESKTOP_ITEMS_PER_VIEW = 4
 const DESKTOP_MEDIA_QUERY = '(min-width: 1024px)'
 const TRANSITION_MS = 700
 
+/**
+ * Carousel arrows. On mobile the heading is a single 14px line, so a 42px
+ * (`size-12`) button made the header row twice the height of its own text and
+ * left the section looking loose. `size-9` on mobile keeps a comfortable tap
+ * area while letting the row sit closer to the label.
+ */
 const carouselArrowButton =
-  'group flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-3 transition-colors hover:bg-orange-light active:bg-orange-light'
+  'group flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-2 transition-colors hover:bg-orange-light active:bg-orange-light lg:size-12 lg:px-3'
 const carouselArrowIcon =
-  'size-5 text-text-secondary transition-colors group-hover:text-primary-orange'
+  'size-4 text-text-secondary transition-colors group-hover:text-primary-orange lg:size-5'
 
 function buildLoopedProducts(products: Product[], cloneCount: number) {
   const prefix = products.slice(-cloneCount)
@@ -271,7 +277,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
           <h2 className="flex-1 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary lg:text-2xl lg:leading-8 lg:tracking-[-0.48px]">
             New Arrivals
           </h2>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 lg:gap-4">
             <button
               type="button"
               onClick={isDesktop ? showPreviousSlide : showMobilePrevious}

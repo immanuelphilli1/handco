@@ -57,6 +57,46 @@
   }
 }
 
+/**
+ * Compact density on small screens only.
+ *
+ * Tailwind v4 derives every spacing utility (`p-4`, `gap-2`) and every font size
+ * (`text-sm`) from root variables, so overriding those two variables here tightens
+ * the entire app at once instead of hand-editing hundreds of utility classes.
+ *
+ * Both overrides sit inside `width < 40rem`, so tablet and desktop keep their
+ * current sizing. Breakpoints are unaffected: media queries resolve `rem` against
+ * the browser default rather than this root size, so `lg:` still switches at 1024px.
+ *
+ * The query is written as `max-width` rather than the `width < N` range form on
+ * purpose: the range syntax is compiled to `not all and (width>=40rem)` by the
+ * CSS minifier, which never matches and would silently disable this whole block.
+ */
+@media (max-width: 39.99rem) {
+  :root {
+    /* Type: one step down across the scale, so headings keep their visual
+       hierarchy while fitting more content on screen. This is the change that
+       reads most strongly as "compact". */
+    --text-xs: 0.6875rem;
+    --text-sm: 0.8125rem;
+    --text-base: 0.875rem;
+    --text-lg: 1rem;
+    --text-xl: 1.125rem;
+    --text-2xl: 1.3125rem;
+    --text-3xl: 1.625rem;
+    --text-4xl: 1.875rem;
+    --text-5xl: 2.375rem;
+
+    /* Spacing: a 7/8 scale, so `p-4` goes 16px -> 14px and `gap-2` 8px -> 7px.
+       This also scales `size-*`, since Tailwind backs width and height with the
+       same variable: icons shrink slightly (fine) but so do tap targets
+       (`size-10` wishlist heart: 40px -> 35px). That is still above the ~32px
+       floor for a usable target. If tap comfort should outweigh density, remove
+       this one line and keep the type scale alone. */
+    --spacing: 0.21875rem;
+  }
+}
+
 @layer utilities {
   .btn-orange {
     background-image:

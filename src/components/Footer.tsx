@@ -99,9 +99,9 @@ const mobileFooterLinks = mobileFooterLinkLabels.flatMap((label) => {
 
 const footerHeadingClass = 'text-sm font-medium tracking-[-0.28px] text-text-tertiary'
 const footerLinkClass =
-  'block py-2 text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary'
+  'block py-1.5 text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary lg:py-2'
 const footerLinkButtonClass =
-  'block w-full cursor-pointer py-2 text-left text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary'
+  'block w-full cursor-pointer py-1.5 text-left text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary lg:py-2'
 
 /**
  * One footer link. Navigation, category-modal and placeholder links are all
@@ -212,9 +212,12 @@ export function Footer({ onOpenCategories }: FooterProps) {
   }
 
   return (
-    <footer className="flex w-full flex-col pb-24 lg:pb-0">
+    // `pb-24` reserved room for the fixed mobile tab bar. The bar sits at the
+    // viewport bottom, not the page bottom, so on the final screenful the extra
+    // 84px reads as dead space; `pb-16` still clears it while scrolling.
+    <footer className="flex w-full flex-col pb-16 lg:pb-0">
       <div className="border border-border-primary px-4 lg:px-16">
-        <div className="flex flex-col gap-14 border-x border-border-primary px-4 py-8 lg:px-6 lg:py-16">
+        <div className="flex flex-col gap-8 border-x border-border-primary px-4 py-6 lg:gap-14 lg:px-6 lg:py-16">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
             <div className="hidden lg:block">
             <img alt="H&CO." className="size-22" src={images.footer.logo} />
@@ -260,7 +263,7 @@ export function Footer({ onOpenCategories }: FooterProps) {
                 </li>
               ))}
             </ul>
-            <div className="mt-8">
+            <div className="mt-4 lg:mt-8">
               <FooterSocialIcons />
             </div>
           </div>
@@ -288,7 +291,7 @@ export function Footer({ onOpenCategories }: FooterProps) {
         </div>
       </div>
 
-      <div className="border-b border-border-primary px-4 lg:px-16">
+      <div className="hidden lg:block border-b border-border-primary px-4 lg:px-16">
         <div className="flex flex-col gap-6 border-x border-border-primary p-4 lg:flex-row lg:items-end lg:gap-4 lg:p-6">
           <div className="flex flex-col gap-6">
             <p className="text-base font-medium tracking-[-0.32px] text-text-secondary">
@@ -327,14 +330,14 @@ export function Footer({ onOpenCategories }: FooterProps) {
       </div>
 
       <div className="border-b border-border-primary px-4 lg:px-16">
-        <div className="flex flex-col gap-2 p-4 lg:flex-row lg:items-center lg:justify-between lg:p-6">
+        <div className="flex flex-col gap-2 p-3 lg:flex-row lg:items-center lg:justify-between lg:p-6">
           {/* <div /> */}
           {/* <img alt="Compliance badges" className="h-12 w-38 object-contain" src={images.footer.compliance} /> */}
           <div className="lg:w-full lg:text-left">
             <p className="text-sm font-medium tracking-[-0.28px] text-text-tertiary">
             H&CO • Nordbær • Gridvolt • Gründen
             </p>
-            <p className="text-base font-medium tracking-[-0.32px] text-text-secondary">
+            <p className="text-[10px] lg:text-base font-medium tracking-[-0.32px] text-text-secondary pb-4 lg:pb-0">
               © 2026 Hayes Distribution and Trade Network. All rights reserved.
             </p>
           </div>

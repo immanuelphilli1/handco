@@ -35,9 +35,13 @@ export function HeroSection() {
   }, [isPaused])
 
   return (
-    <section className="p-4 lg:px-16 lg:py-6">
+    // Mobile drops the section padding and the rounded corners so the carousel
+    // runs edge to edge and sits behind the transparent header as a full-bleed
+    // backdrop. Desktop keeps both, since the header there sits above the hero
+    // rather than over it.
+    <section className="lg:px-16 lg:py-6">
       <div
-        className="relative h-40 overflow-hidden rounded-[12px] lg:h-80"
+        className="relative h-52 overflow-hidden lg:h-80 lg:rounded-[12px]"
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
       >
@@ -46,7 +50,7 @@ export function HeroSection() {
             key={slide}
             alt={`Hero banner slide ${index + 1}`}
             aria-hidden={index !== currentSlide}
-            className={`absolute inset-0 size-full rounded-[12px] object-cover transition-opacity duration-500 ${
+            className={`absolute inset-0 size-full object-cover transition-opacity duration-500 lg:rounded-[12px] ${
               index === currentSlide ? 'opacity-100' : 'opacity-0'
             }`}
             src={slide}
@@ -77,6 +81,7 @@ export function HeroSection() {
             count={bannerSlides.length}
             activeIndex={currentSlide}
             onSelect={setCurrentSlide}
+            muted
             className="gap-1 px-0 py-0 lg:gap-2 lg:px-0 lg:py-0"
           />
         </div>

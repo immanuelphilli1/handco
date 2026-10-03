@@ -27,6 +27,15 @@ const navIconButton =
 const navIcon =
   'text-text-secondary transition-colors group-hover:text-primary-orange'
 
+/**
+ * How far the page must scroll before the mobile header stops being transparent.
+ *
+ * A small threshold rather than `> 0`, because a few pixels of rubber-band
+ * overscroll on iOS would otherwise flip the header to its solid state and back,
+ * which reads as a flicker.
+ */
+const SCROLL_THRESHOLD_PX = 24
+
 type NavProps = {
   isCategoriesOpen: boolean
   categoriesTargetId: SidebarCategoryId
@@ -74,12 +83,19 @@ export function Nav({
     [location.pathname],
   )
 
+  // Only the landing page has a hero for the transparent mobile header to sit
+  // over; elsewhere a transparent bar would float on plain white with a white
+  // logo, so those routes always get the solid background.
+  const isHomeRoute = location.pathname === '/'
+
   const handleSignOut = useCallback(async () => {
     await signOut()
     onAfterSignOut?.()
   }, [onAfterSignOut, signOut])
   const headerRef = useRef<HTMLElement>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
+  const [isScrolled, setIsScrolled] = useState(false)
+  const [isMobileViewport, setIsMobileViewport] = useState(false)
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [isMobileAccountMenuOpen, setIsMobileAccountMenuOpen] = useState(false)
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
@@ -193,6 +209,28 @@ export function Nav({
     return () => observer.disconnect()
   }, [isCategoriesOpen, isAccountMenuOpen])
 
+  // Only the mobile/tablet nav floats over the hero. Tailwind's `lg:hidden`
+  // breakpoint hides the desktop nav at 1024px, so the media query matches the
+  // same edge rather than relying on a separate hardcoded value.
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 1023.98px)')
+
+    const syncViewport = () => setIsMobileViewport(mediaQuery.matches)
+    syncViewport()
+    mediaQuery.addEventListener('change', syncViewport)
+
+    return () => mediaQuery.removeEventListener('change', syncViewport)
+  }, [])
+
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > SCROLL_THRESHOLD_PX)
+
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   useEffect(() => {
     if (!isAccountMenuOpen) return
 
@@ -220,13 +258,30 @@ export function Nav({
   const categoriesButtonClass =
     'group flex h-12 w-44 shrink-0 cursor-pointer items-center gap-2 rounded-full p-4 transition-colors hover:bg-orange-light'
 
+  /**
+   * Mobile only: the header floats over the hero while the page is at the top
+   * and gains its solid background once the user scrolls. Desktop is unaffected
+   * because the banner strip above the nav already provides the backdrop.
+   *
+   * Other routes have no hero to sit over, so they stay solid throughout; letting
+   * them go transparent would leave the white logo on a white page.
+   */
+  const isHeaderFloating = isMobileViewport && isHomeRoute && !isScrolled
+  const mobileHeaderBackdropClass = isHeaderFloating ? 'bg-transparent' : 'bg-bg-primary'
+
   return (
     <>
       <header
         ref={headerRef}
-        className="fixed inset-x-0 top-0 z-50 w-full max-w-[100vw] overflow-x-clip bg-bg-primary"
+        className={`fixed inset-x-0 top-0 z-50 w-full max-w-[100vw] overflow-x-clip transition-colors duration-300 lg:bg-bg-primary ${mobileHeaderBackdropClass}`}
       >
-        <div className="relative mx-auto w-full min-w-0 max-w-full border-b border-border-primary">
+        <div
+          className={`relative mx-auto w-full min-w-0 max-w-full transition-colors duration-300 ${
+            // While floating, the border would draw a hard line straight across
+            // the hero image, so it is only shown once the header is solid.
+            isHeaderFloating ? 'border-b border-transparent' : 'border-b border-border-primary'
+          }`}
+        >
           <div className="relative hidden lg:block h-10 overflow-hidden lg:h-12">
             <video
               className="size-full object-cover"
@@ -371,11 +426,20 @@ export function Nav({
             </div>
           </div>
 
-          {/* Mobile navigation */}
+          {/* Mobile navigation. While the header is transparent the logo and search icon
+              sit directly on the hero image, so both are forced to white and the
+              logo uses a filter because `logo-primary.svg` is a dark-fill asset
+              that CSS cannot recolour. */}
           <div className="flex flex-col gap-2 p-4 lg:hidden">
             <div className="flex items-center gap-4">
               <Link to="/" aria-label="Home" className="shrink-0" onClick={() => onMobileHome?.()}>
-                <img alt="H&CO." className="h-6 w-25" src={images.nav.logo} />
+                <img
+                  alt="H&CO."
+                  className={`h-6 w-25 transition-[filter] duration-300 ${
+                    isHeaderFloating ? 'brightness-0 invert' : ''
+                  }`}
+                  src={images.nav.logo}
+                />
               </Link>
 
               <NavSearchBar
@@ -384,6 +448,9 @@ export function Nav({
                 buttonClassName="btn-orange flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full transition-opacity hover:opacity-90"
                 buttonLabelClassName=""
                 onSearchSubmit={onCloseCategories}
+                collapsedIconClassName={
+                  isHeaderFloating ? 'text-text-inverse' : 'text-text-secondary'
+                }
               />
             </div>
           </div>
@@ -421,7 +488,22 @@ export function Nav({
         />
       </header>
 
-      <div aria-hidden className="shrink-0" style={{ height: headerHeight }} />
+      {/*
+        Reserves the header's height so page content clears the fixed bar.
+
+        On mobile the header is transparent at the top of the page and is meant
+        to float over the hero, so the spacer is dropped there and the hero
+        slides up underneath it. Once the user scrolls the header gains its solid
+        background, so the spacer comes back and the content below the hero is
+        still pushed clear of the bar.
+      */}
+      <div
+        aria-hidden
+        className="shrink-0"
+        style={{
+          height: isHeaderFloating ? 0 : headerHeight,
+        }}
+      />
 
       <MobileAppNavigation
         activeTab={isCategoriesOpen ? 'categories' : mobileActiveTab}

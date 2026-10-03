@@ -18,6 +18,10 @@ type NavSearchBarProps = {
    * left open behind the search bar.
    */
   onSearchSubmit?: () => void
+  /** Mobile only: starts expanded instead of behind a search icon. */
+  startExpanded?: boolean
+  /** Mobile only: tints the collapsed search icon, e.g. white over a hero image. */
+  collapsedIconClassName?: string
 }
 
 export function NavSearchBar({
@@ -26,6 +30,8 @@ export function NavSearchBar({
   buttonClassName,
   buttonLabelClassName,
   onSearchSubmit,
+  startExpanded = false,
+  collapsedIconClassName = 'text-text-secondary',
 }: NavSearchBarProps) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
@@ -33,6 +39,14 @@ export function NavSearchBar({
   const inputRef = useRef<HTMLInputElement>(null)
   const { allProducts } = useCatalog()
   const { suggestions, isLoading } = useSearchSuggestions(query, allProducts)
+
+  /**
+   * Mobile collapses the field behind a single search icon to leave room for
+   * the logo, and expands it in place on tap. The desktop bar is always open, so
+   * the state is only consulted for the mobile variant.
+   */
+  const [isExpanded, setIsExpanded] = useState(startExpanded)
+  const isMobile = variant === 'mobile'
 
   // Having text in the field is itself proof of intent, so the list opens on
   // typing alone. Gating on `onFocus` as well would keep it closed whenever
@@ -75,6 +89,41 @@ export function NavSearchBar({
     }
   }, [isOpen])
 
+  /**
+   * Collapse the mobile field when the user taps or tabs away from it. Pointer
+   * alone misses keyboard dismissal, so focus leaving the bar collapses it too.
+   * Any typed query is kept: it lives in component state that survives the
+   * collapse, so re-opening the bar shows the same text.
+   */
+  useEffect(() => {
+    if (!isMobile || !isExpanded) return
+
+    const collapse = () => {
+      setIsExpanded(false)
+      setIsDismissed(true)
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (!containerRef.current?.contains(target)) collapse()
+    }
+
+    const handleFocusOut = (event: FocusEvent) => {
+      const nextTarget = event.relatedTarget
+      if (nextTarget && containerRef.current?.contains(nextTarget as Node)) return
+      collapse()
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('focusout', handleFocusOut)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('focusout', handleFocusOut)
+    }
+  }, [isExpanded, isMobile])
+
   const submitSearch = (term: string) => {
     const trimmed = term.trim()
     if (!trimmed) return
@@ -104,15 +153,76 @@ export function NavSearchBar({
     }
   }
 
+  /**
+   * Expand the collapsed mobile bar and move focus into the field, so typing can
+   * start immediately rather than requiring a second tap.
+   */
+  const expand = () => {
+    setIsExpanded(true)
+    setIsDismissed(false)
+  }
+
+  // Deferred a frame so the field is mounted and laid out before it takes focus;
+  // focusing a `w-0` element on the same tick would leave the mobile keyboard
+  // closed because the browser sees no visible input to focus.
+  useEffect(() => {
+    if (!isMobile || !isExpanded) return
+
+    const frameId = window.requestAnimationFrame(() => inputRef.current?.focus())
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [isExpanded, isMobile])
+
   return (
-    <div ref={containerRef} className="relative min-w-0 flex-1">
+    // `h-6` mirrors the logo's height so the collapsed container still has the
+    // row's box to centre the icon against; the expanded field overrides it via
+    // its own height.
+    <div ref={containerRef} className={`relative min-w-0 flex-1 ${isMobile && !isExpanded ? 'h-[37px]' : ''}`}>
+      {isMobile ? (
+        // Collapsed state is just the icon. It is kept mounted (rather than
+        // unmounted with the field) so the icon can cross-fade with the
+        // expanding bar instead of popping.
+        <button
+          type="button"
+          onClick={expand}
+          aria-label="Search products"
+          aria-expanded={isExpanded}
+          // Kept out of flow and stretched over the row by the `self-stretch` parent, so
+          // it lines up with the logo without needing a fragile offset: the field
+          // is `w-0` while collapsed and would otherwise sit at the row's top
+          // edge rather than centred on it.
+          className={`absolute inset-y-0 right-0 z-10 flex size-auto w-8 shrink-0 cursor-pointer items-center justify-center transition-all duration-300 ease-out hover:bg-bg-secondary ${
+            isExpanded
+              ? 'pointer-events-none scale-75 opacity-0'
+              : 'scale-100 opacity-100'
+          }`}
+        >
+          {/* Sized to the logo's height so the two line up on the header row.
+              The glyph is a filled path, so `bold` is emulated with a thin
+              same-colour stroke rather than a font-weight, which SVG icons
+              ignore. */}
+          <SearchLineIcon
+            className={`size-8 ${collapsedIconClassName}`}
+            strokeWidth={1.5}
+            aria-hidden
+            
+          />
+        </button>
+      ) : null}
+
       <form
         role="search"
         onSubmit={(event) => {
           event.preventDefault()
           submitSearch(query)
         }}
-        className="flex w-full items-center gap-2 rounded-full border border-border-secondary bg-bg-primary p-1"
+        className={`flex items-center gap-2 rounded-full border border-border-secondary bg-bg-primary p-1 transition-all duration-300 ease-out ${
+          isMobile
+            ? isExpanded
+              ? 'w-full scale-100 opacity-100'
+              : 'pointer-events-none absolute right-0 w-0 scale-90 border-transparent bg-transparent p-0 opacity-0'
+            : 'w-full'
+        }`}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
           <SearchLineIcon className="size-5 shrink-0 text-text-tertiary" aria-hidden />

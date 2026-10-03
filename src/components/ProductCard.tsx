@@ -138,7 +138,7 @@ export function ProductCard({
           )}
         </div>
 
-        <div className="relative p-4">
+        <div className="relative p-3 lg:p-4">
           <div className="inline-flex items-center gap-2 rounded-full bg-glass px-2 py-1">
             <StarFillIcon className="size-5 text-primary-gold" aria-hidden />
             <span className="text-base font-medium tracking-[-0.32px] text-text-inverse">
@@ -148,9 +148,9 @@ export function ProductCard({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 px-1 py-2">
+      <div className="flex flex-1 flex-col gap-1.5 px-1 py-1.5 lg:gap-2 lg:py-2">
         <p className="text-sm font-medium tracking-[-0.28px] text-text-secondary">{category}</p>
-        <p className="line-clamp-2 min-h-10 text-base font-semibold tracking-[-0.32px] text-text-primary">
+        <p className="line-clamp-2 text-base font-semibold tracking-[-0.32px] text-text-primary lg:min-h-10">
           {name}
         </p>
         <div className="mt-auto flex flex-col gap-2">
@@ -181,10 +181,10 @@ export function ProductCard({
               <button
                 type="button"
                 onClick={handleAddToCart}
-                className="flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary-orange transition-[opacity,background-color] duration-300 hover:bg-primary-orange/80 lg:pointer-events-none lg:opacity-0 lg:group-hover/card:pointer-events-auto lg:group-hover/card:opacity-100"
+                className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary-orange transition-[opacity,background-color] duration-300 hover:bg-primary-orange/80 lg:size-12 lg:pointer-events-none lg:opacity-0 lg:group-hover/card:pointer-events-auto lg:group-hover/card:opacity-100"
                 aria-label="Add to cart"
               >
-                <AddLineIcon className="size-6 text-text-inverse" aria-hidden />
+                <AddLineIcon className="size-5 text-text-inverse lg:size-6" aria-hidden />
               </button>
             )}
           </div>
