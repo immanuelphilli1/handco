@@ -131,9 +131,9 @@ export const images = {
      * renaming assets. Falls back to `hero` where a slot has no photo yet.
      */
     peopleShopping: "/assets/about/IMG_2012.JPG",
-    portrait: "/assets/about/IMG_2047.JPG",
-    mosaicTop: "/assets/about/IMG_2013.JPG",
-    mosaicBottom: "/assets/about/IMG_2018.JPG",
+    portrait: "/assets/about/IMG_2235.JPG",
+    mosaicTop: "/assets/about/IMG_2023.JPG",
+    mosaicBottom: "/assets/about/IMG_2236.JPG",
     vision: "/assets/about/IMG_2020.JPG",
     featureWide: "/assets/about/IMG_2011.JPG",
     storefront: "/assets/about/IMG_2052.JPG",

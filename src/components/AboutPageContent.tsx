@@ -244,7 +244,7 @@ export function AboutPageContent({ onGoHome, onProductSelect }: AboutPageContent
       {/* Statement: the opening sentence set as the heading, with an artwork
           mosaic opposite it. */}
       <section className={`bg-bg-primary py-12  ${PAGE_GUTTER}`}>
-        <div className="grid gap-10">
+        <div className="grid lg:grid-cols-2 gap-10">
           <div className="flex flex-col gap-5">
             <h2 className="max-w-180 lg:max-w-full text-2xl font-semibold leading-8 tracking-[-0.64px] text-text-primary lg:text-[32px] lg:leading-10 lg:tracking-[-0.96px]">
               At H&CO.
@@ -261,7 +261,7 @@ export function AboutPageContent({ onGoHome, onProductSelect }: AboutPageContent
           <div className="grid grid-cols-2 grid-rows-2 gap-3">
             <AboutImage
               alt="An H&CO. customer"
-              className="row-span-2 aspect-4 rounded-xl"
+              className="row-span-2 aspect-1 rounded-xl"
               src={images.about.portrait}
             />
             <AboutImage
