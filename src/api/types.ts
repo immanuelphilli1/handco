@@ -132,10 +132,15 @@ export type ProductFacets = {
  * The delivery facet as the API sends it. This is a summary of the result set,
  * not a list of filter values: it reports how many products ship free and which
  * maximum delivery day counts occur, so the client builds its own options.
+ *
+ * `deliveryDays` is the wire field name, and each entry is the *upper* bound of a
+ * delivery window present in the listing. It is deliberately not called
+ * `maxDays` — that name belongs to `DeliveryQuote.maxDays`, a per-product
+ * window, and conflating the two is what previously emptied this list.
  */
 export type ApiDeliveryFacet = {
   freeCount: number
-  maxDays: number[]
+  deliveryDays: number[]
 }
 
 /** The facets object as the API actually sends it. */
@@ -388,7 +393,8 @@ export type PlaceOrderResponse = {
   estimatedDelivery: string
   status: ApiOrderStatus
   paymentStatus: ApiOrderPaymentStatus
-  total: Money
+  /** Order total frozen at placement, already including tax. */
+  totalMoney: Money
 }
 
 /** Order lifecycle. `pending_payment` and `cancelled` replaced `pending`/`failed`. */

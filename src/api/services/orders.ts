@@ -45,8 +45,35 @@ export async function getBuyAgainProducts(): Promise<BuyAgainProductsResponse> {
   return apiRequest<BuyAgainProductsResponse>('/orders/buy-again')
 }
 
-export async function returnOrder(orderRid: string, reason: string): Promise<void> {
-  await apiRequest<void>(`/orders/${orderRid}/return`, {
+/**
+ * The return request the backend opens.
+ *
+ * The endpoint answers `201` with this body, so it is returned rather than
+ * discarded: `returnId`/`rid` identify the request (useful for support) and
+ * `status` starts at `requested`.
+ */
+export type ReturnRequestResponse = {
+  success: boolean
+  /** Human-facing return reference. */
+  returnId: string
+  /** Resource rid of the return request. */
+  rid: string
+  status: string
+}
+
+/**
+ * Opens a return request for an order.
+ *
+ * Only allowed after shipping or delivery, and only for returnable categories
+ * inside their window — read `returnEligibility` from the order detail first.
+ * Rejections arrive as `422` with `return_not_allowed` (carrying eligibility
+ * details when the window rule is what blocked it) or `return_already_open`.
+ */
+export async function returnOrder(
+  orderRid: string,
+  reason: string,
+): Promise<ReturnRequestResponse> {
+  return apiRequest<ReturnRequestResponse>(`/orders/${orderRid}/return`, {
     method: 'POST',
     body: { reason },
   })

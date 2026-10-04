@@ -3,6 +3,11 @@
 **Spec audited:** `docs/backend-docs/openapi.yaml` (OpenAPI 3.0.3, 79 path items)
 **Code audited:** `src/api/**` (client, config, 9 service modules, `types.ts`, `mappers.ts`)
 **Date:** 2026-10-04
+**Status:** All nine findings below are **fixed**. `tsc -b`, `npm run lint`, and
+`npm run build` all pass; lint is unchanged from the pre-fix baseline
+(19 errors / 3 warnings, all pre-existing and all outside `src/api`).
+
+---
 
 ## Verdict
 
@@ -11,9 +16,10 @@ sends matches the spec's field names, the `rid`-based identifier convention is
 respected in all path params, and error handling branches on `error.code`
 rather than message text as the spec requires.
 
-Nine real defects were found. Four are silent — the request goes out, the server
-answers, and the client reads a field that is not on the wire, so the UI shows
-empty or `undefined` with no error. Two would fail validation outright.
+Nine defects were found and fixed. Four were silent — the request went out, the
+server answered, and the client read a field that was not on the wire, so the UI
+showed empty or `undefined` with no error. Two would have failed validation
+outright.
 
 ---
 
@@ -26,176 +32,179 @@ body schema, and response schema. Response types in `types.ts` were then compare
 field-by-field against the `components/schemas` they reference, and mapper
 consumption was checked for each field flagged as divergent.
 
-## Severity summary
+## Fix summary
 
-| # | Severity | Area | Defect |
-|---|---|---|---|
-| 1 | High — silent | Checkout | `PlaceOrderResponse.total` should be `totalMoney` |
-| 2 | High — fails | Account | `deleteBrowsingHistory` sends `rids`, spec requires `ids` |
-| 3 | High — fails | Content | `submitQuotation` sends `details`, spec requires `name` |
-| 4 | Medium — silent | Catalog | Delivery facet reads `maxDays`, spec sends `deliveryDays` |
-| 5 | Medium — silent | Payments | `getPaymentNetworks` typed `string[]`, spec returns objects |
-| 6 | Medium — silent | Wishlist | `getWishlistCategories` typed `string[]`, spec returns objects |
-| 7 | Low — silent | Orders | `returnOrder` typed `void`, spec returns a body |
-| 8 | Low — waste | Catalog | `page`/`limit` sent to endpoints that accept neither |
-| 9 | Low — gap | Account | `avatar` accepted by profile PATCH, never sent |
+| # | Severity | Area | Defect | Fix |
+|---|---|---|---|---|
+| 1 | High — silent | Checkout | `PlaceOrderResponse.total` should be `totalMoney` | Renamed |
+| 2 | High — fails | Account | `deleteBrowsingHistory` sent `rids`, spec requires `ids` | Body key corrected |
+| 3 | High — fails | Content | `submitQuotation` sent `details`, spec requires `name` | Signature corrected |
+| 4 | Medium — silent | Catalog | Delivery facet read `maxDays`, spec sends `deliveryDays` | Renamed |
+| 5 | Medium — silent | Payments | `getPaymentNetworks` typed `string[]`, spec returns objects | Retyped |
+| 6 | Medium — silent | Wishlist | `getWishlistCategories` typed `string[]`, spec returns objects | Retyped |
+| 7 | Low — silent | Orders | `returnOrder` typed `void`, spec returns a body | Body returned |
+| 8 | Low — waste | Catalog | `page`/`limit` sent to endpoints that accept neither | Params dropped |
+| 9 | Low — gap | Account | `avatar` accepted by profile PATCH, never sent | Field added |
 
 ---
 
-## 1. `PlaceOrderResponse.total` — field does not exist (silent)
+## 1. `PlaceOrderResponse.total` — field did not exist (silent)
 
-**Severity: High.** Silent: `total` is declared as required on the frontend type
-but the API never sends it, so it reads `undefined` on every successful order.
+**Severity: High.** Silent: `total` was declared required on the frontend type
+but the API never sent it, so it read `undefined` on every successful order.
 
 Spec, `POST /v1/orders` 201:
 
 ```yaml
-1097|                required: [orderId, orderReference, estimatedDelivery, status, paymentStatus, totalMoney]
-1105|                  totalMoney: { $ref: '#/components/schemas/Money' }
+required: [orderId, orderReference, estimatedDelivery, status, paymentStatus, totalMoney]
+# ...
+totalMoney: { $ref: '#/components/schemas/Money' }
 ```
 
-```385:393:src/api/types.ts
+The rest of the API is consistent about `*Money` naming, and `OrderRecord`
+(the order-list schema) also uses `totalMoney` — so this was a genuine
+field-name mistake, not an intentional alias.
+
+**Fixed** — renamed in `src/api/types.ts`:
+
+```393:398:src/api/types.ts
 export type PlaceOrderResponse = {
   orderId: Rid
   orderReference: string
   estimatedDelivery: string
   status: ApiOrderStatus
   paymentStatus: ApiOrderPaymentStatus
-  total: Money
+  /** Order total frozen at placement, already including tax. */
+  totalMoney: Money
 }
 ```
 
-The rest of the API is consistent about `*Money` naming, and `OrderRecord`
-(the order-list schema) also uses `totalMoney` — so this is a genuine field-name
-mistake, not an intentional alias.
-
-**Currently latent:** the only call site reads `orderId`, `orderReference`, and
-`estimatedDelivery`, all of which are correct. Nothing renders `order.total` from
-this response today, so no user-visible breakage yet — but the type promises a
-field that cannot arrive, and the next feature that trusts it will render
-nothing.
-
-**Fix:** rename to `totalMoney: Money`. Note this type also drops `total` from
-`PlaceOrderResponse` while `YourOrdersView`/`OrderTrackingModal` read
-`order.total` — those come from the order *detail/list* mappers, a different
-path, and are fine.
+Safe to rename: the only call site reads `orderId`, `orderReference`, and
+`estimatedDelivery`, all of which were already correct. `ShopContext.lastOrder`
+stores only those same three fields, and `YourOrdersView` / `OrderTrackingModal`
+read `order.total` from the *order detail* mapper, which maps `totalMoney`
+correctly at `mappers.ts:257`. No caller touched the broken field.
 
 ---
 
-## 2. `deleteBrowsingHistory` sends the wrong body key (fails)
+## 2. `deleteBrowsingHistory` sent the wrong body key (fails)
 
-**Severity: High.** This is a hard failure: the body key does not match, so the
-request fails validation and history cannot be deleted.
-
-```233:237:src/api/services/account.ts
-export async function deleteBrowsingHistory(rids: string[]): Promise<void> {
-  await apiRequest('/browsing-history', { method: 'DELETE', body: { rids } })
-}
-```
+**Severity: High.** A hard failure: the body key did not match, so the request
+failed validation and history could not be deleted.
 
 Spec requires `ids`:
 
-```83:90:docs/backend-docs/openapi.yaml
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [ids]
-              properties:
-                ids:
-                  type: array
-                  minItems: 1
+```yaml
+schema:
+  type: object
+  required: [ids]
+  properties:
+    ids:
+      type: array
+      minItems: 1
+      items: { type: string }
+      description: History entry rids.
 ```
 
-The spec is explicit that `ids` are "History entry rids", and `BrowsingHistoryItem.rid`
-is that field — so the client has the right values under the wrong key. The
-caller at `BrowsingHistoryPanel.tsx:384` builds `serverRids` correctly.
+The client had the right values under the wrong key — `BrowsingHistoryPanel`
+already built `serverRids` from the correct `rid` values and already guarded
+against an empty list.
 
-**Fix:** `body: { ids: rids }`. Rename the parameter to `ids` for clarity, and
-align with the spec's `minItems: 1` — an empty array should be skipped client-side.
+**Fixed** in `src/api/services/account.ts`:
+
+```284:295:src/api/services/account.ts
+/**
+ * Deletes the given history entries.
+ *
+ * The body key is `ids` (not `rids`) and takes history *entry* rids, which are
+ * the `rid` on each item rather than the product rid nested inside it. The
+ * backend rejects the request when the key is wrong, so this is not
+ * interchangeable with the parameter name.
+ */
+export async function deleteBrowsingHistory(ids: string[]): Promise<void> {
+  // `minItems: 1`, so an empty list is a guaranteed 422 rather than a no-op.
+  if (ids.length === 0) return
+  await apiRequest('/browsing-history', { method: 'DELETE', body: { ids } })
+}
+```
+
+The `minItems: 1` guard was added rather than left to the caller's existing
+check, so the service is safe to call directly with an empty array.
 
 ---
 
-## 3. `submitQuotation` sends `details`, spec requires `name` (fails)
+## 3. `submitQuotation` sent `details`, spec requires `name` (fails)
 
-**Severity: High.** `name` is required and absent, so every quotation request
-fails with `422 validation_error`.
-
-```34:41:src/api/services/forms.ts
-export async function submitQuotation(input: { email: string; details: string }): Promise<void> {
-  await apiRequest('/quotations', {
-    method: 'POST',
-    body: input,
-    auth: false,
-    cart: false,
-  })
-}
-```
+**Severity: High.** `name` was required and absent, so every quotation request
+would have failed with `422 validation_error`. `details` is not a spec field at
+all — the spec's free-text field is `message`.
 
 Spec requires `email` **and** `name`:
 
-```1524:1534:docs/backend-docs/openapi.yaml
-              type: object
-              required: [email, name]
-              properties:
-                email: { type: string, format: email, maxLength: 255 }
-                name: { type: string, maxLength: 120 }
-                company: { type: string, maxLength: 160 }
-                phone: { type: string, maxLength: 40 }
-                message: { type: string, maxLength: 5000 }
-                productIds:
+```yaml
+required: [email, name]
+properties:
+  email: { type: string, format: email, maxLength: 255 }
+  name: { type: string, maxLength: 120 }
+  company: { type: string, maxLength: 160 }
+  phone: { type: string, maxLength: 40 }
+  message: { type: string, maxLength: 5000 }
+  productIds: { type: array, items: { type: string } }
 ```
 
-`details` is not a spec field at all. The spec's free-text field is `message`.
+**Fixed** in `src/api/services/forms.ts` — both affected endpoints, with
+`name` made **required** so the compiler forces any future caller to supply it,
+plus the optional fields the spec accepts:
 
-**Fix:** `{ email, name, message }`. This requires a product decision — the
-current signature has no `name`, so either add a name input or use a sensible
-placeholder. Not auto-fixable without knowing the intended UX.
+```42:61:src/api/services/forms.ts
+/**
+ * Requests a quotation.
+ *
+ * `email` and `name` are required by the endpoint, and the free-text field is
+ * `message` — there is no `details`. Both are enforced here so a form cannot
+ * compile against a body the API rejects with `422`.
+ */
+export async function submitQuotation(input: {
+  email: string
+  name: string
+  message: string
+  company?: string
+  phone?: string
+  /** Product rids of interest. Stored, not validated. */
+  productIds?: string[]
+}): Promise<void> {
+```
 
-**Related, same root cause:** `submitAgentRequest` sends `{ email, message }` but
-`/v1/support/agent-requests` also requires `name`. Same latent `422`. Neither
-function is called anywhere in the app today (only `subscribeNewsletter` is
-wired up, in `Footer.tsx:204`), which is why this has not surfaced.
+`submitAgentRequest` had the same missing `name` on `/v1/support/agent-requests`
+and was fixed identically, plus `phone` and `orderId`.
+
+Neither function was called anywhere in the app at audit time (only
+`subscribeNewsletter` was wired up, in `Footer.tsx:204`), which is why this never
+surfaced. They remain unwired, so the fix is type-level only — a quotation or
+agent form still has to be built, and it must collect a name.
 
 ---
 
-## 4. Delivery facet reads the wrong key (silent)
+## 4. Delivery facet read the wrong key (silent)
 
-**Severity: Medium.** Silent: the array reads `undefined`, the `??` guard makes it
-empty, and the "delivery within N days" filter options silently vanish from the
-filter panel. Free-delivery counting still works because `freeCount` matches.
+**Severity: Medium.** Silent: the array read `undefined`, the `??` guard made it
+empty, and the "delivery within N days" filter options silently vanished from
+the filter panel. Free-delivery counting still worked because `freeCount`
+matched, which is what masked it.
 
 Spec, `ProductListing.facets.delivery`:
 
-```3180:3190:docs/backend-docs/openapi.yaml
-            delivery:
-              type: object
-              nullable: true
-              required: [freeCount, deliveryDays]
-              properties:
-                freeCount: { type: integer }
-                deliveryDays:
-                  type: array
-                  items: { type: integer }
-                  description: Distinct upper delivery-day cut-offs present in this listing; build the maxDeliveryDays filter options from it.
-```
-
-The client reads `maxDays`:
-
-```98:99:src/api/mappers.ts
-  const maxDays = [...new Set(delivery.maxDays ?? [])].sort((a, b) => a - b)
-  for (const days of maxDays) {
-```
-
-and the type declares it:
-
-```136:139:src/api/types.ts
-export type ApiDeliveryFacet = {
-  freeCount: number
-  maxDays: number[]
-}
+```yaml
+delivery:
+  type: object
+  nullable: true
+  required: [freeCount, deliveryDays]
+  properties:
+    freeCount: { type: integer }
+    deliveryDays:
+      type: array
+      items: { type: integer }
+      description: Distinct upper delivery-day cut-offs present in this listing; build the maxDeliveryDays filter options from it.
 ```
 
 The spec's wording is unusually explicit — "build the maxDeliveryDays filter
@@ -203,59 +212,67 @@ options from it" — which reads like it was written to correct exactly this
 mismatch. The `maxDeliveryDays` *query* param name is what likely misled the
 implementation into naming the response field `maxDays` too.
 
-**Impact:** only when a destination country is known, since `delivery` is null
-otherwise. So the filter section hides correctly for guests, and quietly loses
-its day options for signed-in shoppers with a saved address.
+**Fixed** in `src/api/types.ts` (type) and `src/api/mappers.ts` (read):
 
-**Fix:** rename to `deliveryDays` in `ApiDeliveryFacet` and in
-`buildDeliveryOptions`. Also update the doc comment at `mappers.ts:137` which
-describes the wire format as `{ freeCount, maxDays }`.
+```136:143:src/api/types.ts
+export type ApiDeliveryFacet = {
+  freeCount: number
+  deliveryDays: number[]
+}
+```
+
+```101:101:src/api/mappers.ts
+  const maxDays = [...new Set(delivery.deliveryDays ?? [])].sort((a, b) => a - b)
+```
+
+The local variable keeps the name `maxDays` deliberately: it describes what each
+entry *is* (an upper bound), while `delivery.deliveryDays` names the wire field.
+Two doc comments that described the old wire shape were corrected too, so the
+next reader is not misled back into the same bug.
+
+**Impact when broken:** only when a destination country is known, since `delivery`
+is null otherwise. Guests correctly saw the section hidden; signed-in shoppers
+with a saved address quietly lost their day options.
 
 ---
 
 ## 5. `getPaymentNetworks` typed `string[]` (silent)
 
-**Severity: Medium.** The function returns objects typed as strings, so any
-caller would get `{id, label}` objects where strings were promised.
+**Severity: Medium.** The function promised strings but the spec returns
+objects, so any caller would have received `{id, label}` where strings were
+declared — and `items` is not in the spec at all, so the fallback was dead code.
 
-```197:202:src/api/services/account.ts
-export async function getPaymentNetworks(): Promise<string[]> {
-  const response = await apiRequest<{ networks?: string[]; items?: string[] }>(
+**Fixed** in `src/api/services/account.ts`:
+
+```204:221:src/api/services/account.ts
+/** A mobile-money network as the API lists it. */
+export type PaymentNetwork = {
+  /** Stable network key, e.g. `mtn`. This is an enum key, not a resource rid. */
+  id: string
+  /** Display name, e.g. `MTN`. */
+  label: string
+}
+
+/**
+ * Mobile-money networks.
+ *
+ * The spec returns one object per network, so the rows are passed through as
+ * objects — `id` is the value to submit with a method, `label` is what to show.
+ */
+export async function getPaymentNetworks(): Promise<PaymentNetwork[]> {
+  const response = await apiRequest<{ networks?: PaymentNetwork[] }>(
     '/payment-methods/networks',
     { auth: false, cart: false },
   )
-  return response.networks ?? response.items ?? []
+  return response.networks ?? []
 }
 ```
 
-Spec returns objects:
-
-```1360:1372:docs/backend-docs/openapi.yaml
-  /v1/payment-methods/networks:
-    get:
-      ...
-              schema:
-                type: object
-                required: [networks]
-                properties:
-                  networks:
-                    type: array
-                    items:
-                      type: object
-                      required: [id, label]
-                      properties:
-                        id: { type: string, example: mtn }
-                        label: { type: string, example: MTN }
-```
-
 The spec's own conventions section flags this: the mobile-money network `id`
-("mtn, vodafone_cash, ...") is one of the documented non-rid `id` fields — it is
-a stable key, not a resource identifier, so `rid` is correctly absent.
+("mtn, vodafone_cash, ...") is one of the documented non-rid `id` fields — a
+stable enum key, not a resource identifier, so `rid` is correctly absent.
 
-**Fix:** return `{ id: string; label: string }[]`. `items` is not in the spec, so
-the fallback should go; the `?? []` guard is enough.
-
-**Currently latent:** no caller exists.
+Still no caller; it becomes usable as-is when mobile money is wired up.
 
 ---
 
@@ -263,136 +280,143 @@ the fallback should go; the `?? []` guard is enough.
 
 **Severity: Medium.** Same shape of mistake as #5.
 
-```11:13:src/api/services/wishlist.ts
-export async function getWishlistCategories(): Promise<{ categories: string[] }> {
-  return apiRequest<{ categories: string[] }>('/wishlist/categories')
+**Fixed** in `src/api/services/wishlist.ts`:
+
+```11:28:src/api/services/wishlist.ts
+/** A category present in the wishlist, as returned for the category filter. */
+export type WishlistCategory = {
+  rid: string
+  /** The value to pass as `?category=` to `GET /wishlist`. */
+  slug: string
+  label: string
+}
+
+/**
+ * Categories present in the wishlist, for the filter control.
+ *
+ * Rows are objects, not strings: filter on `slug`, which is what the listing
+ * endpoint's `category` parameter accepts.
+ */
+export async function getWishlistCategories(): Promise<WishlistCategory[]> {
+  const response = await apiRequest<{ categories?: WishlistCategory[] }>(
+    '/wishlist/categories',
+  )
+  return response.categories ?? []
 }
 ```
 
-Spec returns objects:
-
-```1618:1631:docs/backend-docs/openapi.yaml
-  /v1/wishlist/categories:
-    get:
-      ...
-                type: object
-                required: [categories]
-                properties:
-                  categories:
-                    type: array
-                    items:
-                      type: object
-                      required: [rid, slug, label]
-                      properties:
-                        rid: { type: string }
-                        slug: { type: string }
-                        label: { type: string }
-```
-
-**Fix:** `{ categories: Array<{ rid: string; slug: string; label: string }> }`.
-Callers should filter on `slug` (the field the spec marks as present, and the
-one `GET /wishlist?category=` expects), not the object identity.
-
-**Currently latent:** no caller exists — wishlist category filtering is not yet
-wired up in the UI.
+The return shape changed from `{ categories: string[] }` to `WishlistCategory[]`
+so callers get rows directly. Still no caller — wishlist category filtering is
+not yet in the UI.
 
 ---
 
-## 7. `returnOrder` discards a response body (low)
+## 7. `returnOrder` discarded a response body (low)
 
-**Severity: Low.** Not a bug today, but the spec returns a meaningful body that
-the client throws away, so it cannot show a return reference or status.
+**Severity: Low.** Not a bug in itself, but the spec returns a meaningful body
+that the client threw away, so it could not show a return reference or status.
 
-```48:53:src/api/services/orders.ts
-export async function returnOrder(orderRid: string, reason: string): Promise<void> {
-  await apiRequest<void>(`/orders/${orderRid}/return`, {
-    method: 'POST',
-    body: { reason },
-  })
+Spec returns `201` with `{success, returnId, rid, status}`.
+
+**Fixed** in `src/api/services/orders.ts` — the body is now returned as a typed
+result:
+
+```48:78:src/api/services/orders.ts
+/**
+ * The return request the backend opens.
+ *
+ * The endpoint answers `201` with this body, so it is returned rather than
+ * discarded: `returnId`/`rid` identify the request (useful for support) and
+ * `status` starts at `requested`.
+ */
+export type ReturnRequestResponse = {
+  success: boolean
+  /** Human-facing return reference. */
+  returnId: string
+  /** Resource rid of the return request. */
+  rid: string
+  status: string
 }
 ```
 
-Spec returns `201` with:
-
-```1271:1281:docs/backend-docs/openapi.yaml
-                type: object
-                required: [success, returnId, rid, status]
-                properties:
-                  success: { type: boolean, example: true }
-                  returnId: { type: string }
-                  rid: { type: string }
-                  status: { type: string, example: requested }
-```
+The existing caller (`YourOrdersView.handleReturnRequest`) discards the value,
+which still compiles — the return modal owns its own success and error states.
+Surfacing the reference in the success message is a small follow-up if wanted,
+deliberately left out here to avoid widening scope into UI copy.
 
 Note this endpoint takes **no** `X-Cart-Id`/`CartId` parameter in the spec, and
 the client correctly does not force one.
-
-**Fix:** return a typed `{ success: boolean; returnId: string; rid: string; status: string }`
-so the UI can confirm with the actual reference.
 
 ---
 
 ## 8. `page`/`limit` sent to endpoints that accept neither (low)
 
-**Severity: Low.** Wasteful, and quietly misleading — these suggest the endpoints
-paginate when they do not.
+**Severity: Low.** Wasteful, and quietly misleading — the calls implied the
+endpoints paginate when they do not.
 
 `GET /v1/reviews/waiting` and `GET /v1/reviews/reviewed` declare **no** query
-parameters at all, yet:
+parameters at all, yet both were sending `page` and `limit`. Both responses are
+`{ items: [...] }` with no `total`, `page`, or `limit`, so the client-side
+`limit` did nothing and the caller had to truncate anyway.
 
-```205:211:src/api/services/account.ts
-export async function getWaitingReviews(page = 1, limit = 3): Promise<ReviewsResponse> {
-  return apiRequest('/reviews/waiting', { searchParams: { page, limit } })
-}
+**Fixed** in `src/api/services/account.ts` — the params are gone and the trim
+happens client-side via a shared helper:
 
-export async function getReviewedReviews(page = 1, limit = 4): Promise<ReviewsResponse> {
-  return apiRequest('/reviews/reviewed', { searchParams: { page, limit } })
+```236:260:src/api/services/account.ts
+/**
+ * Trims a review list to `count` rows.
+ *
+ * The list endpoints return the full set with no paging metadata, so the
+ * dashboard's "show a few" behaviour is applied client-side rather than by
+ * asking the server for a page.
+ */
+function sliceReviewItems(response: ReviewsResponse, count: number): ReviewsResponse {
+  const items = response.items ?? response.reviews
+  if (!items || items.length <= count) return response
+
+  const trimmed = items.slice(0, count)
+  // Preserve whichever key the endpoint actually used, so callers that read
+  // `items` and callers that read `reviews` both keep working.
+  return response.items ? { ...response, items: trimmed } : { ...response, reviews: trimmed }
 }
 ```
 
-Both responses are `{ items: [...] }` with no `total`, `page`, or `limit`. The
-client-side `limit` parameter does nothing; the caller must truncate itself.
-
-**Fix:** drop `page`/`limit` from these calls and slice the returned `items`
-where a shorter list is wanted, or ask the backend to add real pagination.
+The parameter changed from `(page, limit)` to `(count = 3)` / `(count = 4)`, so
+the name no longer implies server-side paging. Both callers in `YourOrdersView`
+invoke them with no arguments, so behaviour is unchanged. The helper preserves
+whichever key the endpoint used (`items` or `reviews`) rather than assuming one.
 
 **Also worth noting:** `GET /v1/products/{product}/reviews` *does* paginate
 (`page`, `limit`, and echoes both back), and `getProductReviews` handles that
-correctly. So the review-list endpoints are the inconsistent ones.
+correctly. So the product-review endpoint is the inconsistent one — it is the
+only one that can actually page.
 
 ---
 
 ## 9. `avatar` accepted but never sent (low)
 
-**Severity: Low.** Spec allows it, client omits it — no breakage, but it means
-the avatar field the spec describes is unreachable from the UI.
+**Severity: Low.** Spec allows it, client omitted it — no breakage, but the
+avatar field the spec describes was unreachable from the UI.
 
-```1967:1975:docs/backend-docs/openapi.yaml
-              type: object
-              properties:
-                fullName: { type: string, maxLength: 120 }
-                displayName: { type: string, maxLength: 60, nullable: true }
-                avatar: { type: string, maxLength: 500, nullable: true }
-```
+**Fixed** in `src/api/services/account.ts` — `avatar` added to the input, and
+`displayName` widened to `string | null` to match the spec's `nullable: true`:
 
-`updateProfile` sends only `fullName`/`displayName`:
-
-```37:47:src/api/services/account.ts
+```37:48:src/api/services/account.ts
+/**
+ * Partial profile update — only the sent fields change.
+ *
+ * `avatar` is a URL or path string, and `null` clears it, so it is passed
+ * through verbatim rather than dropped when falsy.
+ */
 export async function updateProfile(input: {
   fullName?: string
-  displayName?: string
+  displayName?: string | null
+  avatar?: string | null
 }): Promise<ProfileResponse> {
-  return normalizeProfileResponse(
-    await apiRequest<ProfileResponse | ApiProfile>('/users/me/profile', {
-      method: 'PATCH',
-      body: input,
-    }),
-  )
-}
 ```
 
-**Fix:** optional. Add `avatar?: string | null` to the input if avatar uploads
-are wanted.
+No caller passes `avatar` yet, so this is capability-only: an avatar field in the
+profile form can now reach the API.
 
 ---
 
@@ -461,10 +485,16 @@ are enumerated in `ORDER_CONFLICT_CODES`.
 
 ---
 
-## Wider observation: `rid ?? id` fallbacks
+## Left in place deliberately
 
-Several places fall back to an `id` field the spec says does not exist —
-e.g. `catalog.ts` de-duplicates with `item.rid ?? item.id`, and `types.ts` keeps
+Two things were flagged during the audit and **not** changed, because both are
+defensive rather than wrong, and removing them is a judgement call that should
+be made against a live API rather than the spec.
+
+### `rid ?? id` fallbacks
+
+Several places fall back to an `id` field the spec says does not exist — e.g.
+`catalog.ts` de-duplicates with `item.rid ?? item.id`, and `types.ts` keeps
 `id?: Rid` alongside `rid` on `ApiProductCard`, `ApiAddress`, `ApiOrderRecord`,
 `ApiCategoryNode`, and others.
 
@@ -473,36 +503,48 @@ and it enumerates the only legitimate `id`s — `NotificationSetting.id`, the
 browsing-history bucket id, the mobile-money network id, and `facets` keys.
 None of those are product, address, or order records.
 
-This is **defensive rather than wrong**, and it does not misread anything: when
-`rid` is present the fallback never fires. But it does hide a real problem —
-the fallbacks are load-bearing for at least one case where a field genuinely
-does not match the spec, and they make it harder to notice. Worth pruning once
-you have confirmed the backend ships `rid` everywhere.
+This does not misread anything: when `rid` is present the fallback never fires.
+But it does make real mismatches harder to spot — as #4 shows, a field that
+genuinely did not match the spec would have been silently absorbed by exactly
+this pattern. Worth pruning once you have confirmed the backend ships `rid`
+everywhere.
 
-Note the categories case is different: `CategoryNode` in the spec has **no**
-`slug` field (only `rid`, `label`, `image`, `imageUrl`, `children`), yet the
-client treats `slug` as "the wire field and the value used everywhere as the
-category id." `CategoryPanel.parent` does have `slug`, and the `categoryId`
-query param accepts a slug. So `slug` on a plain `CategoryNode` is an assumption
-worth confirming against a live response.
+### `CategoryNode.slug` is an assumption
+
+`CategoryNode` in the spec has **no** `slug` field (only `rid`, `label`,
+`image`, `imageUrl`, `children`), yet the client treats `slug` as "the wire field
+and the value used everywhere as the category id." `CategoryPanel.parent` does
+have `slug`, and the `categoryId` query param accepts a slug — so `slug` on a
+plain `CategoryNode` is a client-side assumption, not a documented field.
+
+This is the one place where a load-bearing client expectation is not backed by
+the schema, and it drives the category link bar, `categoryId` filtering, and
+`getApiChildNodes` lookups. **Worth confirming against one live response.**
 
 ---
 
-## Suggested order of work
+## Verification
 
-1. **#2 `deleteBrowsingHistory`** — one-word fix, currently 100% broken.
-2. **#3 `submitQuotation` + `submitAgentRequest`** — need a `name` input first;
-   both endpoints are dead until then.
-3. **#1 `totalMoney`** — rename now, before anything reads it.
-4. **#4 `deliveryDays`** — rename, restores a filter that silently vanished.
-5. **#5 / #6** — retype to the real shapes when those features get built.
-6. **#7 / #8 / #9** — opportunistic.
+Static only: spec text compared against TypeScript source, then re-verified by
+build. No claim here depends on a running server.
 
-## Verification note
+| Check | Result |
+|---|---|
+| `npx tsc -b` | pass |
+| `npm run build` | pass (649 kB / 165 kB gzip) |
+| `npm run lint` | 19 errors / 3 warnings — **identical to the pre-fix baseline**, verified by stashing the changes and re-running. None in `src/api`. |
+| Lints on changed files | none |
 
-This audit is static: spec text compared against TypeScript source. The findings
-above are each traceable to a specific line in either file, and no claim depends
-on a running server. Before acting on #1 and #4 in particular, a single live
-request is worth it — `GET /products?country=AE` will show whether the delivery
-facet key is `deliveryDays` or `maxDays` in the deployed build, and it is the
-one place where the spec and the client disagree on a field the UI depends on.
+The pre-existing lint errors are `react-hooks/set-state-in-effect` and
+`react-refresh/only-export-components` findings in `main.tsx`, `HomePage.tsx`,
+and components — unrelated to this work.
+
+**Recommended live checks.** Two findings were field-name disagreements the spec
+settles but a deployed build can still contradict:
+
+1. `GET /products?country=AE` — confirms the delivery facet key is
+   `deliveryDays` (#4). The one fix here that affects a user-facing filter.
+2. `GET /categories` — confirms whether `CategoryNode` ships `slug`
+   (see above).
+
+Both are single unauthenticated requests.

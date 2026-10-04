@@ -34,9 +34,16 @@ export async function getProfile(): Promise<ProfileResponse> {
   return normalizeProfileResponse(await apiRequest<ProfileResponse | ApiProfile>('/users/me/profile'))
 }
 
+/**
+ * Partial profile update — only the sent fields change.
+ *
+ * `avatar` is a URL or path string, and `null` clears it, so it is passed
+ * through verbatim rather than dropped when falsy.
+ */
 export async function updateProfile(input: {
   fullName?: string
-  displayName?: string
+  displayName?: string | null
+  avatar?: string | null
 }): Promise<ProfileResponse> {
   return normalizeProfileResponse(
     await apiRequest<ProfileResponse | ApiProfile>('/users/me/profile', {
@@ -194,20 +201,63 @@ export async function setDefaultPaymentMethod(
   })
 }
 
-export async function getPaymentNetworks(): Promise<string[]> {
-  const response = await apiRequest<{ networks?: string[]; items?: string[] }>(
+/** A mobile-money network as the API lists it. */
+export type PaymentNetwork = {
+  /** Stable network key, e.g. `mtn`. This is an enum key, not a resource rid. */
+  id: string
+  /** Display name, e.g. `MTN`. */
+  label: string
+}
+
+/**
+ * Mobile-money networks.
+ *
+ * The spec returns one object per network, so the rows are passed through as
+ * objects — `id` is the value to submit with a method, `label` is what to show.
+ */
+export async function getPaymentNetworks(): Promise<PaymentNetwork[]> {
+  const response = await apiRequest<{ networks?: PaymentNetwork[] }>(
     '/payment-methods/networks',
     { auth: false, cart: false },
   )
-  return response.networks ?? response.items ?? []
+  return response.networks ?? []
 }
 
-export async function getWaitingReviews(page = 1, limit = 3): Promise<ReviewsResponse> {
-  return apiRequest('/reviews/waiting', { searchParams: { page, limit } })
+/**
+ * Trims a review list to `count` rows.
+ *
+ * The list endpoints return the full set with no paging metadata, so the
+ * dashboard's "show a few" behaviour is applied client-side rather than by
+ * asking the server for a page.
+ */
+function sliceReviewItems(response: ReviewsResponse, count: number): ReviewsResponse {
+  const items = response.items ?? response.reviews
+  if (!items || items.length <= count) return response
+
+  const trimmed = items.slice(0, count)
+  // Preserve whichever key the endpoint actually used, so callers that read
+  // `items` and callers that read `reviews` both keep working.
+  return response.items ? { ...response, items: trimmed } : { ...response, reviews: trimmed }
 }
 
-export async function getReviewedReviews(page = 1, limit = 4): Promise<ReviewsResponse> {
-  return apiRequest('/reviews/reviewed', { searchParams: { page, limit } })
+/**
+ * Order lines awaiting review.
+ *
+ * The endpoint takes no query parameters and returns every waiting line as
+ * `{ items }`, with no `total`/`page`/`limit` — so `count` is applied here to
+ * keep the dashboard to a fixed number of rows.
+ */
+export async function getWaitingReviews(count = 3): Promise<ReviewsResponse> {
+  const response = await apiRequest<ReviewsResponse>('/reviews/waiting')
+  return sliceReviewItems(response, count)
+}
+
+/**
+ * Reviews the shopper has already submitted, newest first, trimmed to `count`.
+ */
+export async function getReviewedReviews(count = 4): Promise<ReviewsResponse> {
+  const response = await apiRequest<ReviewsResponse>('/reviews/reviewed')
+  return sliceReviewItems(response, count)
 }
 
 export async function submitReview(input: {
@@ -230,8 +280,18 @@ export async function recordBrowsingHistory(productId: string): Promise<void> {
   await apiRequest('/browsing-history', { method: 'POST', body: { productId } })
 }
 
-export async function deleteBrowsingHistory(rids: string[]): Promise<void> {
-  await apiRequest('/browsing-history', { method: 'DELETE', body: { rids } })
+/**
+ * Deletes the given history entries.
+ *
+ * The body key is `ids` (not `rids`) and takes history *entry* rids, which are
+ * the `rid` on each item rather than the product rid nested inside it. The
+ * backend rejects the request when the key is wrong, so this is not
+ * interchangeable with the parameter name.
+ */
+export async function deleteBrowsingHistory(ids: string[]): Promise<void> {
+  // `minItems: 1`, so an empty list is a guaranteed 422 rather than a no-op.
+  if (ids.length === 0) return
+  await apiRequest('/browsing-history', { method: 'DELETE', body: { ids } })
 }
 
 export async function clearBrowsingHistory(): Promise<void> {

@@ -79,11 +79,12 @@ function toFacetList(value: unknown): string[] {
  * Builds the delivery filter options from the API's delivery facet.
  *
  * The facet is a summary rather than a list of choices: it reports how many
- * products in the result set ship free, and which maximum delivery day counts
- * occur. The options are therefore reconstructed here — "Free delivery" when any
- * product is free, plus one option per distinct maximum window ("Within 4 days",
- * "Within 6 days"), ascending. An empty option list means the request had no
- * known destination, so the caller hides the section.
+ * products in the result set ship free (`freeCount`), and which maximum delivery
+ * day counts occur (`deliveryDays`). The options are therefore reconstructed
+ * here — "Free delivery" when any product is free, plus one option per distinct
+ * maximum window ("Within 4 days", "Within 6 days"), ascending. An empty option
+ * list means the request had no known destination, so the caller hides the
+ * section.
  */
 function buildDeliveryOptions(
   delivery: ApiDeliveryFacet | null | undefined,
@@ -95,7 +96,9 @@ function buildDeliveryOptions(
     options.push(DELIVERY_OPTION_FREE)
   }
 
-  const maxDays = [...new Set(delivery.maxDays ?? [])].sort((a, b) => a - b)
+  // The wire field is `deliveryDays`; the local name keeps the per-entry meaning
+  // (an upper bound) visible at the point of use.
+  const maxDays = [...new Set(delivery.deliveryDays ?? [])].sort((a, b) => a - b)
   for (const days of maxDays) {
     options.push(getDeliveryOptionByMaxDays(days))
   }
@@ -134,8 +137,8 @@ function formatDeliveryQuote(deliveryQuote: ApiDeliveryQuote | null | undefined)
  *
  * The wire format does not match `ProductFacets`: brand, colour and screen-size
  * values are duplicated under a nested `attributes` object, and `delivery` is a
- * summary (`{ freeCount, maxDays }`) rather than a list of options — it is null
- * entirely unless the request carried a destination country. Every key is
+ * summary (`{ freeCount, deliveryDays }`) rather than a list of options — it is
+ * null entirely unless the request carried a destination country. Every key is
  * guaranteed to be present, so consumers can read `.length` without guarding.
  */
 export function mapApiProductFacets(facets: ApiProductFacets | undefined): ProductFacets {
