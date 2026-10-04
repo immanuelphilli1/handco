@@ -55,6 +55,7 @@ import {
   type ProfileTab,
 } from '../data/profile'
 import { paymentTypeLabel, type PaymentMethodRecord } from '../data/paymentMethods'
+import { getPaymentNetworkLabel } from '../data/paymentNetworks'
 import { formatIsoDate } from '../data/format'
 import { images } from '../assets/images'
 import { AddReviewModal } from './AddReviewModal'
@@ -70,6 +71,7 @@ import { OrderTrackingModal } from './OrderTrackingModal'
 import { ReturnRefundModal } from './ReturnRefundModal'
 import { useBuyAgain } from '../hooks/useBuyAgain'
 import { useDefaultAddress } from '../hooks/useDefaultAddress'
+import { usePaymentNetworks } from '../hooks/usePaymentNetworks'
 import { useOrderDetail } from '../hooks/useOrderDetail'
 import { useNavigate } from 'react-router-dom'
 import { useShop } from '../context/ShopContext'
@@ -1198,6 +1200,9 @@ function PaymentMethodCard({
   payment?: PaymentMethodRecord | null
   onEdit: () => void
 }) {
+  // The stored network is an enum key, so the API's label list is needed to
+  // display it readably.
+  const { networks } = usePaymentNetworks()
   // Falls back to the static preview when the account has no saved method yet.
   const isEmpty = !payment
 
@@ -1226,7 +1231,8 @@ function PaymentMethodCard({
                 </span>
                 {payment.network ? (
                   <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
-                    {payment.network}
+                    {/* Stored as an enum key (`mtn`), resolved to the API's label. */}
+                    {getPaymentNetworkLabel(networks, payment.network)}
                   </span>
                 ) : null}
                 <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">

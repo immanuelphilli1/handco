@@ -14,6 +14,8 @@ import {
   type PaymentMethodRecord,
   type PaymentMethodType,
 } from '../data/paymentMethods'
+import { getPaymentNetworkLabel, type PaymentNetwork } from '../data/paymentNetworks'
+import { usePaymentNetworks } from '../hooks/usePaymentNetworks'
 
 /** Server errors carry the real reason; fall back to friendly copy. */
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -87,11 +89,13 @@ function PaymentMethodCard({
   onSetDefault,
   onDelete,
   isBusy,
+  networks,
 }: {
   payment: PaymentMethodRecord
   onSetDefault: () => void
   onDelete: () => void
   isBusy: boolean
+  networks: PaymentNetwork[]
 }) {
   return (
     <article className="flex flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary">
@@ -106,7 +110,9 @@ function PaymentMethodCard({
           </span>
           {payment.type === 'mobile_money' && payment.network ? (
             <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
-              {payment.network}
+              {/* Stored as an enum key (`mtn`), so it is resolved to the API's
+                  label before being shown. */}
+              {getPaymentNetworkLabel(networks, payment.network)}
             </span>
           ) : null}
           <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
@@ -146,6 +152,9 @@ export function PaymentMethodsPanel() {
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  // Saved methods carry a network enum key, which needs the API's label to be
+  // displayed, so the network list is read here too.
+  const { networks } = usePaymentNetworks()
 
   useEffect(() => {
     let cancelled = false
@@ -269,6 +278,7 @@ export function PaymentMethodsPanel() {
                 onSetDefault={() => void setDefaultPayment(payment.id)}
                 onDelete={() => void deletePayment(payment.id)}
                 isBusy={isSaving}
+                networks={networks}
               />
             ))}
           </div>

@@ -1,6 +1,7 @@
 import { apiRequest } from '../client'
 import type { AddressRecord } from '../../data/addresses'
 import type { AuthUser } from '../../data/auth'
+import type { PaymentNetwork } from '../../data/paymentNetworks'
 import type { SecuritySettings } from '../../data/profile'
 import type {
   AddressesResponse,
@@ -199,14 +200,6 @@ export async function setDefaultPaymentMethod(
     method: 'PATCH',
     body: {},
   })
-}
-
-/** A mobile-money network as the API lists it. */
-export type PaymentNetwork = {
-  /** Stable network key, e.g. `mtn`. This is an enum key, not a resource rid. */
-  id: string
-  /** Display name, e.g. `MTN`. */
-  label: string
 }
 
 /**

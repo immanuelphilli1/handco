@@ -1,4 +1,25 @@
-export type SignInStep = 'email' | 'password'
+/**
+ * Steps of the sign-in modal.
+ *
+ * `forgot` is the password-reset branch: it collects an email on its own and
+ * asks the API for a reset link instead of checking the password.
+ */
+export type SignInStep = 'email' | 'password' | 'forgot'
+
+/**
+ * Copy for the password-reset view. The confirmation is deliberately neutral
+ * because `POST /auth/forgot-password` always succeeds, so nothing can confirm
+ * whether the address is registered.
+ */
+export const forgotPasswordCopy = {
+  title: 'Reset your password',
+  subtitle: 'Enter the email you use for H&CO and we will send you a reset link.',
+  emailPlaceholder: 'Email address',
+  submitLabel: 'Send reset link',
+  resendLabel: 'Resend reset link',
+  /** Reassurance shown before the request is sent. */
+  privacyNote: 'We will only email you if an account exists for that address.',
+}
 
 export type AuthUser = {
   displayName: string

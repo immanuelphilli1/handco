@@ -7,10 +7,11 @@ import CheckLineIcon from 'remixicon-react/CheckLineIcon'
 import CloseFillIcon from 'remixicon-react/CloseFillIcon'
 import LockLineIcon from 'remixicon-react/LockLineIcon'
 import ShieldCheckFillIcon from 'remixicon-react/ShieldCheckFillIcon'
+import type { PaymentNetwork } from '../data/paymentNetworks'
+import { usePaymentNetworks } from '../hooks/usePaymentNetworks'
 import {
   countryOptionToType,
   emptyPaymentMethodForm,
-  mobileMoneyNetworks,
   paymentCountryOptions,
   paymentSecurityBullets,
   paymentSecurityTitle,
@@ -129,9 +130,13 @@ function CardInputField({
 function NetworkSelect({
   value,
   onChange,
+  networks,
+  isLoading,
 }: {
   value: string
   onChange: (value: string) => void
+  networks: PaymentNetwork[]
+  isLoading: boolean
 }) {
   return (
     <label
@@ -141,15 +146,18 @@ function NetworkSelect({
       <select
         id="payment-network"
         value={value}
+        disabled={isLoading}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full appearance-none bg-transparent pr-8 text-base leading-5 tracking-[-0.32px] outline-none ${
+        className={`w-full appearance-none bg-transparent pr-8 text-base leading-5 tracking-[-0.32px] outline-none disabled:cursor-wait ${
           value ? 'font-medium text-text-primary' : 'font-normal text-text-tertiary'
         }`}
       >
-        <option value="">Network</option>
-        {mobileMoneyNetworks.map((network) => (
-          <option key={network} value={network}>
-            {network}
+        <option value="">{isLoading ? 'Loading networks…' : 'Network'}</option>
+        {/* `id` is submitted and `label` shown, so the stored value is the API's
+            network key rather than its display name. */}
+        {networks.map((network) => (
+          <option key={network.id} value={network.id}>
+            {network.label}
           </option>
         ))}
       </select>
@@ -191,6 +199,8 @@ export function AddPaymentMethodModal({
   onSubmit,
 }: AddPaymentMethodModalProps) {
   const [form, setForm] = useState<PaymentMethodFormValues>(emptyPaymentMethodForm)
+  // The network list is backend-owned, so it is fetched rather than hardcoded.
+  const { networks, isLoading: isLoadingNetworks } = usePaymentNetworks()
 
   useEffect(() => {
     if (!isOpen) return
@@ -338,6 +348,8 @@ export function AddPaymentMethodModal({
                 <NetworkSelect
                   value={form.network}
                   onChange={(value) => updateField('network', value)}
+                  networks={networks}
+                  isLoading={isLoadingNetworks}
                 />
               </div>
             ) : null}

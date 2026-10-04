@@ -1,5 +1,6 @@
 import { apiRequest } from '../client'
 import type {
+  CartSummary,
   CheckoutPaymentMethodsResponse,
   CheckoutPreviewResponse,
   Money,
@@ -42,21 +43,59 @@ export async function getCheckoutPaymentMethods(params: {
 }
 
 /**
- * Shipping quote for a specific saved address.
- *
- * The quote returns structured `feeMoney` and `deliveryDays`; the old `fee` and
- * `deliveryWindow` strings are deprecated, so callers format these themselves.
+ * A quote for one destination. `feeMoney`/`deliveryDays` are structured and are
+ * formatted client-side; the deprecated `fee`/`deliveryWindow` display strings
+ * are not part of this shape.
  */
-export async function getShippingQuote(addressRid: string): Promise<{
+export type ShippingQuote = {
   feeMoney?: Money
-  deliveryDays?: ApiDeliveryDays
-  courierLabel?: string
-}> {
-  return apiRequest<{
-    feeMoney?: Money
-    deliveryDays?: ApiDeliveryDays
-    courierLabel?: string
-  }>('/checkout/shipping-quote', { method: 'POST', body: { addressRid } })
+  deliveryDays?: ApiDeliveryDays | null
+  courierLabel?: string | null
+  /**
+   * Cart totals recomputed for this destination, including tax. This is the
+   * authoritative version of the `GET /checkout/preview` summary once a
+   * destination is known, because the preview has to guess a currency when it
+   * has no address.
+   */
+  summary?: CartSummary
+}
+
+/**
+ * A raw destination, for a guest who has no saved address. `country` is required
+ * in place of `addressRid` and may be an ISO code, rid, or name; the remaining
+ * fields are optional refinements.
+ */
+export type RawShippingAddress = {
+  country: string
+  firstName?: string
+  lastName?: string
+  phoneCountryCode?: string
+  phoneNumber?: string
+  addressLine?: string
+  region?: string
+  city?: string
+  cityLine?: string
+}
+
+/**
+ * Shipping fee and delivery window for a specific destination.
+ *
+ * Quoting by saved address (`addressRid`) requires auth; a guest quotes with a
+ * raw address instead. This is what checkout calls when the shopper changes
+ * their delivery address, because the preview prices the cart for a store
+ * currency when it has no destination and so can quote the wrong fee.
+ */
+export async function getShippingQuote(
+  address: string | RawShippingAddress,
+): Promise<ShippingQuote> {
+  // A bare string is a saved-address rid; an object is a guest's raw address.
+  const body: RawShippingAddress | { addressRid: string } =
+    typeof address === 'string' ? { addressRid: address } : address
+
+  return apiRequest<ShippingQuote>('/checkout/shipping-quote', {
+    method: 'POST',
+    body,
+  })
 }
 
 /**

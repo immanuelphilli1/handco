@@ -18,9 +18,13 @@ against the source rather than carried forward.
 **43 rows, 48 items.** Numbered 1–43 below; the social row counts as 6 links in
 one row, which is where rows and items differ.
 
-**2** need a live request to settle · **18** endpoints implemented but never
+**2** need a live request to settle · **15** endpoints implemented but never
 called · **12** footer links do nothing · **3** are not supported by the backend
 · **6** API fields are received but never rendered · **7** are partially done
+
+Three previously-unwired endpoints were integrated in the most recent pass and
+are listed under **Newly integrated** below rather than as gaps:
+`getShippingQuote`, `forgotPassword`, and `getPaymentNetworks`.
 
 ### Needs a live request first (2)
 
@@ -29,11 +33,10 @@ called · **12** footer links do nothing · **3** are not supported by the backe
 | 1 | Category identifier — client reads `slug`/`id`, spec has neither | `GET /categories` |
 | 2 | Delivery facet key — fixed to `deliveryDays`, unconfirmed live | `GET /products?country=AE` |
 
-### Implemented but never called (18)
+### Implemented but never called (15)
 
 | # | Function | Endpoint | Blocked on |
 |---|----------|----------|-----------|
-| 3 | `getShippingQuote` | `POST /checkout/shipping-quote` | Re-quote on address change |
 | 4 | `getSecurity` | `GET /users/me/security` | Security panel is static |
 | 5 | `updateEmail` | `PATCH /users/me/email` | Security panel is static |
 | 6 | `updatePhone` | `PATCH /users/me/phone` | Security panel is static |
@@ -43,14 +46,24 @@ called · **12** footer links do nothing · **3** are not supported by the backe
 | 10 | `submitAgentRequest` | `POST /support/agent-requests` | No form (**was broken**, fixed) |
 | 11 | `submitPartnershipInquiry` | `POST /partnerships/inquiries` | No form |
 | 12 | `unsubscribeNewsletter` | `POST /newsletter/unsubscribe` | No token-handling UI |
-| 13 | `forgotPassword` | `POST /auth/forgot-password` | No reset flow |
-| 14 | `getPaymentNetworks` | `GET /payment-methods/networks` | Mobile money unsourced (**type fixed**) |
 | 15 | `getWishlistCategories` | `GET /wishlist/categories` | No wishlist filter (**type fixed**) |
 | 16 | `getHomeContent` | `GET /content/home` | Hero/promo blocks static |
 | 17 | `getFooterContent` | `GET /content/footer` | Footer columns static |
 | 18 | `getCities` | `GET /addresses/lookup/cities` | City field is free text by design |
 | 19 | `toAttributeSearchParams` | (serializer) | No attribute filter UI |
 | 20 | `getCategoryPanel` | `GET /categories/:id/panel` | Unused; duplicates `GET /categories` |
+
+### Newly integrated (3)
+
+These were listed as "implemented but never called" and are now wired to real
+UI. They are called out here because each had a contract detail that shaped the
+integration.
+
+| # | Function | Endpoint | Where it is used |
+|---|----------|----------|------------------|
+| 3 | `getShippingQuote` | `POST /checkout/shipping-quote` | `CheckoutView` re-quotes on every default-address rid change |
+| 13 | `forgotPassword` | `POST /auth/forgot-password` | `SignInModal` gained a "Forgot password?" flow |
+| 14 | `getPaymentNetworks` | `GET /payment-methods/networks` | Mobile-money network selector + network labels |
 
 ### Inert footer links (12)
 
@@ -123,7 +136,10 @@ simply no UI for it yet. Grouped by what it would take to finish.
 | `submitAgentRequest` | `POST /support/agent-requests` | A support/agent form. **Also fixed** — `name` was missing from the required set. |
 | `submitPartnershipInquiry` | `POST /partnerships/inquiries` | A partnership form. Signature was already correct (`email`, `name`, `message`). |
 | `unsubscribeNewsletter` | `POST /newsletter/unsubscribe` | Token-handling UI. The token arrives by email link; nothing reads it. |
-| `forgotPassword` | `POST /auth/forgot-password` | A "forgot password" entry point. The reset half (`POST /auth/reset-password`, reachable only via an emailed link) is not called at all. |
+
+`forgotPassword` is **no longer** in this list — `SignInModal` calls it. Note that
+the reset half (`POST /auth/reset-password`) is still uncalled, since it is only
+reachable from an emailed link.
 
 ### Needs a panel wired to existing data
 
@@ -134,9 +150,7 @@ simply no UI for it yet. Grouped by what it would take to finish.
 | `updatePhone` | `PATCH /users/me/phone` | Same panel. |
 | `updatePassword` | `PATCH /users/me/password` | Same panel. |
 | `deleteAccount` | `DELETE /users/me` | No account-deletion UI, and no confirmation flow. |
-| `getPaymentNetworks` | `GET /payment-methods/networks` | Mobile-money networks are not sourced from the API. **Return type was fixed in the audit** — was typed `string[]`, actually `{id, label}` objects. |
 | `getWishlistCategories` | `GET /wishlist/categories` | Wishlist category filtering. **Return type was also fixed** — typed `string[]`, actually `{rid, slug, label}` objects. Filter on `slug`. |
-| `getShippingQuote` | `POST /checkout/shipping-quote` | See "Orders & checkout" below. |
 
 ### Needs a consumer, not a form
 
@@ -161,7 +175,8 @@ simply no UI for it yet. Grouped by what it would take to finish.
 | Item | Status | Notes |
 |------|--------|-------|
 | OAuth sign-in (Facebook, Apple) | Not integrated | The API supports Google only (`unsupported_provider`). The two buttons in `SignInModal` remain inert. |
-| Forgot / reset password | Not integrated | `authApi.forgotPassword` exists but is uncalled; no reset-password UI or email-token flow. |
+| Forgot password request | **Integrated** | `SignInModal` has a "Forgot password?" entry point that calls `authApi.forgotPassword`. The confirmation shown is the API's own wording, which is deliberately non-committal — the endpoint always succeeds to avoid revealing which addresses are registered. |
+| Reset password (set the new one) | Not integrated | `POST /auth/reset-password` takes `{email, token, password, password_confirmation}`. It is only reachable from the emailed link, so nothing in the app calls it yet. |
 | Token refresh retry | Partial | `api/client.ts` retries once on 401 via `/auth/refresh`; no dedicated session-expired UX. |
 | 2FA enable / disable | Not integrated | Endpoints exist under `/users/me/2fa/*`; no account UI. `getSecurity` (which would report `twoFactorEnabled`) is itself uncalled. |
 | Account deletion | Not integrated | `accountApi.deleteAccount` exists; no UI. |
@@ -225,7 +240,17 @@ into six `<a href="#">` elements.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Payment networks list | Not integrated | `GET /payment-methods/networks` is defined but uncalled, so mobile-money networks are not sourced from the API. Its return type was corrected in the audit — it now returns `{id, label}[]` as the API actually sends. |
+| Payment networks list | **Integrated** | `usePaymentNetworks` reads `GET /payment-methods/networks` and feeds the mobile-money network selector in `AddPaymentMethodModal`, replacing a hardcoded three-entry list. Saved methods store an enum key (`mtn`), so `getPaymentNetworkLabel` resolves it to the API's label for display in `PaymentMethodsPanel` and `YourOrdersView`. The audit also corrected the return type to `{id, label}[]`. |
+
+### Known limitation on the networks list
+
+The network selector lives in `AddPaymentMethodModal`, which is **not currently
+rendered by any route** — it has no caller. The API also exposes no create/update
+endpoint for saved payment methods (cards are tokenized provider-side and only
+listed, defaulted and deleted), so there is no supported flow for adding a saved
+mobile-money method through this client today. The fetch, the fallback list and
+the label resolution are all wired and correct; what is missing is a mounted
+surface to reach them.
 
 ---
 
@@ -233,7 +258,9 @@ into six `<a href="#">` elements.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Shipping quote on address change | Partial | `checkoutApi.getShippingQuote` is defined but uncalled. The shipping panel reads `GET /checkout/preview` once on mount, so changing the address does not re-quote. |
+| Shipping quote on address change | **Integrated** | `CheckoutView` runs a `useEffect` keyed on the default address's rid and calls `checkoutApi.getShippingQuote(rid)`, so the fee, delivery days and courier update whenever the address changes instead of staying on the mount-time preview. The preview still seeds the panel, so a failed quote keeps a price on screen rather than blanking it. |
+| Guest shipping quote | Implemented, not called | `getShippingQuote` accepts a raw address (`country` required) for a guest with no saved address, matching the spec. No UI calls that form yet, since checkout itself requires auth. |
+| Quote `summary` totals | Implemented, not surfaced | The response's `summary` (`CartSummary`) is typed and available but the order summary panel still renders its own totals rather than the quote's. |
 | Guest checkout | Not integrated | `POST /orders` requires auth; checkout submit no-ops when signed out (the sign-in modal opens first). By design — the API has no account-free checkout. |
 | Return reference shown to shopper | Not integrated | `returnOrder` now returns the API's `{success, returnId, rid, status}` (it previously discarded the body), but `YourOrdersView` ignores the value — the modal owns its own success state. Showing the reference is a small follow-up. |
 
@@ -295,19 +322,26 @@ Demo credentials (from backend docs): `demo@handco.test` / `password`, or
 
 Ordered by value per unit of work.
 
-1. **Call `checkoutApi.getShippingQuote` when the checkout address changes** — the
-   function already exists; it just needs a `useEffect` keyed on the selected
-   address rid.
-2. **Wire the account security panel** to `getSecurity` + the three PATCH
+1. **Wire the account security panel** to `getSecurity` + the three PATCH
    functions. All four are implemented and unused; this unlocks email, phone,
    password, and the 2FA flag in one pass.
-3. **Build the three footer forms** (quotation, agent, partnership). Two of the
+2. **Build the three footer forms** (quotation, agent, partnership). Two of the
    three service functions were outright broken until this audit, so they need a
    real `name` field in the UI regardless.
-4. **Add the password-reset flow** (request + token) to match the Google flow.
-5. **Wire `cmsApi.getHomeContent` / `getFooterContent` / `useCmsPage('about')`** to
+3. **Add the reset-password half** of the flow. The request step is done; only
+   `POST /auth/reset-password` remains, and it needs a route for the emailed link
+   (`?email=…&token=…`) plus a new-password form.
+4. **Mount `AddPaymentMethodModal`** so the network selector is reachable. Its
+   fetch is wired; nothing renders it. Blocked on a supported way to save a method,
+   since the API exposes no create/update endpoint.
+5. **Surface the quote's `summary`** in `OrderSummaryPanel` so the totals come
+   from the same call that priced the destination, instead of a separate preview.
+6. **Wire `cmsApi.getHomeContent` / `getFooterContent` / `useCmsPage('about')`** to
    remove the remaining static CMS copy.
-6. **Build the attribute filter UI** — the serializer is done and verified; only
+7. **Build the attribute filter UI** — the serializer is done and verified; only
    the controls are missing.
-7. **Settle the two unverified items above** with one live request each, then
+8. **Settle the two unverified items above** with one live request each, then
    align `openapi.yaml` and `CLIENT-DEVELOPER-GUIDE.md` to the answers.
+
+Recently completed, no longer next steps: shipping re-quote on address change,
+the forgot-password request flow, and sourcing mobile-money networks from the API.

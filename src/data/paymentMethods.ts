@@ -25,8 +25,6 @@ export type PaymentMethodFormValues = {
 
 export const paymentSafeguardNotice = 'All data is safeguarded'
 
-export const mobileMoneyNetworks = ['MTN', 'Vodafone Cash', 'AirtelTigo Money']
-
 export const paymentSecurityTitle = 'H&CO protects your card information'
 
 export const paymentSecurityBullets = [

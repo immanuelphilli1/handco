@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { checkoutApi } from '../api'
+import type { ShippingQuote } from '../api/services/checkout'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import EditBoxLineIcon from 'remixicon-react/EditBoxLineIcon'
@@ -17,6 +18,24 @@ import { useShop } from '../context/ShopContext'
 import { useDefaultAddress } from '../hooks/useDefaultAddress'
 import { OrderSummaryPanel } from './OrderSummaryPanel'
 import { PageBreadcrumbs } from './PageBreadcrumbs'
+
+/**
+ * Formats a shipping quote for display.
+ *
+ * The deprecated `fee`/`deliveryWindow` strings are not used; the structured
+ * `feeMoney` and `deliveryDays` are formatted here instead. A missing fee or day
+ * range falls back to the static copy rather than rendering nothing, and a
+ * `null` courier label falls back too, since the courier is optional.
+ */
+function mapShippingQuote(quote: ShippingQuote): typeof shippingSummary {
+  const deliveryDays = formatDeliveryDays(quote.deliveryDays)
+
+  return {
+    fee: quote.feeMoney ? formatAmount(quote.feeMoney) : shippingSummary.fee,
+    deliveryWindow: deliveryDays || shippingSummary.deliveryWindow,
+    courierLabel: quote.courierLabel ?? shippingSummary.courierLabel,
+  }
+}
 
 type CheckoutViewProps = {
   onGoHome: () => void
@@ -205,6 +224,9 @@ export function CheckoutView({
   const [paymentMethods, setPaymentMethods] = useState<CheckoutPaymentMethod[]>([])
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null)
   const [previewShipping, setPreviewShipping] = useState(shippingSummary)
+  // The address the on-screen figures were actually quoted for. Anything else
+  // means the panel is stale, which is what `isQuotingShipping` reports.
+  const [quotedAddressRid, setQuotedAddressRid] = useState<string | null>(null)
   const trackRef = useRef<HTMLDivElement>(null)
 
   /**
@@ -212,6 +234,13 @@ export function CheckoutView({
    * same hook Your Profile uses, so the two always show the same record.
    */
   const { address: defaultAddress } = useDefaultAddress()
+  // The quote is keyed by this rid, so a "Change address" that resolves to a
+  // different record re-quotes instead of leaving the old fee on screen.
+  const addressRid = defaultAddress?.rid
+  // True while the panel is not showing figures for the current address. Derived
+  // rather than set imperatively, so it also covers the gap before the re-quote
+  // resolves without an extra render.
+  const isQuotingShipping = addressRid !== undefined && quotedAddressRid !== addressRid
 
   const previewAddress = useMemo(
     () => ({
@@ -265,17 +294,13 @@ export function CheckoutView({
           return firstId
         })
         // The address comes from the account's default, not the preview copy,
-        // which can be stale. Shipping quotes still come from the preview.
+        // which can be stale. This preview shipping is only a seed: the
+        // destination-aware quote below supersedes it whenever there is a saved
+        // address to quote for.
         if (preview.shipping) {
-          // `fee`/`deliveryWindow` strings are deprecated; the Money amount and
-          // day range are formatted client-side.
-          const feeMoney = preview.shipping.feeMoney
-          const deliveryDays = formatDeliveryDays(preview.shipping.deliveryDays)
-
           setPreviewShipping({
-            fee: feeMoney ? formatAmount(feeMoney) : '',
-            deliveryWindow: deliveryDays,
-            courierLabel: preview.shipping.courierLabel ?? shippingSummary.courierLabel,
+            ...shippingSummary,
+            ...mapShippingQuote(preview.shipping),
           })
         }
       } catch {
@@ -289,6 +314,47 @@ export function CheckoutView({
       cancelled = true
     }
   }, [onPaymentMethodChange, defaultAddress?.countryCode])
+
+  /**
+   * Quotes shipping for the address actually being used.
+   *
+   * The preview above has no destination, so it prices the cart in the store
+   * currency and can quote a fee for the wrong country. Quoting by the saved
+   * address's rid gives the real fee, delivery days and courier for this
+   * destination, and re-runs whenever the address changes.
+   */
+  useEffect(() => {
+    // Without a saved address there is nothing to quote by; the preview stays.
+    if (!addressRid) return
+
+    const rid = addressRid
+    let cancelled = false
+
+    async function loadQuote() {
+      try {
+        const quote = await checkoutApi.getShippingQuote(rid)
+        if (cancelled) return
+
+        setPreviewShipping({
+          ...shippingSummary,
+          ...mapShippingQuote(quote),
+        })
+      } catch {
+        // A failed quote keeps the preview's figures rather than blanking the
+        // panel, so the shopper still sees a price.
+      } finally {
+        // Settled either way, so the panel is no longer marked as updating and
+        // the stale figures are not advertised as this address's quote.
+        if (!cancelled) setQuotedAddressRid(rid)
+      }
+    }
+
+    void loadQuote()
+
+    return () => {
+      cancelled = true
+    }
+  }, [addressRid])
 
   // Selecting a method is the only place the choice is published.
   const handleSelectPaymentMethod = (id: string) => {
@@ -359,11 +425,21 @@ export function CheckoutView({
                     <EditBoxLineIcon className="size-6 text-text-secondary" aria-hidden />
                   </button>
                 </div>
-                <div className="rounded-xl bg-bg-secondary p-4 text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
+                <div
+                  className="rounded-xl bg-bg-secondary p-4 text-sm leading-4.5 tracking-[-0.28px] text-text-primary"
+                  aria-busy={isQuotingShipping}
+                >
                   <p className="font-medium">Shipping: {previewShipping.fee}</p>
                   <div className="mt-2 flex flex-col gap-2 font-normal">
                     <p>{previewShipping.deliveryWindow}</p>
                     <p>{previewShipping.courierLabel}</p>
+                    {/* A re-quote keeps the previous figures on screen, so the
+                        shopper is told they are mid-update rather than settled. */}
+                    {isQuotingShipping ? (
+                      <p aria-live="polite" className="text-text-secondary">
+                        Updating for your address&hellip;
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </div>

@@ -64,12 +64,15 @@ Full detail, including the two items deliberately **not** changed, is in the
 | Catalog hooks | `src/hooks/useCatalogProducts.ts` | Featured, new arrivals, listings, recommendations |
 | Search hooks | `src/hooks/useProductSearch.ts` | Search results, facets and Nav suggestions |
 | Default address | `src/hooks/useDefaultAddress.ts` | One source shared by Your Profile and Checkout |
+| Payment networks | `src/hooks/usePaymentNetworks.ts` | Backend-owned mobile-money network list, shared |
 | Destination | `src/hooks/useProductDestination.ts` | Resolves `?country=` for delivery quotes and tax |
 | CMS hook | `src/hooks/useCmsPage.ts` | Legal pages with static fallback |
 
-**Service surface:** 84 exported functions across 9 modules. 19 have no caller
+**Service surface:** 84 exported functions across 9 modules. 15 have no caller
 outside `src/api/services/` — listed in
-[NOT-INTEGRATED.md](./NOT-INTEGRATED.md#defined-but-never-called).
+[NOT-INTEGRATED.md](./NOT-INTEGRATED.md#defined-but-never-called). (`listProducts`
+and `searchProducts` are called by sibling functions in the same module, so a naive
+text search counts them too; they are not gaps.)
 
 **Provider order:** `BrowserRouter` → `AuthProvider` → `ShopProvider` → routes
 
@@ -87,10 +90,36 @@ outside `src/api/services/` — listed in
 | `POST /auth/refresh` | Automatic retry in `api/client.ts` on 401 |
 | `GET /auth/oauth/google/url` | "Continue with Google" — full-page redirect |
 | `POST /auth/oauth/google` | Callback page — exchanges the one-time `code` |
+| `POST /auth/forgot-password` | "Forgot password?" in `SignInModal` |
 
 **Wired components:** `SignInModal`, `Nav` (via `useAuth`), `AuthContext`, `GoogleOAuthCallbackPage`
 
 Also called on sign-in: `POST /cart/merge`, so the guest cart folds into the account.
+
+### Password reset (request)
+
+`SignInModal` has a third step, `forgot`, reachable from a **Forgot password?**
+link on the password step. It collects the email and calls
+`POST /auth/forgot-password` with `{ email }` (public, no auth, no cart).
+
+The endpoint **always succeeds** — it answers identically whether or not the
+address is registered, so it cannot be used to discover which emails have
+accounts. Two consequences shaped the implementation:
+
+- The confirmation shown is the API's own `message`, returned verbatim from
+  `authApi.forgotPassword`, with a neutral fallback. It never claims the email
+  "has been sent" outright.
+- `checkEmail` is deliberately **not** called first. It would reveal whether an
+  account exists before the reset mail is even requested, defeating the
+  anti-enumeration design.
+
+Errors are reported with `role="alert"`, the success with `role="status"` and
+`aria-live="polite"`. After success the button becomes **Resend reset link**, and
+Back returns to sign-in with the email preserved.
+
+The reset half — `POST /auth/reset-password` (`{email, token, password,
+password_confirmation}`) — is **not** integrated. It is only reachable from the
+emailed link, so it needs a dedicated route that reads the link's query params.
 
 ### Google sign-in (OAuth)
 
@@ -412,6 +441,7 @@ values still work, matched by name, with the rid cleared when the country change
 | Endpoint | UI / behavior |
 |----------|----------------|
 | `GET /checkout/preview` | Checkout address, shipping & payment methods — `CheckoutView` |
+| `POST /checkout/shipping-quote` | Destination-accurate shipping fee & delivery days — `CheckoutView` |
 | `GET /payment-methods/checkout` | Methods without a cart — `getCheckoutPaymentMethods` (public) |
 | `POST /orders` | **First** step of submit — creates the order awaiting payment |
 | `POST /checkout/payment-intent` | **Second** step — opens payment for that order |
@@ -421,6 +451,37 @@ values still work, matched by name, with the rid cleared when the country change
 
 Also implemented: `GET /orders/:rid`, `GET /orders/:rid/tracking`,
 `POST /orders/:rid/buy-again`, `POST /orders/:rid/return`.
+
+### Shipping quote (re-quoted on address change)
+
+`GET /checkout/preview` prices the cart in the **store currency** when it has no
+destination, so its shipping block can quote a fee for the wrong country.
+`POST /checkout/shipping-quote` prices a *specific* destination and is now called
+whenever the shopper's address changes.
+
+- **Trigger** — a `useEffect` in `CheckoutView` keyed on the default address's
+  `rid`. Changing the address resolves to a different rid, which re-quotes. The
+  preview still seeds the panel on mount, so there is never an empty shipping
+  block.
+- **Request** — `getShippingQuote(rid)` posts `{ addressRid }`. The function also
+  accepts a raw address object for a **guest** with no saved address, where the
+  spec requires `country` in place of `addressRid`; no UI calls that form yet,
+  since checkout itself requires auth.
+- **Response** — `feeMoney` (`Money`), `deliveryDays` (`{min, max}`, nullable) and
+  `courierLabel` (nullable). The deprecated `fee` / `deliveryWindow` strings are
+  never used; `mapShippingQuote` formats the structured fields.
+- **Staleness** — `isQuotingShipping` is **derived** by comparing the address rid
+  against the rid the on-screen figures were quoted for, rather than toggled in
+  the effect. This avoids a cascading render and covers the gap before the
+  re-quote resolves. While true, the panel keeps the previous figures and shows
+  "Updating for your address…".
+- **Failure** — a rejected quote leaves the preview's figures in place. The shopper
+  still sees a price rather than a blank panel.
+
+The response's **`summary`** (`CartSummary`, cart totals including tax) is typed
+and available on `ShippingQuote`, but `OrderSummaryPanel` still renders its own
+totals. Surfacing it would mean the totals and the shipping fee come from the
+same call.
 
 ### Payment flow (order-first)
 
@@ -495,6 +556,36 @@ list reloads and the failed method cannot be silently resubmitted.
 | `payment_method_not_found` | 404 | Unknown id (admin removed it, or a stale list) |
 | `payment_method_unavailable` | 422 | Method does not serve the order currency |
 | `payment_method_declined` | 422 | Provider declined this shopper (Tabby rejects here) |
+
+### Mobile-money networks
+
+`GET /payment-methods/networks` returns `{ networks: [{ id, label }] }` — a fixed,
+backend-owned list. It is public and cheap, so `usePaymentNetworks` reads it once
+per mount and shares it.
+
+- **`id` is an enum key, not a resource rid** (`mtn`, `vodafone_cash`). The spec is
+  explicit that this `id` is one of the few non-resource identifiers. It is the
+  value to submit and to match on; `label` is what to show.
+- **Submission vs. display** — `AddPaymentMethodModal` stores the `id` in
+  `<select value>`, so the saved method carries the enum key.
+  `getPaymentNetworkLabel` (`src/data/paymentNetworks.ts`) resolves that key back to
+  the API's label for `PaymentMethodsPanel` and `YourOrdersView`, instead of showing
+  `vodafone_cash` to a shopper. It normalises case, spaces, `_` and `-`, so a
+  deployment echoing the label still matches, and falls back to the raw value for a
+  network no longer in the list.
+- **The hardcoded list was removed.** `mobileMoneyNetworks` (`['MTN', 'Vodafone
+  Cash', 'AirtelTigo Money']`) in `data/paymentMethods.ts` is deleted, so an admin
+  adding a network no longer needs a client change.
+- **Fallback** — on failure the hook keeps a small built-in list. Blocking
+  payment-method entry because a reference list would not load is a worse outcome
+  than showing the three networks the store has always shown.
+
+> **Not yet reachable.** `AddPaymentMethodModal` has no caller, so the selector is
+> wired but not mounted. The API exposes no create/update endpoint for saved payment
+> methods (cards are tokenized provider-side and only listed, defaulted, deleted),
+> so there is no supported way to add a saved mobile-money method through this
+> client today. See
+> [NOT-INTEGRATED.md](./NOT-INTEGRATED.md#payment-methods).
 
 ### Idempotency-Key
 
