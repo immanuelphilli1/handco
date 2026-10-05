@@ -6,7 +6,6 @@ import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import EditBoxLineIcon from 'remixicon-react/EditBoxLineIcon'
 import { shippingSummary, type CartItem } from '../data/cart'
 import {
-  getCheckoutCurrency,
   getMethodHint,
   mapCheckoutPaymentMethods,
   mergeCheckoutPaymentMethods,
@@ -261,19 +260,13 @@ export function CheckoutView({
         const preview = await checkoutApi.getCheckoutPreview()
         if (cancelled) return
 
-        // The preview prices the cart in the store currency when it has no
-        // destination, so its method list hides country-scoped rails (mobile
-        // money in Ghana is configured for GHS, not AED). The endpoint takes the
-        // destination explicitly, so ask it with the address's currency and merge
-        // the result, keeping any preview-only method the second call omits.
-        const currency = getCheckoutCurrency(defaultAddress?.countryCode)
+        // The preview list can be narrower than the full checkout catalog; merge
+        // in `GET /payment-methods/checkout` (no query params) and keep any
+        // preview-only method the second call omits.
         let methods = mapCheckoutPaymentMethods(preview.paymentMethods)
 
         try {
-          const scoped = await checkoutApi.getCheckoutPaymentMethods({
-            currency,
-            country: defaultAddress?.countryCode,
-          })
+          const scoped = await checkoutApi.getCheckoutPaymentMethods()
           if (cancelled) return
 
           methods = mergeCheckoutPaymentMethods(methods, scoped.paymentMethods ?? scoped.items)

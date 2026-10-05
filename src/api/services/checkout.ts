@@ -18,27 +18,15 @@ export async function getCheckoutPreview(): Promise<CheckoutPreviewResponse> {
  * Payment methods for checkout, independent of whether a cart exists.
  *
  * `GET /checkout/preview` only reports methods for the currency it priced the cart
- * in, which is a fixed store currency when no destination is known. This endpoint
- * takes the destination explicitly, so a shopper in a country whose methods are
- * currency-scoped (mobile money in Ghana, for example) sees them here.
- *
- * Availability is filtered server-side. `currency` must match the order's actual
- * currency, because a method configured for one currency is withheld for another;
- * `country` is sent alongside it when the destination is known. Public, so it
- * works signed out and with no cart.
+ * in, which is a fixed store currency when no destination is known. This call
+ * omits query params so the server returns active checkout methods unfiltered;
+ * the client merges them with the preview list. Public — works signed out and
+ * with no cart.
  */
-export async function getCheckoutPaymentMethods(params: {
-  currency?: string
-  country?: string
-}): Promise<CheckoutPaymentMethodsResponse> {
-  const searchParams: Record<string, string> = {}
-  if (params.currency) searchParams.currency = params.currency
-  if (params.country) searchParams.country = params.country
-
+export async function getCheckoutPaymentMethods(): Promise<CheckoutPaymentMethodsResponse> {
   return apiRequest<CheckoutPaymentMethodsResponse>('/payment-methods/checkout', {
     auth: false,
     cart: false,
-    searchParams,
   })
 }
 
