@@ -338,7 +338,7 @@ function OrderCard({
         </button>
       </div>
 
-      <div className={`flex gap-4 px-4 py-4 lg:flex-row lg:items-start lg:gap-10 lg:px-6 ${order.itemCount < 2 ? 'flex-row' : 'flex-col'}`}>
+      <div className="flex flex-col gap-4 px-4 py-4 lg:flex-row lg:items-start lg:gap-10 lg:px-6">
         <OrderProductCarousel images={order.productImages} />
         {/*
           A single-item order has a short action list, so on mobile the buttons sit
