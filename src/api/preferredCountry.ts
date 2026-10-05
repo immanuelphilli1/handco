@@ -1,3 +1,5 @@
+import { coercePreferredCountryStoredValue } from './services/account'
+
 const PREFERRED_COUNTRY_CHANGED = 'handco.preferredCountry.changed'
 const STORAGE_PREFIX = 'handco.preferredCountry.'
 
@@ -18,15 +20,16 @@ export function readStoredPreferredCountry(userKey: string | undefined): string 
 
 export function writeStoredPreferredCountry(
   userKey: string | undefined,
-  preferredCountry: string | null,
+  preferredCountry: unknown,
 ): void {
   if (!userKey) return
+  const stored = coercePreferredCountryStoredValue(preferredCountry)
   try {
-    if (!preferredCountry?.trim()) {
+    if (!stored) {
       sessionStorage.removeItem(storageKey(userKey))
       return
     }
-    sessionStorage.setItem(storageKey(userKey), preferredCountry)
+    sessionStorage.setItem(storageKey(userKey), stored)
   } catch {
     // sessionStorage may be unavailable
   }

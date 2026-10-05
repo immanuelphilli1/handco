@@ -66,15 +66,47 @@ export async function getSecurity(): Promise<SecuritySettings> {
  * rid, or a name, or `null` to clear the preference. The ISO code from the
  * address lookup is what the client sends when the shopper picks from the list.
  */
-type PreferredCountryApiResponse = PreferredCountryResponse & {
-  country?: string | null
+type PreferredCountryApiResponse = {
+  preferredCountry?: unknown
+  country?: unknown
+}
+
+/** Normalises API/session values (string, code object, etc.) to a stored string or null. */
+export function coercePreferredCountryStoredValue(value: unknown): string | null {
+  if (value === null || value === undefined) return null
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed ? trimmed : null
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    const trimmed = String(value).trim()
+    return trimmed ? trimmed : null
+  }
+
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    for (const key of ['code', 'countryCode', 'rid', 'id', 'label', 'name'] as const) {
+      const field = record[key]
+      if (typeof field === 'string' && field.trim()) return field.trim()
+    }
+    if (record.country !== undefined) {
+      return coercePreferredCountryStoredValue(record.country)
+    }
+    if (record.preferredCountry !== undefined) {
+      return coercePreferredCountryStoredValue(record.preferredCountry)
+    }
+  }
+
+  return null
 }
 
 function normalizePreferredCountryResponse(
   response: PreferredCountryApiResponse,
 ): PreferredCountryResponse {
-  const preferredCountry = response.preferredCountry ?? response.country ?? null
-  return { preferredCountry }
+  const raw = response.preferredCountry ?? response.country
+  return { preferredCountry: coercePreferredCountryStoredValue(raw) }
 }
 
 export async function updatePreferredCountry(
@@ -94,10 +126,10 @@ export function preferredCountryOptionValue(option: LookupOption): string {
 
 /** Resolves stored API value to the matching option's select value. */
 export function preferredCountryOptionValueForStored(
-  stored: string | null | undefined,
+  stored: unknown,
   options: LookupOption[],
 ): string {
-  const value = (stored ?? '').trim()
+  const value = coercePreferredCountryStoredValue(stored) ?? ''
   if (!value) return ''
 
   const upper = value.toUpperCase()
@@ -426,10 +458,10 @@ export function preferredCountryPayloadForOption(option: LookupOption): string {
 
 /** Resolves a stored preferred country (code, rid, or name) to an ISO code for `?country=`. */
 export function resolvePreferredCountryToCode(
-  stored: string | null | undefined,
+  stored: unknown,
   options: LookupOption[],
 ): string | undefined {
-  const value = (stored ?? '').trim()
+  const value = coercePreferredCountryStoredValue(stored) ?? ''
   if (!value) return undefined
 
   const upper = value.toUpperCase()
@@ -446,10 +478,10 @@ export function resolvePreferredCountryToCode(
 
 /** Label for the profile select from whatever shape the API stored. */
 export function preferredCountrySelectLabel(
-  stored: string | null | undefined,
+  stored: unknown,
   options: LookupOption[],
 ): string {
-  const value = (stored ?? '').trim()
+  const value = coercePreferredCountryStoredValue(stored) ?? ''
   if (!value) return ''
 
   const upper = value.toUpperCase()
