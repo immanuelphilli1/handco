@@ -73,6 +73,7 @@ import { useBuyAgain } from '../hooks/useBuyAgain'
 import { useDefaultAddress } from '../hooks/useDefaultAddress'
 import { usePaymentNetworks } from '../hooks/usePaymentNetworks'
 import { useOrderDetail } from '../hooks/useOrderDetail'
+import { useOrderReferences } from '../hooks/useOrderReferences'
 import { useNavigate } from 'react-router-dom'
 import { useShop } from '../context/ShopContext'
 import { getCartPath } from '../data/shopRoutes'
@@ -293,6 +294,7 @@ function OrderCard({
   onCancelOrder,
   isBuyingAgain,
   isPayingOrderId,
+  orderReference,
 }: {
   order: OrderRecord
   onBuyAgain: (order: OrderRecord) => void
@@ -303,6 +305,12 @@ function OrderCard({
   onCancelOrder: (order: OrderRecord) => void
   isBuyingAgain: boolean
   isPayingOrderId: string | null
+  /**
+   * Display reference, absent until its background read resolves or if it failed.
+   * The row is omitted rather than shown blank, since the rid is already on the
+   * line above it.
+   */
+  orderReference?: string
 }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-border-primary">
@@ -330,7 +338,7 @@ function OrderCard({
         </button>
       </div>
 
-      <div className="flex flex-col gap-4 px-4 py-4 lg:flex-row lg:items-start lg:gap-10 lg:px-6">
+      <div className={`flex gap-4 px-4 py-4 lg:flex-row lg:items-start lg:gap-10 lg:px-6 ${order.itemCount < 2 ? 'flex-row' : 'flex-col'}`}>
         <OrderProductCarousel images={order.productImages} />
         {/*
           A single-item order has a short action list, so on mobile the buttons sit
@@ -338,9 +346,7 @@ function OrderCard({
           The stacked layout stays on desktop, where the column is a fixed width.
         */}
         <div
-          className={`flex w-full shrink-0 gap-2 lg:w-65.5 lg:flex-col ${
-            order.itemCount < 2 ? 'flex-row' : 'flex-col'
-          }`}
+          className={`flex w-full shrink-0 gap-2 lg:w-65.5 flex-col `}
         >
           <button
             type="button"
@@ -407,6 +413,9 @@ function OrderCard({
         <p>
           Order ID: <span className="font-medium text-text-primary">{order.id}</span>
         </p>
+        {/* The list endpoint does not return the reference, so it arrives from a
+            background read and the row is omitted until it does. */}
+        {orderReference ? <p>Order Reference: {orderReference}</p> : null}
       </div>
     </article>
   )
@@ -480,10 +489,21 @@ function OrdersPanel({
     onOrdersChange(orders)
   }, [onOrdersChange, orders])
 
+  // Hooks run before any early return, so the reference read is started for every
+  // loaded order rather than for the already-filtered set. Filtering on a value
+  // that hook produces would otherwise be circular.
+  const { references } = useOrderReferences(orders.map((order) => order.id))
+
   const filteredOrders = orders.filter((order) => {
     if (!searchQuery.trim()) return true
-    const query = searchQuery.toLowerCase()
-    return order.id.toLowerCase().includes(query)
+    const query = searchQuery.trim().toLowerCase()
+    // The server already filters on rid *or* reference, so a result can match
+    // only on the reference. Matching the rid alone here would then discard the
+    // very rows the shopper searched for.
+    return (
+      order.id.toLowerCase().includes(query) ||
+      references[order.id]?.toLowerCase().includes(query) === true
+    )
   })
 
   const emptyStateMessage = getOrdersEmptyStateMessage(activeFilter, searchQuery.trim().length > 0)
@@ -685,6 +705,7 @@ function OrdersPanel({
               }}
               onCancelOrder={handleCancelOrder}
               isPayingOrderId={isPayingOrderId}
+              orderReference={references[order.id]}
             />
           ))
         ) : (

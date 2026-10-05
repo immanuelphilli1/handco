@@ -394,6 +394,18 @@ export function buildSelectionForProduct(
     }
   }
 
+  // Recommendations on the order confirmation page. Its own label, so the
+  // product's breadcrumbs point back to the confirmation the shopper came from
+  // rather than to an unrelated listing.
+  if (from === 'order-complete') {
+    return {
+      categoryId: 'featured',
+      categoryLabel: 'Order Completed',
+      subcategoryLabel: 'You may also like',
+      subcategoryOptions: [],
+    }
+  }
+
   if (categoryId && subcategory) {
     return {
       categoryId: categoryId as SidebarCategoryId,

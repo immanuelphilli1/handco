@@ -18,7 +18,7 @@ import {
 import { getProductById } from './products'
 
 export type ProductLinkContext =
-  | { from: 'home' | 'featured' | 'wishlist' }
+  | { from: 'home' | 'featured' | 'wishlist' | 'order-complete' }
   | { categoryId: SidebarCategoryId; subcategory: string }
 
 export function getHomePath(): string {

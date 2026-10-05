@@ -5,6 +5,7 @@ import { mapApiOrderAddress, type OrderAddress } from '../api/mappers'
 import type { ApiOrderDetail } from '../api/types'
 import { orderCompletedCopy } from '../data/cart'
 import { cartRecommendations } from '../data/wishlist'
+import { getProductPath } from '../data/shopRoutes'
 import { useShop } from '../context/ShopContext'
 import { useRecommendations } from '../hooks/useCatalogProducts'
 import { PageBreadcrumbs } from './PageBreadcrumbs'
@@ -147,7 +148,7 @@ export function OrderCompletedView({ onGoHome }: OrderCompletedViewProps) {
                 <p className="text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
                   Your order Reference
                 </p>
-                <p className="mt-2 text-[32px] font-medium leading-10 tracking-[-0.64px] text-text-primary">
+                <p className="mt-2 text-2xl lg:text-[32px] font-medium leading-10 tracking-[-0.64px] text-text-primary">
                   {orderReference}
                 </p>
                 {/*
@@ -171,7 +172,15 @@ export function OrderCompletedView({ onGoHome }: OrderCompletedViewProps) {
           </h2>
           <div className="grid grid-cols-2 items-stretch gap-2 lg:grid-cols-5 lg:gap-2">
             {recommendationProducts.slice(0, 10).map((product, index) => (
-              <ProductCard key={`${product.id}-${index}`} product={product} />
+              <ProductCard
+                key={`${product.id}-${index}`}
+                product={product}
+                // Without `to`, ProductCard renders a plain <article> rather than a
+                // <Link>, so the recommendation looked live but did nothing when
+                // tapped. `from` keeps the product page's breadcrumbs pointing back
+                // here.
+                to={getProductPath(product.id, { from: 'order-complete' })}
+              />
             ))}
           </div>
         </div>
