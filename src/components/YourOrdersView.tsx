@@ -1425,21 +1425,29 @@ function PaymentMethodCard({
         </p>
         <div className="mt-4 flex flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2">
-            <img
-              alt=""
-              aria-hidden
-              className="h-6 w-8 shrink-0 object-contain"
-              src={images.footer.paypal}
-            />
             {isEmpty ? (
-              <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
-                No saved payment method
-              </span>
+              <>
+                <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
+                  No saved payment method
+                </span>
+                <img
+                  alt=""
+                  aria-hidden
+                  className="h-6 w-8 shrink-0 object-contain"
+                  src={images.footer.paypal}
+                />
+              </>
             ) : (
               <>
                 <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
                   {paymentTypeLabel(payment.type)}
                 </span>
+                <img
+                  alt=""
+                  aria-hidden
+                  className="h-6 w-8 shrink-0 object-contain"
+                  src={images.footer.paypal}
+                />
                 {payment.network ? (
                   <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
                     {/* Stored as an enum key (`mtn`), resolved to the API's label. */}

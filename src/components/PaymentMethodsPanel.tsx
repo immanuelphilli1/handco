@@ -104,10 +104,10 @@ function PaymentMethodCard({
           {payment.cardholderName}
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <PaymentMethodIcon type={payment.type} />
           <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
             {paymentTypeLabel(payment.type)}
           </span>
+          <PaymentMethodIcon type={payment.type} />
           {payment.type === 'mobile_money' && payment.network ? (
             <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
               {/* Stored as an enum key (`mtn`), so it is resolved to the API's

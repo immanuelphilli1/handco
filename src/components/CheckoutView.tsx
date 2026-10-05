@@ -515,6 +515,9 @@ export function CheckoutView({
                           label={method.label}
                         />
                         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary">
+                            {method.label}
+                          </span>
                           {method.icon ? (
                             <img
                               alt=""
@@ -523,9 +526,6 @@ export function CheckoutView({
                               src={method.icon}
                             />
                           ) : null}
-                          <span className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary">
-                            {method.label}
-                          </span>
                           {method.secondaryIcon ? (
                             <img
                               alt=""
