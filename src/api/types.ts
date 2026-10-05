@@ -390,7 +390,8 @@ export type PaymentStatusResponse = {
 export type PlaceOrderResponse = {
   orderId: Rid
   orderReference: string
-  estimatedDelivery: string
+  /** Frozen delivery wording. Null when no window was recorded for the order. */
+  estimatedDelivery: string | null
   status: ApiOrderStatus
   paymentStatus: ApiOrderPaymentStatus
   /** Order total frozen at placement, already including tax. */
@@ -491,6 +492,15 @@ export type ApiTrackingEvent = {
 }
 
 export type ApiOrderAddress = {
+  /**
+   * The snapshot may arrive pre-rendered by the backend, which documents it as
+   * "contact, line1, line2, country, countryCode, names, phone". When present
+   * these are used as-is; otherwise the block is composed from the parts below.
+   */
+  contact?: string | null
+  line1?: string | null
+  line2?: string | null
+  countryCode?: string | null
   firstName?: string
   lastName?: string
   phoneCountryCode?: string
@@ -523,7 +533,11 @@ export type ApiOrderDetail = {
   itemCount: number
   totalMoney?: Money
   currency?: string
-  estimatedDelivery?: string
+  /**
+   * Frozen delivery wording. Null for an order with no recorded window. The API
+   * requires it be displayed as-is and never parsed.
+   */
+  estimatedDelivery?: string | null
   paymentMethod?: string
   items: ApiOrderItem[]
   productImages?: string[]

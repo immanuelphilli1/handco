@@ -374,6 +374,12 @@ export function HomePage() {
     // It is set as soon as `POST /orders` succeeds and read in the catch.
     let orderWasPlaced = false
 
+    // Set immediately before the browser leaves for the provider. `finally` runs
+    // synchronously after `window.location.href = …`, but assigning a location
+    // does not unload the page on its own, so the `finally` clearing the overlay
+    // was briefly revealing the now-empty cart underneath it.
+    let isLeavingForProvider = false
+
     try {
       setIsStartingPayment(true)
 
@@ -432,14 +438,15 @@ export function HomePage() {
       })
 
       setLastOrder({
+        orderId: order.orderId,
         orderReference: order.orderReference,
         estimatedDelivery: order.estimatedDelivery,
       })
 
       // Full-page navigation is required: the provider page is external and
-      // React Router cannot own it. The overlay is intentionally left up — the
-      // page is about to be replaced, and clearing it first would briefly reveal
-      // the emptied cart before the browser leaves.
+      // React Router cannot own it. The overlay is deliberately left up until the
+      // browser actually leaves.
+      isLeavingForProvider = true
       window.location.href = intent.checkoutUrl
     } catch (error) {
       if (error instanceof ApiError && error.code && isOrderConflictCode(error.code)) {
@@ -477,9 +484,13 @@ export function HomePage() {
       }
     } finally {
       setIsStartingPayment(false)
-      // Cleared once the attempt is over. On the success path the browser is
-      // already navigating away, so this only matters for the failure path.
-      setPaymentRedirectStep(null)
+      // Not cleared once the browser has been sent to the provider: assigning a
+      // location does not unload the page synchronously, so clearing here tore
+      // down the overlay while the empty cart was still on screen, which is what
+      // the shopper was seeing before the provider page appeared.
+      if (!isLeavingForProvider) {
+        setPaymentRedirectStep(null)
+      }
     }
   }, [authUser, cartItems, defaultAddress, paymentMethodId, refreshCart, setLastOrder])
 
@@ -515,6 +526,7 @@ export function HomePage() {
       // The attempt succeeded, so the next checkout is a new decision.
       resetCheckoutAttemptKeys()
       setLastOrder({
+        orderId: stored.orderId,
         orderReference: stored.orderReference,
         estimatedDelivery: stored.estimatedDelivery,
       })

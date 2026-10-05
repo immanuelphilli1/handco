@@ -8,10 +8,12 @@ import {
   type ReactNode,
 } from 'react'
 import { cartApi, wishlistApi } from '../api'
+import { clearLastOrder, readLastOrder, saveLastOrder } from '../api/lastOrder'
 import { mapApiCartItem, mapApiProduct } from '../api/mappers'
 import type { CartSummary } from '../api/types'
 import type { CartItem } from '../data/cart'
 import { getCartErrorMessage } from '../data/cartErrors'
+import type { LastOrder } from '../data/lastOrder'
 import type { Product } from '../data/products'
 import { getProductKey } from '../data/products'
 import { useAuth } from './AuthContext'
@@ -41,11 +43,8 @@ type ShopContextValue = {
   toggleWishlist: (product: Product) => Promise<void>
   removeFromWishlist: (product: Product) => Promise<void>
   clearCart: () => void
-  lastOrder: {
-    orderReference: string
-    estimatedDelivery: string
-  } | null
-  setLastOrder: (order: { orderReference: string; estimatedDelivery: string } | null) => void
+  lastOrder: LastOrder | null
+  setLastOrder: (order: LastOrder | null) => void
 }
 
 const ShopContext = createContext<ShopContextValue | null>(null)
@@ -70,10 +69,25 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const [cartError, setCartError] = useState<string | null>(null)
   const [wishlistProducts, setWishlistProducts] = useState<Product[]>([])
   const [isWishlistLoading, setIsWishlistLoading] = useState(false)
-  const [lastOrder, setLastOrder] = useState<{
-    orderReference: string
-    estimatedDelivery: string
-  } | null>(null)
+  const [lastOrder, setLastOrderState] = useState<LastOrder | null>(() => readLastOrder())
+
+  /**
+   * Records the order just placed and mirrors it to `sessionStorage`, so the
+   * confirmation page still has it after a reload.
+   *
+   * Clearing (passing `null`) also clears storage, which is what keeps a stale
+   * order from reappearing on a later visit to `/order-complete`.
+   */
+  const setLastOrder = useCallback((order: LastOrder | null) => {
+    setLastOrderState(order)
+
+    if (order) {
+      saveLastOrder(order)
+      return
+    }
+
+    clearLastOrder()
+  }, [])
 
   const refreshCart = useCallback(async () => {
     // Inside the async call, not the synchronous effect body that triggers it,
@@ -283,6 +297,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       removeFromWishlist,
       removeSelectedCartItems,
       selectAllCartItems,
+      setLastOrder,
       toggleWishlist,
       updateCartItem,
       wishlistProducts,

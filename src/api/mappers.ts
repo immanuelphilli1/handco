@@ -31,6 +31,7 @@ import type {
   ApiDeliveryFacet,
   ApiDeliveryQuote,
   ApiNotificationSetting,
+  ApiOrderAddress,
   ApiOrderDetail,
   ApiOrderRecord,
   ApiPaymentMethod,
@@ -497,6 +498,56 @@ export function mapApiAddress(address: ApiAddress): AddressRecord {
 export function mapApiAddresses(response: AddressesResponse | ApiAddress[]): AddressRecord[] {
   const source = Array.isArray(response) ? response : (response.items ?? response.addresses ?? [])
   return source.filter((address) => getApiAddressId(address) !== '').map(mapApiAddress)
+}
+
+/**
+ * The shipping address frozen onto an order, formatted for display.
+ *
+ * `GET /orders/:rid` returns the address the order will actually ship to, which
+ * is the only trustworthy source on a confirmation page: the account's current
+ * default address may have been changed, or may never have been set.
+ *
+ * Every field is optional here, so absent parts are skipped rather than rendered
+ * as blank lines or a placeholder. `null` means the order has no address recorded,
+ * which the caller reports rather than fakes.
+ */
+export type OrderAddress = {
+  /** Contact name and phone on one line, omitted when neither is known. */
+  contact: string
+  /** Street line, or an empty string when the order carries none. */
+  line1: string
+  /** City / region / country line, omitted when the order carries none. */
+  line2: string
+}
+
+export function mapApiOrderAddress(address: ApiOrderAddress | undefined): OrderAddress | null {
+  if (!address) return null
+
+  const contactName = [address.firstName, address.lastName].filter(Boolean).join(' ').trim()
+  const phone = [address.phoneCountryCode, address.phoneNumber].filter(Boolean).join(' ').trim()
+  const composedContact = [contactName, phone].filter(Boolean).join(' | ').trim()
+
+  const street = address.addressLine?.trim() ?? ''
+
+  // The API may send a precomposed `cityLine`; otherwise it is built from the
+  // parts. Country is a code here, so it is rendered as a name for the shopper.
+  const composedCityLine = [
+    address.city,
+    address.region,
+    address.country ? getCountryDisplayName(address.country) : '',
+  ]
+    .filter(Boolean)
+    .join(', ')
+    .trim()
+
+  return {
+    // The backend may render these lines itself (documented as `contact`,
+    // `line1`, `line2` on the snapshot), so those win. They are only composed
+    // from parts when absent, which keeps the page working against either shape.
+    contact: (address.contact ?? composedContact).trim(),
+    line1: (address.line1 ?? street).trim(),
+    line2: (address.cityLine ?? address.line2 ?? composedCityLine).trim(),
+  }
 }
 
 export function getApiPaymentMethodId(payment: ApiPaymentMethod): string {

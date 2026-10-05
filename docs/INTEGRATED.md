@@ -516,6 +516,52 @@ order total. The client never collects card details.
    so a re-render or repeat visit cannot run it twice, then the cart is cleared and
    `OrderCompletedView` is shown.
 
+### Order confirmation page (no placeholder data)
+
+The confirmation page used to render hardcoded values for everything the shopper
+cares about: a sample reference (`#HCO5241124542`), a fixed delivery window
+(`24-36 May`) and a contact/address taken from the mock profile in
+`data/profile.ts`. None of it came from the order, so the page described an order
+that never existed.
+
+Three sources now drive it, in order of authority:
+
+| Field | Source | Why |
+| --- | --- | --- |
+| Shipping address | `GET /orders/:rid` → `address` | The only frozen snapshot of where the order actually ships to. The account's current default may have changed since. |
+| Order reference | Order detail, falling back to the placement response | Same value either way; the detail is read fresh. |
+| Estimated delivery | Order detail, falling back to the placement response | Frozen wording — see below. |
+
+`POST /orders` does **not** echo the shipping address back, so the page re-reads
+the order on mount to obtain it. That required `orderId` to be carried through to
+the page, which it previously was not — `lastOrder` held only the reference and
+the delivery wording, so the address was unavailable and had to be faked.
+
+**`estimatedDelivery` is never reformatted.** The API types it as
+`FrozenDeliveryWording`, documented as free text that must be *displayed as-is
+and never parsed*, and it is `nullable` — an order with no recorded window sends
+`null`, not an empty string. It is rendered verbatim and omitted when null. This
+also required widening `estimatedDelivery` to `string | null` in
+`PlaceOrderResponse`, `PendingPayment` and `LastOrder`, since it had been typed
+as a plain `string`.
+
+`lastOrder` is now mirrored into `sessionStorage` (`api/lastOrder.ts`).
+`/order-complete` is a real, directly reachable route, but the order it describes
+only exists in recent history — so a page refresh previously wiped the page's
+order details, which the placeholders had been masking.
+
+Two adjacent bugs fixed alongside it:
+
+- `YourOrdersView` passed `order.statusDateLabel` (the date the order's **status**
+  last changed) as `estimatedDelivery` when paying an unpaid order, so the
+  confirmation page showed a status date as a delivery estimate. It now reads both
+  values from `GET /orders/:rid`.
+- The copy in `orderCompletedCopy` had typos ("Thank your for your order",
+  "oder has been recieved") and the reference/window placeholders. Both placeholders
+  are gone rather than being left as fallbacks — a fallback sample is shown as if
+  it were real, which is the exact bug being fixed. `checkoutAddress` was deleted
+  entirely, as was its now-unused `defaultAddress` import.
+
 ### Redirect overlay (the empty-cart flash)
 
 Order-first checkout creates the order **before** payment, so the ordered lines

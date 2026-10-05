@@ -16,5 +16,9 @@ export type PendingPayment = {
   /** The order awaiting this payment. Created before the redirect. */
   orderId: string
   orderReference: string
-  estimatedDelivery: string
+  /**
+   * Delivery wording frozen onto the order at placement. Nullable per the API —
+   * it is `FrozenDeliveryWording | null`, not an empty string.
+   */
+  estimatedDelivery: string | null
 }

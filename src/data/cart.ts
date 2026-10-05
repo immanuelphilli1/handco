@@ -1,5 +1,4 @@
 import type { Product } from './products'
-import { defaultAddress } from './profile'
 
 export type CartItem = {
   id: string
@@ -47,12 +46,15 @@ export const securePaymentsCopy =
 export const securePrivacyCopy =
   'Protecting your privacy is important to us! Please be assured that your information will be kept secured and uncompromised. We do not sell your personal information for money and will only use your information in accordance with our privacy and cookie policy to provide and improve our services to you.'
 
+/**
+ * Confirmation copy only. The order reference, delivery window and shipping
+ * address are deliberately absent: they are per-order facts read from the placed
+ * order, so a sample value here would be shown as if it were real.
+ */
 export const orderCompletedCopy = {
-  title: 'Thank your for your order!',
+  title: 'Thank you for your order!',
   description:
-    'Your oder has been recieved  and is being processed. You will recieve an email confirmation shortly.',
-  orderReference: '#HCO5241124542',
-  estimatedDelivery: 'Estimated delivery date: 24-36 May',
+    'Your order has been received and is being processed. You will receive an email confirmation shortly.',
 }
 
 export const shippingSummary = {
@@ -80,9 +82,3 @@ export function productToCartItem(product: Product): CartItem {
 }
 
 export const checkoutItemCount = 0
-
-export const checkoutAddress = {
-  contact: `${defaultAddress.contactName} | ${defaultAddress.phone}`,
-  line1: defaultAddress.line1,
-  line2: defaultAddress.line2,
-}

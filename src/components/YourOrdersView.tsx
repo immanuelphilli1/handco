@@ -239,6 +239,11 @@ function OrderProductCarousel({ images }: { images: string[] }) {
     track.scrollBy({ left: amount, behavior: 'smooth' })
   }
 
+  // Up to two products fit in the track without it scrolling, so the arrows
+  // would move nothing. They are hidden rather than shown inert, since a control
+  // that looks live but does nothing is worse than no control.
+  const canScroll = images.length >= 3
+
   return (
     <div className="relative min-w-0 flex-1">
       <div
@@ -254,24 +259,26 @@ function OrderProductCarousel({ images }: { images: string[] }) {
           </div>
         ))}
       </div>
-      <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => scrollByDirection('prev')}
-          className="pointer-events-auto flex size-12 cursor-pointer items-center justify-center rounded-full bg-bg-primary shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_40px_0px_rgba(0,0,0,0.08)]"
-          aria-label="Previous products"
-        >
-          <ArrowLeftSLineIcon className="size-6 text-text-secondary" aria-hidden />
-        </button>
-        <button
-          type="button"
-          onClick={() => scrollByDirection('next')}
-          className="pointer-events-auto flex size-12 cursor-pointer items-center justify-center rounded-full bg-bg-secondary shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_40px_0px_rgba(0,0,0,0.08)]"
-          aria-label="Next products"
-        >
-          <ArrowRightSLineIcon className="size-6 text-text-secondary" aria-hidden />
-        </button>
-      </div>
+      {canScroll ? (
+        <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => scrollByDirection('prev')}
+            className="pointer-events-auto flex size-12 cursor-pointer items-center justify-center rounded-full bg-bg-primary shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_40px_0px_rgba(0,0,0,0.08)]"
+            aria-label="Previous products"
+          >
+            <ArrowLeftSLineIcon className="size-6 text-text-secondary" aria-hidden />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollByDirection('next')}
+            className="pointer-events-auto flex size-12 cursor-pointer items-center justify-center rounded-full bg-bg-secondary shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_40px_0px_rgba(0,0,0,0.08)]"
+            aria-label="Next products"
+          >
+            <ArrowRightSLineIcon className="size-6 text-text-secondary" aria-hidden />
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -283,6 +290,7 @@ function OrderCard({
   onTrackOrder,
   onViewDetails,
   onMakePayment,
+  onCancelOrder,
   isBuyingAgain,
   isPayingOrderId,
 }: {
@@ -292,6 +300,7 @@ function OrderCard({
   onTrackOrder: (order: OrderRecord) => void
   onViewDetails: (order: OrderRecord) => void
   onMakePayment: (order: OrderRecord) => void
+  onCancelOrder: (order: OrderRecord) => void
   isBuyingAgain: boolean
   isPayingOrderId: string | null
 }) {
@@ -323,7 +332,16 @@ function OrderCard({
 
       <div className="flex flex-col gap-4 px-4 py-4 lg:flex-row lg:items-start lg:gap-10 lg:px-6">
         <OrderProductCarousel images={order.productImages} />
-        <div className="flex w-full shrink-0 flex-col gap-2 lg:w-65.5">
+        {/*
+          A single-item order has a short action list, so on mobile the buttons sit
+          side by side instead of stacking and pushing the rest of the card down.
+          The stacked layout stays on desktop, where the column is a fixed width.
+        */}
+        <div
+          className={`flex w-full shrink-0 gap-2 lg:w-65.5 lg:flex-col ${
+            order.itemCount < 2 ? 'flex-row' : 'flex-col'
+          }`}
+        >
           <button
             type="button"
             onClick={() => onBuyAgain(order)}
@@ -332,35 +350,47 @@ function OrderCard({
           >
             {isBuyingAgain ? 'Adding…' : 'Buy Again'}
           </button>
-          <button
-            type="button"
-            onClick={() => onReturnRefund(order)}
-            className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
-          >
-            Return/Refund
-          </button>
           {/*
-            An unpaid order has nothing to track yet, so the slot becomes the
-            action that unblocks it. The payment button is filled to read as the
-            primary action on the card.
+            An unpaid order has nothing to return, track or refund yet, so that
+            slot becomes Cancel order — the action that actually applies to an
+            order that was never paid. The payment button is filled to read as
+            the primary action on the card.
           */}
           {order.status === 'pending_payment' ? (
-            <button
-              type="button"
-              onClick={() => onMakePayment(order)}
-              disabled={isPayingOrderId === order.id}
-              className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-primary-orange px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-inverse disabled:cursor-wait disabled:opacity-60"
-            >
-              {isPayingOrderId === order.id ? 'Opening…' : 'Make payment'}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => onCancelOrder(order)}
+                className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
+              >
+                Cancel order
+              </button>
+              <button
+                type="button"
+                onClick={() => onMakePayment(order)}
+                disabled={isPayingOrderId === order.id}
+                className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-primary-orange px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-inverse disabled:cursor-wait disabled:opacity-60"
+              >
+                {isPayingOrderId === order.id ? 'Opening…' : 'Make payment'}
+              </button>
+            </>
           ) : (
-            <button
-              type="button"
-              onClick={() => onTrackOrder(order)}
-              className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
-            >
-              Track order
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => onReturnRefund(order)}
+                className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
+              >
+                Return/Refund
+              </button>
+              <button
+                type="button"
+                onClick={() => onTrackOrder(order)}
+                className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
+              >
+                Track order
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -505,12 +535,18 @@ function OrdersPanel({
         createStandalonePaymentIntentKey(),
       )
 
+      // The reference and the frozen delivery wording are read from the order
+      // itself. `order.statusDateLabel` is the date the order's *status* last
+      // changed, which is not a delivery estimate — the return page would have
+      // shown it as one. The order detail is the only source for both.
+      const detail = await ordersApi.getOrder(order.id)
+
       savePendingPayment({
         paymentRid: intent.paymentRid,
         provider: intent.provider,
         orderId: intent.orderId,
-        orderReference: order.id,
-        estimatedDelivery: order.statusDateLabel,
+        orderReference: detail.orderReference ?? intent.orderId,
+        estimatedDelivery: detail.estimatedDelivery ?? null,
       })
 
       // Full-page navigation is required: the provider page is external and
@@ -524,6 +560,22 @@ function OrdersPanel({
           : 'We could not open payment for this order. Please try again.',
       )
     }
+  }
+
+  /**
+   * Cancels an order that is still awaiting payment.
+   *
+   * The backend exposes no cancel route (see `NOT-INTEGRATED.md`), so there is no
+   * request to make and no guaranteed outcome. Rather than wire a button to an
+   * invented endpoint and leave the shopper believing the order was cancelled,
+   * this reports that it is not available yet and points them at paying the order
+   * or contacting support.
+   */
+  const handleCancelOrder = (order: OrderRecord) => {
+    setNotice(
+      `Order ${order.id} is still awaiting payment and cannot be cancelled online yet. ` +
+        'You can pay it from this page, or contact support to have it cancelled.',
+    )
   }
 
   const openTracking = (order: OrderRecord) => {
@@ -631,6 +683,7 @@ function OrdersPanel({
               onMakePayment={(order) => {
                 void handleMakePayment(order)
               }}
+              onCancelOrder={handleCancelOrder}
               isPayingOrderId={isPayingOrderId}
             />
           ))
