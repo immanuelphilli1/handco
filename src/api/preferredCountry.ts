@@ -1,4 +1,36 @@
 const PREFERRED_COUNTRY_CHANGED = 'handco.preferredCountry.changed'
+const STORAGE_PREFIX = 'handco.preferredCountry.'
+
+function storageKey(userKey: string): string {
+  return `${STORAGE_PREFIX}${userKey}`
+}
+
+/** Last value saved via `PUT /users/me/country` for this signed-in user (this tab). */
+export function readStoredPreferredCountry(userKey: string | undefined): string | null {
+  if (!userKey) return null
+  try {
+    const raw = sessionStorage.getItem(storageKey(userKey))
+    return raw?.trim() ? raw : null
+  } catch {
+    return null
+  }
+}
+
+export function writeStoredPreferredCountry(
+  userKey: string | undefined,
+  preferredCountry: string | null,
+): void {
+  if (!userKey) return
+  try {
+    if (!preferredCountry?.trim()) {
+      sessionStorage.removeItem(storageKey(userKey))
+      return
+    }
+    sessionStorage.setItem(storageKey(userKey), preferredCountry)
+  } catch {
+    // sessionStorage may be unavailable
+  }
+}
 
 /** Lets catalog hooks refetch `?country=` after the profile setting changes. */
 export function notifyPreferredCountryChanged(): void {

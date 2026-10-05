@@ -753,7 +753,7 @@ must be selected; a default address must exist.
 | `GET /notifications/settings` | Notification toggles — `NotificationsPanel` |
 | `PATCH /notifications/settings/:id` | Toggle promotions / order updates |
 | `GET /users/me/profile`, `PATCH /users/me/profile` | Your Profile — `ProfilePanel` |
-| `GET /users/me/country`, `PUT /users/me/country` | Country of residence — `ProfilePanel` → Personal Information |
+| `PUT /users/me/country` | Country of residence — `ProfilePanel` → Personal Information |
 | `GET /users/me/security` | Account & Security tab — email, phone, 2FA flag |
 | `PATCH /users/me/email`, `PATCH /users/me/phone`, `PATCH /users/me/password` | Security action modals |
 | `POST /users/me/2fa/enable`, `POST /users/me/2fa/disable` | Two-factor toggle |

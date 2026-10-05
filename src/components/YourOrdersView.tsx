@@ -9,7 +9,11 @@ import {
 } from '../api/mappers'
 import { accountApi, ordersApi } from '../api'
 import type { LookupOption } from '../api'
-import { notifyPreferredCountryChanged } from '../api/preferredCountry'
+import {
+  notifyPreferredCountryChanged,
+  readStoredPreferredCountry,
+  writeStoredPreferredCountry,
+} from '../api/preferredCountry'
 import {
   preferredCountryPayloadForOption,
   preferredCountrySelectLabel,
@@ -1823,17 +1827,17 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
     async function loadProfile() {
       setIsLoading(true)
       try {
-        const [profileResponse, paymentResponse, lookupCountries, preferredResponse] =
-          await Promise.all([
-            accountApi.getProfile(),
-            accountApi.listPaymentMethods(),
-            accountApi.getCountries(),
-            accountApi.getPreferredCountry().catch(() => ({ preferredCountry: null })),
-          ])
+        const [profileResponse, paymentResponse, lookupCountries] = await Promise.all([
+          accountApi.getProfile(),
+          accountApi.listPaymentMethods(),
+          accountApi.getCountries(),
+        ])
         if (cancelled) return
 
         setCountryOptions(lookupCountries)
-        setPreferredCountry(preferredResponse.preferredCountry)
+        setPreferredCountry(
+          readStoredPreferredCountry(authUser?.email ?? undefined),
+        )
 
         if (profileResponse.profile) {
           const mapped = mapApiProfile(profileResponse.profile)
@@ -1892,7 +1896,9 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
 
     try {
       const response = await accountApi.updatePreferredCountry(next)
-      setPreferredCountry(response.preferredCountry)
+      const saved = response.preferredCountry
+      setPreferredCountry(saved)
+      writeStoredPreferredCountry(authUser?.email ?? undefined, saved)
       notifyPreferredCountryChanged()
     } catch (error) {
       setErrorMessage(

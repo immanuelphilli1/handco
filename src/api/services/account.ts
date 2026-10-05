@@ -59,16 +59,12 @@ export async function getSecurity(): Promise<SecuritySettings> {
   return apiRequest('/users/me/security')
 }
 
-export async function getPreferredCountry(): Promise<PreferredCountryResponse> {
-  return apiRequest<PreferredCountryResponse>('/users/me/country')
-}
-
 /**
  * Sets the shopper's country of residence for catalog delivery quotes and tax.
  *
- * The body accepts an ISO code, a country rid, or a name, or `null` to clear the
- * preference. The ISO code from the address lookup is what the client sends when
- * the shopper picks from the list.
+ * The body is `{ preferredCountry }` where the value is an ISO code, a country
+ * rid, or a name, or `null` to clear the preference. The ISO code from the
+ * address lookup is what the client sends when the shopper picks from the list.
  */
 export async function updatePreferredCountry(
   preferredCountry: string | null,

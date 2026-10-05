@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { accountApi } from '../api'
 import { resolvePreferredCountryToCode } from '../api/services/account'
-import { onPreferredCountryChanged } from '../api/preferredCountry'
+import {
+  onPreferredCountryChanged,
+  readStoredPreferredCountry,
+} from '../api/preferredCountry'
 import { mapApiAddresses } from '../api/mappers'
 import type { ProductDestination } from '../api/services/catalog'
 import { useAuth } from '../context/AuthContext'
@@ -15,7 +18,7 @@ import { useAuth } from '../context/AuthContext'
  *
  * Resolution order for signed-in shoppers:
  *  1. Default shipping address country — where the order will actually go.
- *  2. Country of residence from `GET /users/me/country` — profile setting.
+ *  2. Country of residence from the last `PUT /users/me/country` (session cache).
  *  3. Nothing — omit `?country=` (signed-out shoppers always stop here).
  */
 export const DEFAULT_DESTINATION_COUNTRY: string | undefined = undefined
@@ -58,16 +61,11 @@ export function useProductDestination(): UseProductDestinationResult {
           return
         }
 
-        const [lookupCountries, preferredResponse] = await Promise.all([
-          accountApi.getCountries(),
-          accountApi.getPreferredCountry().catch(() => ({ preferredCountry: null })),
-        ])
+        const lookupCountries = await accountApi.getCountries()
         if (cancelled) return
 
-        const fromPreferred = resolvePreferredCountryToCode(
-          preferredResponse.preferredCountry,
-          lookupCountries,
-        )
+        const storedPreferred = readStoredPreferredCountry(authUser?.email ?? undefined)
+        const fromPreferred = resolvePreferredCountryToCode(storedPreferred, lookupCountries)
         setResolvedCountryCode(fromPreferred ?? null)
       } catch {
         if (!cancelled) setResolvedCountryCode(null)
@@ -79,7 +77,7 @@ export function useProductDestination(): UseProductDestinationResult {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, isBootstrapping, refreshToken])
+  }, [authUser, isAuthenticated, isBootstrapping, refreshToken])
 
   const country =
     isBootstrapping || !isAuthenticated
