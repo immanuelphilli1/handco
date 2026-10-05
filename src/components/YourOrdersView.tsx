@@ -338,15 +338,26 @@ function OrderCard({
         </button>
       </div>
 
-      <div className="flex flex-col gap-4 px-4 py-4 lg:flex-row lg:items-start lg:gap-10 lg:px-6">
+      {/*
+        A single-image order is short enough that the image and the actions can
+        share one row on mobile. With two or more the carousel needs the full
+        width to scroll, so it keeps its own line. Desktop is always a row.
+      */}
+      <div
+        className={`flex gap-4 px-4 py-4 lg:flex-row lg:items-start lg:gap-10 lg:px-6 ${
+          order.productImages.length === 1 ? 'flex-row' : 'flex-col'
+        }`}
+      >
         <OrderProductCarousel images={order.productImages} />
         {/*
-          A single-item order has a short action list, so on mobile the buttons sit
-          side by side instead of stacking and pushing the rest of the card down.
-          The stacked layout stays on desktop, where the column is a fixed width.
+          `w-full` only while stacked: in the single-image row it would claim the
+          whole width and squeeze the image out, so the column sizes to the
+          buttons instead.
         */}
         <div
-          className={`flex w-full shrink-0 gap-2 lg:w-65.5 flex-col `}
+          className={`flex shrink-0 gap-2 lg:w-65.5 lg:flex-col ${
+            order.productImages.length === 1 ? 'w-auto flex-col' : 'w-full'
+          }`}
         >
           <button
             type="button"
