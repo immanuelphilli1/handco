@@ -19,8 +19,13 @@ against the source rather than carried forward.
 one row, which is where rows and items differ.
 
 **2** need a live request to settle · **15** endpoints implemented but never
-called · **12** footer links do nothing · **4** are not supported by the backend
+called · **12** footer links do nothing · **3** are not supported by the backend
 · **6** API fields are received but never rendered · **7** are partially done
+
+> **Item 44 is now integrated.** `POST /orders/{orderId}/cancel` (scoped to unpaid
+> orders) was supplied outside `openapi.yaml` and is wired to the Cancel order
+> button on `pending_payment` orders. It is **not** in the spec file — worth adding
+> there so the contract is documented.
 
 Three previously-unwired endpoints were integrated in the most recent pass and
 are listed under **Newly integrated** below rather than as gaps:
@@ -80,14 +85,13 @@ integration.
 Not inert, for contrast: `About H&CO.` and the five TERMS links are real routes;
 the five MARKET PLACE entries are `<button>`s that navigate via `categoryId`.
 
-### Not supported by the backend / by design (4)
+### Not supported by the backend / by design (3)
 
 | # | Item | Why it will not be integrated |
 |---|------|-------------------------------|
 | 28 | Guest checkout | `POST /orders` requires auth — no account-free checkout exists |
 | 29 | OAuth via Facebook / Apple | API supports Google only (`unsupported_provider`) |
 | 30 | Payment webhooks | Server-to-server only; the client polls `GET /payments/:id` |
-| 44 | **Cancel order** | **No cancel route exists.** The only order endpoints in the spec are `GET /orders/{order}`, `POST /orders/{order}/buy-again`, `POST /orders/{order}/return` and `GET /orders/{order}/tracking` — there is no `DELETE`/`PATCH` on an order, and `cancelled` appears only as a status value the backend may set. The order card shows a **Cancel order** button on `pending_payment` orders in place of Return/Refund, but it makes **no request**: it reports that cancelling is not available online and points the shopper at paying the order or contacting support. Wire it to a real endpoint when one is added — do not invent the route. |
 
 ### Received but never displayed (6)
 

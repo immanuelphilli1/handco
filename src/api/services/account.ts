@@ -58,6 +58,44 @@ export async function getSecurity(): Promise<SecuritySettings> {
   return apiRequest('/users/me/security')
 }
 
+/**
+ * Two-factor provisioning, returned only by the enable call.
+ *
+ * The secret and the `otpauth://` URI are shown to the shopper once so they can
+ * add the account to an authenticator app, and are deliberately not persisted
+ * client-side — `GET /users/me/security` never returns the secret again.
+ */
+export type TwoFactorEnrollment = {
+  enabled: boolean
+  secret: string
+  /** `otpauth://` provisioning URI. A QR code is rendered from this by the client. */
+  otpauthUrl: string
+}
+
+/**
+ * Turns on two-factor authentication and returns the provisioning data.
+ *
+ * Enabling is the step that mints the secret, so it is only called when the
+ * shopper actually opts in. Rejects as `two_factor_already_enabled` if it is on.
+ */
+export async function enableTwoFactor(): Promise<TwoFactorEnrollment> {
+  return apiRequest('/users/me/2fa/enable', { method: 'POST' })
+}
+
+/**
+ * Turns two-factor authentication off.
+ *
+ * Requires the current password, since losing 2FA is what makes an account
+ * recoverable if the device holding it is lost — so it must not be a one-tap
+ * change.
+ */
+export async function disableTwoFactor(password: string): Promise<void> {
+  await apiRequest('/users/me/2fa/disable', {
+    method: 'POST',
+    body: { password },
+  })
+}
+
 export async function updateEmail(email: string, password: string): Promise<SecuritySettings> {
   return apiRequest('/users/me/email', { method: 'PATCH', body: { email, password } })
 }

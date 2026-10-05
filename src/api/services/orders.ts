@@ -99,3 +99,17 @@ export async function createOrderPaymentIntent(
     idempotencyKey,
   })
 }
+
+/**
+ * Cancels an order that has not been paid.
+ *
+ * Only scoped to unpaid orders: an order that already has a settled payment must
+ * be refunded rather than cancelled, so the backend rejects anything past
+ * `pending_payment`. There is no body — the order id is the whole instruction.
+ *
+ * Cancelling releases the stock the order was holding, which is why it is offered
+ * on the unpaid orders where leaving them is a real cost.
+ */
+export async function cancelOrder(orderRid: string): Promise<ApiOrderDetail> {
+  return apiRequest<ApiOrderDetail>(`/orders/${orderRid}/cancel`, { method: 'POST' })
+}

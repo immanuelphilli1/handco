@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   mapApiOrder,
   mapApiPaymentMethods,
@@ -53,6 +53,7 @@ import {
   userProfile,
   type DefaultAddress,
   type ProfileTab,
+  type SecuritySettings,
 } from '../data/profile'
 import { paymentTypeLabel, type PaymentMethodRecord } from '../data/paymentMethods'
 import { getPaymentNetworkLabel } from '../data/paymentNetworks'
@@ -68,6 +69,11 @@ import { NotificationsPanel } from './NotificationsPanel'
 import { ListingLoader } from './ListingLoader'
 import { AccountEmptyState } from './AccountEmptyState'
 import { OrderTrackingModal } from './OrderTrackingModal'
+import {
+  SecurityActionModal,
+  type SecurityAction,
+  type SecurityActionValues,
+} from './SecurityActionModal'
 import { ReturnRefundModal } from './ReturnRefundModal'
 import { useBuyAgain } from '../hooks/useBuyAgain'
 import { useDefaultAddress } from '../hooks/useDefaultAddress'
@@ -76,7 +82,7 @@ import { useOrderDetail } from '../hooks/useOrderDetail'
 import { useOrderReferences } from '../hooks/useOrderReferences'
 import { useNavigate } from 'react-router-dom'
 import { useShop } from '../context/ShopContext'
-import { getCartPath } from '../data/shopRoutes'
+import { getCartPath, getHomePath } from '../data/shopRoutes'
 import EditBoxLineIcon from 'remixicon-react/EditBoxLineIcon'
 import LockFillIcon from 'remixicon-react/LockFillIcon'
 import ShieldCheckFillIcon from 'remixicon-react/ShieldCheckFillIcon'
@@ -294,6 +300,7 @@ function OrderCard({
   onCancelOrder,
   isBuyingAgain,
   isPayingOrderId,
+  isCancellingOrderId,
   orderReference,
 }: {
   order: OrderRecord
@@ -305,6 +312,8 @@ function OrderCard({
   onCancelOrder: (order: OrderRecord) => void
   isBuyingAgain: boolean
   isPayingOrderId: string | null
+  /** Order currently being cancelled, so only its button shows progress. */
+  isCancellingOrderId: string | null
   /**
    * Display reference, absent until its background read resolves or if it failed.
    * The row is omitted rather than shown blank, since the rid is already on the
@@ -378,9 +387,10 @@ function OrderCard({
               <button
                 type="button"
                 onClick={() => onCancelOrder(order)}
-                className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
+                disabled={isCancellingOrderId === order.id}
+                className="flex h-8.5 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary disabled:cursor-wait disabled:opacity-60"
               >
-                Cancel order
+                {isCancellingOrderId === order.id ? 'Cancelling…' : 'Cancel order'}
               </button>
               <button
                 type="button"
@@ -452,6 +462,8 @@ function OrdersPanel({
   const [isBuyingAgain, setIsBuyingAgain] = useState(false)
   /** Order currently opening its payment provider page, if any. */
   const [isPayingOrderId, setIsPayingOrderId] = useState<string | null>(null)
+  /** Order currently being cancelled, so only its button shows progress. */
+  const [isCancellingOrderId, setIsCancellingOrderId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const { buyOrderAgain, addBuyAgainProductToCart } = useBuyAgain()
   const {
@@ -462,6 +474,24 @@ function OrdersPanel({
     loadOrderDetail,
     reset,
   } = useOrderDetail()
+
+  /**
+   * Loads the list for the active filter and search.
+   *
+   * Shared with the cancel action, which must re-read the list so the card shows
+   * the status the backend recorded rather than a locally patched one.
+   */
+  const loadOrdersForPanel = useCallback(async () => {
+    try {
+      const response = await ordersApi.listOrders({
+        status: activeFilter === 'all' ? undefined : activeFilter,
+        search: searchQuery.trim() || undefined,
+      })
+      setOrders(response.orders.map(mapApiOrder))
+    } catch {
+      // Keep whatever is on screen rather than blanking the list.
+    }
+  }, [activeFilter, searchQuery])
 
   useEffect(() => {
     let cancelled = false
@@ -596,17 +626,32 @@ function OrdersPanel({
   /**
    * Cancels an order that is still awaiting payment.
    *
-   * The backend exposes no cancel route (see `NOT-INTEGRATED.md`), so there is no
-   * request to make and no guaranteed outcome. Rather than wire a button to an
-   * invented endpoint and leave the shopper believing the order was cancelled,
-   * this reports that it is not available yet and points them at paying the order
-   * or contacting support.
+   * Confirmed first, since this is destructive and immediate: the order is
+   * released and cannot be paid afterwards. The list is reloaded from the server
+   * rather than patched locally, so the card shows the status the backend
+   * actually recorded.
    */
-  const handleCancelOrder = (order: OrderRecord) => {
-    setNotice(
-      `Order ${order.id} is still awaiting payment and cannot be cancelled online yet. ` +
-        'You can pay it from this page, or contact support to have it cancelled.',
-    )
+  const handleCancelOrder = async (order: OrderRecord) => {
+    setNotice(null)
+
+    if (!window.confirm('Cancel this order? It cannot be paid afterwards.')) {
+      return
+    }
+
+    setIsCancellingOrderId(order.id)
+
+    try {
+      await ordersApi.cancelOrder(order.id)
+      await loadOrdersForPanel()
+    } catch (error) {
+      setNotice(
+        error instanceof ApiError && error.message
+          ? error.message
+          : 'We could not cancel this order. Please try again.',
+      )
+    } finally {
+      setIsCancellingOrderId(null)
+    }
   }
 
   const openTracking = (order: OrderRecord) => {
@@ -714,8 +759,11 @@ function OrdersPanel({
               onMakePayment={(order) => {
                 void handleMakePayment(order)
               }}
-              onCancelOrder={handleCancelOrder}
+              onCancelOrder={(order) => {
+                void handleCancelOrder(order)
+              }}
               isPayingOrderId={isPayingOrderId}
+              isCancellingOrderId={isCancellingOrderId}
               orderReference={references[order.id]}
             />
           ))
@@ -1400,10 +1448,11 @@ function PersonalInformationPanel({
   )
 }
 
-function SecurityActionButton({ label }: { label: string }) {
+function SecurityActionButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className="btn-orange flex h-12 w-27.5 shrink-0 cursor-pointer items-center justify-center rounded-full px-6 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse"
     >
       {label}
@@ -1415,10 +1464,12 @@ function SecurityRow({
   title,
   value,
   actionLabel,
+  onAction,
 }: {
   title: string
   value?: string
   actionLabel: string
+  onAction: () => void
 }) {
   return (
     <div className="flex items-center gap-4 border-b border-border-primary py-4">
@@ -1430,12 +1481,115 @@ function SecurityRow({
           <p className="mt-2 text-sm leading-4.5 tracking-[-0.28px] text-text-primary">{value}</p>
         ) : null}
       </div>
-      <SecurityActionButton label={actionLabel} />
+      <SecurityActionButton label={actionLabel} onClick={onAction} />
     </div>
   )
 }
 
-function AccountSecurityPanel() {
+function AccountSecurityPanel({ onDeleted }: { onDeleted: () => void }) {
+  const { signOut } = useAuth()
+  const [settings, setSettings] = useState<SecuritySettings>(securitySettings)
+  const [isLoading, setIsLoading] = useState(true)
+  const [activeAction, setActiveAction] = useState<SecurityAction | null>(null)
+  /** Provisioning data from a just-enabled 2FA, shown once then discarded. */
+  const [twoFactorSetup, setTwoFactorSetup] = useState<{
+    secret: string
+    otpauthUrl: string
+  } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadSecurity() {
+      try {
+        const loaded = await accountApi.getSecurity()
+        if (!cancelled) setSettings(loaded)
+      } catch {
+        // Keep the session-derived email rather than an empty row.
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    void loadSecurity()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /**
+   * Runs the action the dialog collected and folds the server's answer back into
+   * the panel. Returns the error to show, or null once the dialog may close.
+   */
+  const handleSecuritySubmit = async (
+    values: SecurityActionValues,
+  ): Promise<string | null> => {
+    // The dialog only submits while an action is open, so this is unreachable in
+    // practice. It is here so the switch below is over a non-nullable union and
+    // its exhaustiveness check stays meaningful.
+    if (activeAction === null) return null
+
+    try {
+      switch (activeAction) {
+        case 'email': {
+          const updated = await accountApi.updateEmail(values.email ?? '', values.password ?? '')
+          setSettings(updated)
+          return null
+        }
+        case 'phone': {
+          const updated = await accountApi.updatePhone(values.phone ?? '')
+          setSettings(updated)
+          return null
+        }
+        case 'password': {
+          await accountApi.updatePassword(values.currentPassword ?? '', values.password ?? '')
+          return null
+        }
+        case 'twoFactor': {
+          if (settings.twoFactorEnabled) {
+            await accountApi.disableTwoFactor(values.currentPassword ?? '')
+            setSettings((current) => ({ ...current, twoFactorEnabled: false }))
+            return null
+          }
+
+          const enrollment = await accountApi.enableTwoFactor()
+          setSettings((current) => ({ ...current, twoFactorEnabled: enrollment.enabled }))
+          // The API returns the secret and provisioning URI exactly once and
+          // never again, so it is held here for the shopper to add the account to
+          // their authenticator app. Not persisted: there is nowhere to keep it
+          // that would not outlive its usefulness, and a stored 2FA secret is a
+          // standing risk.
+          setTwoFactorSetup({
+            secret: enrollment.secret,
+            otpauthUrl: enrollment.otpauthUrl,
+          })
+          return null
+        }
+        case 'deleteAccount': {
+          await accountApi.deleteAccount(values.currentPassword ?? '')
+          // The account is gone, so the stored session is dead too. Signing out
+          // drops those tokens and returns the shopper to a home page whose
+          // requests will not all 401 behind them.
+          await signOut()
+          onDeleted()
+          return null
+        }
+        default: {
+          // Exhaustiveness guard: a new action cannot be added without being
+          // handled here. The throw is unreachable while `SecurityAction` and
+          // this switch stay in step.
+          const exhaustiveCheck: never = activeAction
+          throw exhaustiveCheck
+        }
+      }
+    } catch (error) {
+      return error instanceof ApiError && error.message
+        ? error.message
+        : 'Something went wrong. Please try again.'
+    }
+  }
+
   return (
     <>
       <div className="flex gap-4 border-b border-border-primary px-4 py-4 lg:items-center lg:px-6 lg:py-10">
@@ -1453,23 +1607,81 @@ function AccountSecurityPanel() {
       </div>
 
       <div className="px-4 py-4 lg:px-6">
-        <SecurityRow title="Email" value={securitySettings.email} actionLabel="Edit" />
-        <SecurityRow title="Phone" actionLabel="Add" />
-        <SecurityRow title="Password" actionLabel="Change" />
-        <SecurityRow
-          title={`Two-factor authentication: ${securitySettings.twoFactorEnabled ? 'On' : 'Off'}`}
-          actionLabel="Turn on"
-        />
+        {isLoading ? (
+          <ListingLoader label="Loading security settings" />
+        ) : (
+          <>
+            <SecurityRow
+              title="Email"
+              value={settings.email}
+              actionLabel="Edit"
+              onAction={() => setActiveAction('email')}
+            />
+            <SecurityRow
+              title="Phone"
+              value={settings.phone ?? undefined}
+              actionLabel={settings.phone ? 'Edit' : 'Add'}
+              onAction={() => setActiveAction('phone')}
+            />
+            <SecurityRow
+              title="Password"
+              actionLabel="Change"
+              onAction={() => setActiveAction('password')}
+            />
+            <SecurityRow
+              title={`Two-factor authentication: ${settings.twoFactorEnabled ? 'On' : 'Off'}`}
+              actionLabel={settings.twoFactorEnabled ? 'Turn off' : 'Turn on'}
+              onAction={() => setActiveAction('twoFactor')}
+            />
 
-        <div className="py-4">
-          <button
-            type="button"
-            className="flex h-12 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-6 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary"
-          >
-            Delete your account
-          </button>
-        </div>
+            {/*
+              Shown only when 2FA was just turned on. The API returns this
+              provisioning data once and never again, so dismissing it is
+              final — the shopper re-enables to see it if they close early.
+            */}
+            {twoFactorSetup ? (
+              <div className="mt-4 rounded-2xl border border-border-primary bg-bg-secondary p-4">
+                <p className="text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
+                  Add this to your authenticator app
+                </p>
+                <p className="mt-2 text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
+                  Enter this setup key, or scan the code in your app. You will be asked for it
+                  each time you sign in.
+                </p>
+                <p className="mt-3 select-all break-all rounded-xl bg-bg-primary px-4 py-3 font-mono text-sm leading-5 text-text-primary">
+                  {twoFactorSetup.secret}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTwoFactorSetup(null)}
+                  className="mt-3 h-11 w-fit cursor-pointer rounded-full bg-bg-primary px-5 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
+                >
+                  Done
+                </button>
+              </div>
+            ) : null}
+
+            <div className="py-4">
+              <button
+                type="button"
+                onClick={() => setActiveAction('deleteAccount')}
+                className="flex h-12 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-6 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary"
+              >
+                Delete your account
+              </button>
+            </div>
+          </>
+        )}
       </div>
+
+      <SecurityActionModal
+        action={activeAction ?? 'email'}
+        isOpen={activeAction !== null}
+        currentPhone={settings.phone}
+        isTwoFactorEnabled={settings.twoFactorEnabled}
+        onClose={() => setActiveAction(null)}
+        onSubmit={handleSecuritySubmit}
+      />
     </>
   )
 }
@@ -1481,6 +1693,17 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const { authUser, refreshSession } = useAuth()
+  const navigate = useNavigate()
+
+  /**
+   * Leaves the account section after the account itself is deleted. The profile
+   * page is the last thing that can read it, so staying would leave a panel full
+   * of data the shopper no longer has.
+   */
+  const handleAccountDeleted = useCallback(() => {
+    onSectionChange('orders')
+    navigate(getHomePath())
+  }, [navigate, onSectionChange])
 
   /**
    * The signed-in user from `/auth/me` is the source of truth for name and
@@ -1602,7 +1825,7 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
           />
         )
       ) : (
-        <AccountSecurityPanel />
+        <AccountSecurityPanel onDeleted={handleAccountDeleted} />
       )}
     </>
   )
