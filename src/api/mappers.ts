@@ -16,6 +16,7 @@ import { getCategoryLabel, getSubcategoryOptions } from '../data/catalogCategori
 import { DELIVERY_OPTION_FREE, getDeliveryOptionByMaxDays } from '../data/deliveryFilter'
 import {
   formatAmount,
+  formatAmountDecimal,
   formatDeliveryDays,
   formatDiscountPercent,
   formatIsoDate,
@@ -60,7 +61,7 @@ export function resolveAssetUrl(path: string | undefined): string {
 }
 
 export function formatMoney(money: Money): string {
-  return `${money.currency} ${money.amount.toFixed(2)}`
+  return formatAmount(money)
 }
 
 /** A facets value with no selectable options, used before/without API data. */
@@ -324,7 +325,7 @@ export function mapApiProductDetail(
   // `priceMoney` is required by the current API, but falling back to the card's
   // price keeps the detail page rendering if a deployment omits it.
   const priceMoney = response.priceMoney ?? { amount: 0, currency: 'AED' }
-  const priceAmount = priceMoney.amount.toFixed(2)
+  const priceAmount = formatAmountDecimal(priceMoney.amount)
   const priceCurrency = priceMoney.currency
   // `imageUrls` is the full ordered set; `images` is a fixed-length subset.
   const images = (response.imageUrls ?? response.images).map(resolveAssetUrl)
@@ -702,8 +703,11 @@ function mapApiReviewSlotBase(slot: ApiReviewSlot): WaitingReviewRecord {
   const priceMoney = slot.priceMoney
   const currency = priceMoney?.currency ?? slot.priceCurrency ?? ''
   const amount =
-    priceMoney?.amount.toFixed(2) ??
-    (typeof slot.priceAmount === 'number' ? slot.priceAmount.toFixed(2) : '')
+    priceMoney !== undefined
+      ? formatAmountDecimal(priceMoney.amount)
+      : typeof slot.priceAmount === 'number'
+        ? formatAmountDecimal(slot.priceAmount)
+        : ''
 
   return {
     id: slot.rid ?? slot.id ?? '',

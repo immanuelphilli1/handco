@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import DeleteBin7LineIcon from 'remixicon-react/DeleteBin7LineIcon'
 import type { CartItem } from '../data/cart'
+import { formatAmountDecimal } from '../data/format'
 import { useShop } from '../context/ShopContext'
 import { useRecommendations } from '../hooks/useCatalogProducts'
 import { cartRecommendations } from '../data/wishlist'
@@ -126,7 +127,7 @@ function CartItemRow({
               <div className="flex items-center gap-1 text-text-primary">
                 <span className="text-sm leading-4.5 tracking-[-0.28px]">{item.currency}</span>
                 <span className="text-xl font-semibold leading-6 tracking-[-0.4px]">
-                  {item.price.toLocaleString()}
+                  {formatAmountDecimal(item.price)}
                 </span>
               </div>
               <CartPriceChangeNotice item={item} />
@@ -151,7 +152,7 @@ function CartItemRow({
           <div className="flex items-center gap-1 text-text-primary">
             <span className="text-sm leading-4.5 tracking-[-0.28px]">{item.currency}</span>
             <span className="text-xl font-semibold leading-6 tracking-[-0.4px]">
-              {item.price.toLocaleString()}
+              {formatAmountDecimal(item.price)}
             </span>
           </div>
           <CartPriceChangeNotice item={item} />
@@ -186,13 +187,13 @@ function CartPriceChangeNotice({ item }: { item: CartItem }) {
     <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs leading-4 tracking-[-0.24px] text-primary-orange">
       <span className="font-medium">Price changed</span>
       <span className="text-text-secondary line-through">
-        {item.currency} {item.previousPrice.toLocaleString()}
+        {item.currency} {formatAmountDecimal(item.previousPrice)}
       </span>
       <span aria-hidden className="text-text-secondary">
         &rarr;
       </span>
       <span className="font-medium text-text-primary">
-        {item.currency} {item.price.toLocaleString()}
+        {item.currency} {formatAmountDecimal(item.price)}
       </span>
     </p>
   )

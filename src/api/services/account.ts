@@ -66,13 +66,50 @@ export async function getSecurity(): Promise<SecuritySettings> {
  * rid, or a name, or `null` to clear the preference. The ISO code from the
  * address lookup is what the client sends when the shopper picks from the list.
  */
+type PreferredCountryApiResponse = PreferredCountryResponse & {
+  country?: string | null
+}
+
+function normalizePreferredCountryResponse(
+  response: PreferredCountryApiResponse,
+): PreferredCountryResponse {
+  const preferredCountry = response.preferredCountry ?? response.country ?? null
+  return { preferredCountry }
+}
+
 export async function updatePreferredCountry(
   preferredCountry: string | null,
 ): Promise<PreferredCountryResponse> {
-  return apiRequest<PreferredCountryResponse>('/users/me/country', {
+  const response = await apiRequest<PreferredCountryApiResponse>('/users/me/country', {
     method: 'PUT',
     body: { preferredCountry },
   })
+  return normalizePreferredCountryResponse(response)
+}
+
+/** Stable `<select>` value for a country lookup row (matches PUT payload). */
+export function preferredCountryOptionValue(option: LookupOption): string {
+  return preferredCountryPayloadForOption(option)
+}
+
+/** Resolves stored API value to the matching option's select value. */
+export function preferredCountryOptionValueForStored(
+  stored: string | null | undefined,
+  options: LookupOption[],
+): string {
+  const value = (stored ?? '').trim()
+  if (!value) return ''
+
+  const upper = value.toUpperCase()
+  for (const option of options) {
+    if (option.code?.toUpperCase() === upper) return preferredCountryOptionValue(option)
+    if (option.rid === value) return preferredCountryOptionValue(option)
+    if (option.label.toLowerCase() === value.toLowerCase()) {
+      return preferredCountryOptionValue(option)
+    }
+  }
+
+  return ''
 }
 
 /**

@@ -12,7 +12,7 @@ import {
   mergeCheckoutPaymentMethods,
   type CheckoutPaymentMethod,
 } from '../data/checkoutPaymentMethods'
-import { formatAmount, formatDeliveryDays } from '../data/format'
+import { formatAmount, formatAmountDecimal, formatDeliveryDays } from '../data/format'
 import type { OrderConflict } from '../data/orderConflicts'
 import { useShop } from '../context/ShopContext'
 import { useDefaultAddress } from '../hooks/useDefaultAddress'
@@ -116,7 +116,7 @@ function CheckoutItemCard({ item, onSelect }: { item: CartItem; onSelect: () => 
         <span className="mt-1 flex items-center gap-1 text-text-primary">
           <span className="text-xs leading-4 tracking-[-0.24px]">{item.currency}</span>
           <span className="text-sm font-semibold leading-4.5 tracking-[-0.28px]">
-            {(item.price * item.quantity).toLocaleString()}
+            {formatAmountDecimal(item.price * item.quantity)}
           </span>
         </span>
       </span>

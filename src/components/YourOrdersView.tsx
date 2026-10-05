@@ -15,8 +15,9 @@ import {
   writeStoredPreferredCountry,
 } from '../api/preferredCountry'
 import {
+  preferredCountryOptionValue,
+  preferredCountryOptionValueForStored,
   preferredCountryPayloadForOption,
-  preferredCountrySelectLabel,
 } from '../api/services/account'
 import { ApiError } from '../api/client'
 import { createStandalonePaymentIntentKey } from '../api/idempotency'
@@ -1303,8 +1304,7 @@ function CountryResidenceSelect({
   isSaving: boolean
   onChange: (preferredCountry: string | null) => void
 }) {
-  const labels = countries.map((option) => option.label)
-  const selectedLabel = preferredCountrySelectLabel(preferredCountry, countries)
+  const selectedValue = preferredCountryOptionValueForStored(preferredCountry, countries)
 
   return (
     <div className="rounded-firm-2 bg-bg-secondary p-4">
@@ -1321,31 +1321,35 @@ function CountryResidenceSelect({
       >
         <select
           id="profile-country-residence"
-          value={selectedLabel}
+          value={selectedValue}
           disabled={isSaving || countries.length === 0}
           onChange={(event) => {
-            const label = event.target.value
-            if (!label) {
+            const optionValue = event.target.value
+            if (!optionValue) {
               onChange(null)
               return
             }
 
-            const index = labels.indexOf(label)
-            const option = index >= 0 ? countries[index] : undefined
+            const option = countries.find(
+              (row) => preferredCountryOptionValue(row) === optionValue,
+            )
             if (!option) return
 
             onChange(preferredCountryPayloadForOption(option))
           }}
           className={`w-full appearance-none bg-transparent pr-8 text-base leading-5 tracking-[-0.32px] outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
-            selectedLabel ? 'font-medium text-text-primary' : 'font-normal text-text-tertiary'
+            selectedValue ? 'font-medium text-text-primary' : 'font-normal text-text-tertiary'
           }`}
         >
           <option value="">Select country</option>
-          {labels.map((label) => (
-            <option key={label} value={label}>
-              {label}
-            </option>
-          ))}
+          {countries.map((option) => {
+            const value = preferredCountryOptionValue(option)
+            return (
+              <option key={value} value={value}>
+                {option.label}
+              </option>
+            )
+          })}
         </select>
         <ArrowDownSLineIcon
           className="pointer-events-none absolute right-4 size-6 text-text-secondary"
@@ -1892,15 +1896,20 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
 
   const handlePreferredCountryChange = async (next: string | null) => {
     setErrorMessage(null)
+    const previous = preferredCountry
+    setPreferredCountry(next)
+    writeStoredPreferredCountry(authUser?.email ?? undefined, next)
     setIsSavingCountry(true)
 
     try {
       const response = await accountApi.updatePreferredCountry(next)
-      const saved = response.preferredCountry
+      const saved = response.preferredCountry ?? next
       setPreferredCountry(saved)
       writeStoredPreferredCountry(authUser?.email ?? undefined, saved)
       notifyPreferredCountryChanged()
     } catch (error) {
+      setPreferredCountry(previous)
+      writeStoredPreferredCountry(authUser?.email ?? undefined, previous)
       setErrorMessage(
         error instanceof ApiError && error.message
           ? error.message

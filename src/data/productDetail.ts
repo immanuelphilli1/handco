@@ -1,4 +1,5 @@
 import type { CategoryListingSelection } from './categoryListing'
+import { formatAmountDecimal } from './format'
 import { allProducts } from './products'
 import type { Product } from './products'
 
@@ -74,7 +75,7 @@ function parsePriceAmount(price: string): string {
   if (!numeric) return price
   const value = Number.parseFloat(numeric)
   if (Number.isNaN(value)) return price
-  return value % 1 === 0 ? String(Math.round(value)) : value.toFixed(2)
+  return formatAmountDecimal(value)
 }
 
 function parseCurrency(price: string): string {

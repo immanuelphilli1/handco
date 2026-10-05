@@ -5,10 +5,35 @@
  * or format for amounts, dates and delivery windows, so the client renders them.
  */
 
-/** Formats a `Money` value as `AED 189.00`. */
+const amountFormatterCache = new Map<string, Intl.NumberFormat>()
+
+function getAmountFormatter(minimumFractionDigits: number, maximumFractionDigits: number): Intl.NumberFormat {
+  const key = `${minimumFractionDigits}-${maximumFractionDigits}`
+  let formatter = amountFormatterCache.get(key)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits,
+      maximumFractionDigits,
+    })
+    amountFormatterCache.set(key, formatter)
+  }
+  return formatter
+}
+
+/** Formats a numeric amount with grouping (e.g. `1,899.00`). */
+export function formatAmountDecimal(
+  amount: number,
+  options?: { minimumFractionDigits?: number; maximumFractionDigits?: number },
+): string {
+  const minimumFractionDigits = options?.minimumFractionDigits ?? 2
+  const maximumFractionDigits = options?.maximumFractionDigits ?? 2
+  return getAmountFormatter(minimumFractionDigits, maximumFractionDigits).format(amount)
+}
+
+/** Formats a `Money` value as `AED 1,899.00`. */
 export function formatAmount(money: { amount: number; currency: string } | undefined | null): string {
   if (!money) return ''
-  return `${money.currency} ${money.amount.toFixed(2)}`
+  return `${money.currency} ${formatAmountDecimal(money.amount)}`
 }
 
 /**
