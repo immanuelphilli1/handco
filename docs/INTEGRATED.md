@@ -56,6 +56,7 @@ Full detail, including the two items deliberately **not** changed, is in the
 | HTTP client | `src/api/client.ts` | JSON requests, Bearer auth, guest-only `X-Cart-Id`, 401 refresh retry |
 | Token / cart storage | `src/api/storage.ts` | `sessionStorage` for access/refresh tokens and guest cart rid |
 | Checkout handoff | `src/api/pendingPayment.ts` | Survives the provider redirect with payment + order reference |
+| Payment redirect UI | `src/components/PaymentRedirectOverlay.tsx`, `PaymentErrorModal.tsx` | Blocking cover between submit and provider; payment-failure modal |
 | Types & mappers | `src/api/types.ts`, `src/api/mappers.ts` | API shapes → existing UI types; relative image URLs resolved |
 | Services | `src/api/services/*.ts` | One module per backend area (auth, catalog, cart, orders, account, forms, cms) |
 | Auth state | `src/context/AuthContext.tsx` | Session bootstrap, sign-in, register, sign-out, `adoptSession` for OAuth |
@@ -492,7 +493,10 @@ order total. The client never collects card details.
 1. **Place order** — `handleSubmitOrder` resolves the address from
    `GET /checkout/preview`, then `POST /orders` with `{ addressId, cartItemIds }`.
    `paymentToken` is gone. Requires auth. The ordered lines leave the cart at this
-   point, so the cart is refreshed before the redirect.
+   point, so the cart is refreshed before the redirect. A blocking overlay covers
+   the page from here until the browser reaches the provider — see
+   [Redirect overlay](#redirect-overlay-the-empty-cart-flash) below for why that is
+   required and not cosmetic.
 2. **Open payment** — `POST /checkout/payment-intent` with
    `{ orderId, paymentMethodId }` returns `checkoutUrl`, `paymentRid`, `provider`,
    `amount`, and echoes `paymentMethodId`. These are written to `sessionStorage`
@@ -511,6 +515,59 @@ order total. The client never collects card details.
    exists. The stored pending payment is consumed once (guarded on the payment rid)
    so a re-render or repeat visit cannot run it twice, then the cart is cleared and
    `OrderCompletedView` is shown.
+
+### Redirect overlay (the empty-cart flash)
+
+Order-first checkout creates the order **before** payment, so the ordered lines
+leave the cart while payment is still being opened. `HomePage` had a guard that
+redirects `/checkout` → `/cart` whenever the cart is empty, and that guard fired
+**mid-purchase**: the shopper clicked *Submit order*, the cart emptied, and they
+were bounced to **"Your cart is empty"** while `POST /checkout/payment-intent` was
+still running and before the browser left for the provider.
+
+Two changes fix it.
+
+**`PaymentRedirectOverlay`** covers the page for the whole window, naming the step
+in progress (*Placing your order…* → *Opening secure payment…*) so the wait is
+explained. It is `role="status"` with `aria-live="polite"` and cannot be dismissed;
+the page underneath is mid-transition and is not safe to interact with. It is
+deliberately **not** cleared before `window.location.href` — clearing it first
+would briefly reveal the emptied cart before the browser leaves.
+
+**The redirect guard is skipped while the handoff is in flight.** `paymentRedirectStep`
+being non-null is the signal, so the overlay and the guard cannot disagree.
+
+### Payment failure modal
+
+A payment failure is shown in `PaymentErrorModal` rather than the inline banner,
+because the shopper is mid-purchase and a small banner is easy to miss.
+
+The two failures need **different escapes**, because order-first checkout makes
+them genuinely different states:
+
+| State | Cart | What the shopper can do | Offered |
+|-------|------|-------------------------|---------|
+| Order never created | Untouched | Resubmit checkout — a real retry | **Try again** (resets the idempotency key) |
+| Order created, payment not opened | **Empty** | Pay the existing order | **Pay for this order** → Your Orders |
+
+**Retry is deliberately not offered once the order exists.** The lines have left
+the cart, so resubmitting would place a *duplicate* order or do nothing. The order
+is `pending_payment` and retriable from Your Orders via **Make payment**, which
+uses a fresh idempotency key (`createStandalonePaymentIntentKey`) since that body
+differs from the checkout attempt's.
+
+Two related guards keep the failure from dumping the shopper back on the empty
+cart:
+
+- the redirect guard is also skipped while `paymentError.isOrderPlaced`, and
+- dismissing the modal in that state navigates to the unpaid order instead of
+  closing onto a dead-end checkout page. The secondary button is labelled
+  **Go to my orders** rather than **Close** for the same reason.
+
+`price_changed` conflicts and payment-method rejections are **not** routed to this
+modal. A price conflict is a decision the shopper must make, and a rejected method
+is fixed by picking a different one — both stay inline on the checkout page, where
+the thing they act on lives.
 
 ### Checkout payment methods
 

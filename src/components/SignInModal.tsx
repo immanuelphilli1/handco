@@ -294,7 +294,7 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
         aria-labelledby="sign-in-title"
         className="fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[min(632px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl bg-bg-primary"
       >
-        <div className="flex shrink-0 items-center gap-2 px-6 py-4">
+        <div className="flex justify-between shrink-0 items-center gap-2 px-6 py-4">
           {step !== 'email' ? (
             <button
               type="button"

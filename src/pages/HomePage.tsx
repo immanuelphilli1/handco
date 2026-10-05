@@ -23,6 +23,8 @@ import { PromoBannerSection } from '../components/PromoBannerSection'
 import { CartView } from '../components/CartView'
 import { CheckoutView } from '../components/CheckoutView'
 import { AddAddressRequiredModal } from '../components/AddAddressRequiredModal'
+import { PaymentErrorModal } from '../components/PaymentErrorModal'
+import { PaymentRedirectOverlay } from '../components/PaymentRedirectOverlay'
 import { OrderCompletedView } from '../components/OrderCompletedView'
 import { PaymentReturnView } from '../components/PaymentReturnView'
 import { WishlistView } from '../components/WishlistView'
@@ -94,6 +96,16 @@ export function HomePage() {
   const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false)
   /** Set when `POST /orders` returned a 409 the shopper needs to act on. */
   const [orderConflict, setOrderConflict] = useState<OrderConflict | null>(null)
+  /**
+   * Progress step shown on the blocking overlay between submitting and the
+   * provider redirect, so the wait is explained rather than blank.
+   */
+  const [paymentRedirectStep, setPaymentRedirectStep] = useState<string | null>(null)
+  /** Payment failure surfaced as a modal instead of an inline banner. */
+  const [paymentError, setPaymentError] = useState<{
+    message: string
+    isOrderPlaced: boolean
+  } | null>(null)
 
   const pathname = location.pathname
   const productId = pathname.startsWith('/products/') ? params.productId : undefined
@@ -200,10 +212,19 @@ export function HomePage() {
   }, [categoryListing, navigate, params.categoryId, pathname])
 
   useEffect(() => {
+    // Order-first checkout empties the cart by design: `POST /orders` moves the
+    // ordered lines out before payment opens. Redirecting to `/cart` at that
+    // moment flashed "Your cart is empty" at the shopper mid-purchase, so the
+    // guard is skipped while the handoff to the provider is in flight. The
+    // overlay covers the page for the same window.
+    if (paymentRedirectStep) return
+    // A payment failure after the order was placed also leaves the cart empty,
+    // and bouncing to `/cart` would dismiss the error modal before it was read.
+    if (paymentError?.isOrderPlaced) return
     if (pathname === '/checkout' && cartItems.length === 0) {
       navigate(getCartPath(), { replace: true })
     }
-  }, [cartItems.length, navigate, pathname])
+  }, [cartItems.length, navigate, paymentError, paymentRedirectStep, pathname])
 
   const handleOpenAllCategories = useCallback(() => {
     navigate(getCategoryPathFromSelection(getAllCategoriesListingSelection(categories)))
@@ -346,6 +367,12 @@ export function HomePage() {
 
     setCheckoutError(null)
     setOrderConflict(null)
+    setPaymentError(null)
+
+    // The order is placed before payment, so this flag is what distinguishes
+    // "payment never opened" from "payment failed on an order that exists".
+    // It is set as soon as `POST /orders` succeeds and read in the catch.
+    let orderWasPlaced = false
 
     try {
       setIsStartingPayment(true)
@@ -370,13 +397,19 @@ export function HomePage() {
       // (`422 idempotency_key_reused`).
       const orderKey = getOrderIdempotencyKey()
 
+      setPaymentRedirectStep('Placing your order…')
       const order = await checkoutApi.placeOrder(
         { addressId, cartItemIds: selectedItemIds },
         orderKey,
       )
 
+      // The order exists now. From here on a failure means "not paid", not
+      // "not ordered", which changes what the shopper is told to do next.
+      orderWasPlaced = true
+
       // The order exists now, so its lines have already left the cart. Refresh
       // before the redirect so a failed payment does not show them again.
+      setPaymentRedirectStep('Opening secure payment…')
       await refreshCart()
 
       const intent = await checkoutApi.createPaymentIntent(
@@ -404,13 +437,16 @@ export function HomePage() {
       })
 
       // Full-page navigation is required: the provider page is external and
-      // React Router cannot own it.
+      // React Router cannot own it. The overlay is intentionally left up — the
+      // page is about to be replaced, and clearing it first would briefly reveal
+      // the emptied cart before the browser leaves.
       window.location.href = intent.checkoutUrl
     } catch (error) {
       if (error instanceof ApiError && error.code && isOrderConflictCode(error.code)) {
         // The order was not created and the cart is untouched. Show what changed
         // and let the shopper decide; the next attempt needs a new key because
-        // they are agreeing to new prices.
+        // they are agreeing to new prices. This stays inline because it is a
+        // decision to make, not a payment failure.
         setOrderConflict(toOrderConflict(error.code, error.details))
       } else if (isPaymentMethodRejection(error)) {
         // The chosen method is no longer payable: unknown (404), does not serve
@@ -428,16 +464,39 @@ export function HomePage() {
             : 'That payment method is unavailable. Please choose another.',
         )
       } else {
-        setCheckoutError(
-          error instanceof ApiError && error.message
-            ? error.message
-            : 'We could not start the payment. Please try again.',
-        )
+        // Payment could not be opened. This is shown as a modal rather than the
+        // inline banner: the shopper is mid-purchase and the banner is easy to
+        // miss, so the failure and the way out are put in front of them.
+        setPaymentError({
+          message:
+            error instanceof ApiError && error.message
+              ? error.message
+              : 'We could not start the payment. Please try again later.',
+          isOrderPlaced: orderWasPlaced,
+        })
       }
     } finally {
       setIsStartingPayment(false)
+      // Cleared once the attempt is over. On the success path the browser is
+      // already navigating away, so this only matters for the failure path.
+      setPaymentRedirectStep(null)
     }
   }, [authUser, cartItems, defaultAddress, paymentMethodId, refreshCart, setLastOrder])
+
+  /**
+   * Retries checkout after a payment failure that left no order behind.
+   *
+   * The keys are reset first: the previous attempt's `POST /orders` either was
+   * never sent or failed, so replaying that key could return the stored response
+   * for a body the shopper has since changed. Only offered when no order was
+   * created -- once one exists the lines have left the cart and resubmitting
+   * would place a duplicate.
+   */
+  const handleRetryCheckout = useCallback(() => {
+    resetCheckoutAttemptKeys()
+    setPaymentError(null)
+    void handleSubmitOrder()
+  }, [handleSubmitOrder])
 
   /**
    * Return leg: the payment succeeded.
@@ -598,6 +657,33 @@ export function HomePage() {
               onContinue={() => {
                 setIsAddAddressModalOpen(false)
                 handleGoToAddresses()
+              }}
+            />
+            <PaymentRedirectOverlay
+              isVisible={paymentRedirectStep !== null}
+              message={paymentRedirectStep ?? ''}
+            />
+            <PaymentErrorModal
+              isOpen={paymentError !== null}
+              message={paymentError?.message ?? ''}
+              isOrderPlaced={paymentError?.isOrderPlaced ?? false}
+              onClose={() => {
+                // Once the order exists the cart is empty, so dismissing here
+                // would otherwise drop the shopper on "Your cart is empty" with
+                // no way back to the order they still owe payment on. Send them
+                // to the order instead, which is where the retry actually lives.
+                if (paymentError?.isOrderPlaced) {
+                  setPaymentError(null)
+                  navigate(getAccountPath('orders'))
+                  return
+                }
+
+                setPaymentError(null)
+              }}
+              onRetry={handleRetryCheckout}
+              onViewOrders={() => {
+                setPaymentError(null)
+                navigate(getAccountPath('orders'))
               }}
             />
           </>
