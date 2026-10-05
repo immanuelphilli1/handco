@@ -11,13 +11,13 @@ import { useAuth } from '../context/AuthContext'
  * destination, and rejects a delivery filter without one (422
  * `destination_required`), so the client has to supply a country.
  *
- * Resolution order:
- *  1. the signed-in customer's default address country, since that is where their
- *     order will actually ship;
- *  2. `DEFAULT_DESTINATION_COUNTRY` otherwise, so signed-out browsing still gets
- *     delivery information rather than an empty filter.
+ * The country comes from the signed-in customer's default address, since that is
+ * where their order will actually ship. Nothing is guessed: with no signed-in
+ * customer, no saved address, or a failed lookup, `country` stays `undefined` and
+ * the parameter is omitted entirely, rather than defaulting to a hardcoded
+ * country that would misreport delivery and tax for every other shopper.
  */
-export const DEFAULT_DESTINATION_COUNTRY = 'AE'
+export const DEFAULT_DESTINATION_COUNTRY: string | undefined = undefined
 
 /** Coerces a stored country name or code into an ISO alpha-2 code. */
 function toCountryCode(country: string | undefined | null): string | undefined {
