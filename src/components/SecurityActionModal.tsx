@@ -217,13 +217,15 @@ function SecurityActionDialog({
       currentPassword,
     })
 
-    // Success closes the dialog; a rejection leaves it open with the reason, so
-    // the shopper does not lose what they typed.
-    if (result === null) {
+    // `null` means success; a string is the error to show while the dialog stays
+    // open so the shopper does not lose what they typed.
+    if (result !== null) {
+      onErrorChange(result)
       onSavingChange(false)
       return
     }
 
+    onSavingChange(false)
     handleClose()
   }
 

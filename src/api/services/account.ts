@@ -13,6 +13,7 @@ import type {
   BrowsingHistoryResponse,
   NotificationSettingsResponse,
   PaymentMethodsResponse,
+  PreferredCountryResponse,
   ProfileResponse,
   ReviewsResponse,
 } from '../types'
@@ -56,6 +57,26 @@ export async function updateProfile(input: {
 
 export async function getSecurity(): Promise<SecuritySettings> {
   return apiRequest('/users/me/security')
+}
+
+export async function getPreferredCountry(): Promise<PreferredCountryResponse> {
+  return apiRequest<PreferredCountryResponse>('/users/me/country')
+}
+
+/**
+ * Sets the shopper's country of residence for catalog delivery quotes and tax.
+ *
+ * The body accepts an ISO code, a country rid, or a name, or `null` to clear the
+ * preference. The ISO code from the address lookup is what the client sends when
+ * the shopper picks from the list.
+ */
+export async function updatePreferredCountry(
+  preferredCountry: string | null,
+): Promise<PreferredCountryResponse> {
+  return apiRequest<PreferredCountryResponse>('/users/me/country', {
+    method: 'PUT',
+    body: { preferredCountry },
+  })
 }
 
 /**
@@ -363,4 +384,47 @@ export type LookupOption = {
   code?: string
   /** International dialling code, for country lookups only. */
   phoneCode?: string
+}
+
+/** Value to send in `PUT /users/me/country` when the shopper picks a list row. */
+export function preferredCountryPayloadForOption(option: LookupOption): string {
+  return option.code ?? option.rid ?? option.label
+}
+
+/** Resolves a stored preferred country (code, rid, or name) to an ISO code for `?country=`. */
+export function resolvePreferredCountryToCode(
+  stored: string | null | undefined,
+  options: LookupOption[],
+): string | undefined {
+  const value = (stored ?? '').trim()
+  if (!value) return undefined
+
+  const upper = value.toUpperCase()
+  for (const option of options) {
+    if (option.code?.toUpperCase() === upper) return option.code.toUpperCase()
+    if (option.rid === value) return option.code?.toUpperCase() ?? undefined
+    if (option.label.toLowerCase() === value.toLowerCase()) {
+      return option.code?.toUpperCase()
+    }
+  }
+
+  return /^[A-Za-z]{2}$/.test(value) ? upper : undefined
+}
+
+/** Label for the profile select from whatever shape the API stored. */
+export function preferredCountrySelectLabel(
+  stored: string | null | undefined,
+  options: LookupOption[],
+): string {
+  const value = (stored ?? '').trim()
+  if (!value) return ''
+
+  const upper = value.toUpperCase()
+  for (const option of options) {
+    if (option.code?.toUpperCase() === upper) return option.label
+    if (option.rid === value) return option.label
+    if (option.label.toLowerCase() === value.toLowerCase()) return option.label
+  }
+
+  return options.some((option) => option.label === value) ? value : ''
 }

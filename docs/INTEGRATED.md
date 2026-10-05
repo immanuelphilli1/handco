@@ -451,7 +451,8 @@ values still work, matched by name, with the rid cleared when the country change
 | `GET /orders/buy-again` | "Buy this again" sidebar |
 
 Also implemented: `GET /orders/:rid`, `GET /orders/:rid/tracking`,
-`POST /orders/:rid/buy-again`, `POST /orders/:rid/return`.
+`POST /orders/:rid/buy-again`, `POST /orders/:rid/return`,
+`POST /orders/:rid/cancel` (unpaid orders only — **Cancel order** on `YourOrdersView`).
 
 ### Shipping quote (re-quoted on address change)
 
@@ -752,6 +753,11 @@ must be selected; a default address must exist.
 | `GET /notifications/settings` | Notification toggles — `NotificationsPanel` |
 | `PATCH /notifications/settings/:id` | Toggle promotions / order updates |
 | `GET /users/me/profile`, `PATCH /users/me/profile` | Your Profile — `ProfilePanel` |
+| `GET /users/me/country`, `PUT /users/me/country` | Country of residence — `ProfilePanel` → Personal Information |
+| `GET /users/me/security` | Account & Security tab — email, phone, 2FA flag |
+| `PATCH /users/me/email`, `PATCH /users/me/phone`, `PATCH /users/me/password` | Security action modals |
+| `POST /users/me/2fa/enable`, `POST /users/me/2fa/disable` | Two-factor toggle |
+| `DELETE /users/me` | Delete account (signs out, returns home) |
 | `GET /reviews/waiting`, `GET /reviews/reviewed`, `POST /reviews` | Reviews — `ReviewsPanel`, `AddReviewModal` |
 
 Address sub-resources (`POST /addresses`, `PATCH`/`DELETE /addresses/:rid`,
@@ -776,6 +782,14 @@ surface the server's message.
   carries the flag.
 - Address lookups are keyed differently: regions by country **rid/code**, cities by
   region **rid**.
+- **Country of residence** (`PUT /users/me/country` with `{ preferredCountry }`) is a
+  profile setting separate from the shipping address. The API accepts an ISO code,
+  country rid, or name, or `null` to clear. The profile page loads options from
+  `GET /addresses/lookup/countries` and saves the selected row's ISO code when
+  available. Catalog reads (`useProductDestination`) send `?country=` in this order:
+  default address country first, then preferred country, then omit the param when
+  signed out or unset. Changing residence or the default address broadcasts
+  `notifyPreferredCountryChanged()` so the catalog refetches without a full reload.
 
 ---
 

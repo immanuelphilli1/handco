@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { accountApi } from '../api'
+import { resolvePreferredCountryToCode } from '../api/services/account'
+import { onPreferredCountryChanged } from '../api/preferredCountry'
 import { mapApiAddresses } from '../api/mappers'
 import type { ProductDestination } from '../api/services/catalog'
 import { useAuth } from '../context/AuthContext'
@@ -9,13 +11,12 @@ import { useAuth } from '../context/AuthContext'
  *
  * The API only returns delivery quotes and tax-inclusive prices for a known
  * destination, and rejects a delivery filter without one (422
- * `destination_required`), so the client has to supply a country.
+ * `destination_required`), so the client has to supply a country when it can.
  *
- * The country comes from the signed-in customer's default address, since that is
- * where their order will actually ship. Nothing is guessed: with no signed-in
- * customer, no saved address, or a failed lookup, `country` stays `undefined` and
- * the parameter is omitted entirely, rather than defaulting to a hardcoded
- * country that would misreport delivery and tax for every other shopper.
+ * Resolution order for signed-in shoppers:
+ *  1. Default shipping address country — where the order will actually go.
+ *  2. Country of residence from `GET /users/me/country` — profile setting.
+ *  3. Nothing — omit `?country=` (signed-out shoppers always stop here).
  */
 export const DEFAULT_DESTINATION_COUNTRY: string | undefined = undefined
 
@@ -35,17 +36,13 @@ export type UseProductDestinationResult = ProductDestination & {
 export function useProductDestination(): UseProductDestinationResult {
   const { authUser, isBootstrapping } = useAuth()
   const isAuthenticated = authUser !== null
-  // The resolved country, or null while it is unknown. The default destination
-  // is applied when deriving the result rather than written back into state, so
-  // the signed-out path needs no effect at all.
   const [resolvedCountryCode, setResolvedCountryCode] = useState<string | null>(null)
+  const [refreshToken, setRefreshToken] = useState(0)
+
+  useEffect(() => onPreferredCountryChanged(() => setRefreshToken((n) => n + 1)), [])
 
   useEffect(() => {
-    // While the session is still being restored there may be a signed-in
-    // customer whose default address has not been read yet, so the lookup is
-    // held back until the auth state has settled.
-    if (isBootstrapping) return
-    if (!isAuthenticated) return
+    if (isBootstrapping || !isAuthenticated) return
 
     let cancelled = false
 
@@ -55,12 +52,25 @@ export function useProductDestination(): UseProductDestinationResult {
         if (cancelled) return
 
         const defaultAddress = addresses.find((address) => address.isDefault)
-        const resolved = toCountryCode(defaultAddress?.country)
-        if (resolved) {
-          setResolvedCountryCode(resolved)
+        const fromAddress = toCountryCode(defaultAddress?.country)
+        if (fromAddress) {
+          setResolvedCountryCode(fromAddress)
+          return
         }
+
+        const [lookupCountries, preferredResponse] = await Promise.all([
+          accountApi.getCountries(),
+          accountApi.getPreferredCountry().catch(() => ({ preferredCountry: null })),
+        ])
+        if (cancelled) return
+
+        const fromPreferred = resolvePreferredCountryToCode(
+          preferredResponse.preferredCountry,
+          lookupCountries,
+        )
+        setResolvedCountryCode(fromPreferred ?? null)
       } catch {
-        // Keep the default destination when the lookup fails.
+        if (!cancelled) setResolvedCountryCode(null)
       }
     }
 
@@ -69,17 +79,13 @@ export function useProductDestination(): UseProductDestinationResult {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, isBootstrapping])
+  }, [isAuthenticated, isBootstrapping, refreshToken])
 
-  const country = resolvedCountryCode ?? DEFAULT_DESTINATION_COUNTRY
-  // Loading only while the session itself is unresolved. A signed-in customer's
-  // address lookup is allowed to land after the first paint: the default
-  // destination is already in use and the catalog simply refetches when the
-  // real country arrives, so there is no loader to hold up.
+  const country =
+    isBootstrapping || !isAuthenticated
+      ? DEFAULT_DESTINATION_COUNTRY
+      : (resolvedCountryCode ?? DEFAULT_DESTINATION_COUNTRY)
   const isLoading = isBootstrapping
 
-  // Memoized so the object identity is stable across renders; it is part of the
-  // dependency list of the catalog effects, which would otherwise refetch
-  // whenever a new literal was created.
   return useMemo(() => ({ country, isLoading }), [country, isLoading])
 }

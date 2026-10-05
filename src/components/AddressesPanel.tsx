@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { accountApi } from '../api'
+import { notifyPreferredCountryChanged } from '../api/preferredCountry'
 import { ApiError } from '../api/client'
 import { getApiAddressId, mapApiAddress, mapApiAddresses } from '../api/mappers'
 import DeleteBin7LineIcon from 'remixicon-react/DeleteBin7LineIcon'
@@ -257,6 +258,7 @@ export function AddressesPanel({
           })),
         )
       }
+      notifyPreferredCountryChanged()
     } catch {
       setAddresses(previous)
     } finally {
@@ -329,6 +331,7 @@ export function AddressesPanel({
         if (values.isDefault) {
           await accountApi.setDefaultAddress(editingAddressId)
         }
+        notifyPreferredCountryChanged()
         return
       }
 
@@ -337,6 +340,7 @@ export function AddressesPanel({
       if (mapped.id !== '') {
         setAddresses((current) => applyDefaultFlag([...current, mapped], mapped.id))
       }
+      notifyPreferredCountryChanged()
     } catch (error) {
       setErrorMessage(getApiErrorMessage(error, 'We could not save this address.'))
     } finally {

@@ -8,6 +8,12 @@ import {
   mapApiReviewedReviewSlots,
 } from '../api/mappers'
 import { accountApi, ordersApi } from '../api'
+import type { LookupOption } from '../api'
+import { notifyPreferredCountryChanged } from '../api/preferredCountry'
+import {
+  preferredCountryPayloadForOption,
+  preferredCountrySelectLabel,
+} from '../api/services/account'
 import { ApiError } from '../api/client'
 import { createStandalonePaymentIntentKey } from '../api/idempotency'
 import { savePendingPayment } from '../api/pendingPayment'
@@ -1282,6 +1288,70 @@ function PrivacyNotice() {
   )
 }
 
+function CountryResidenceSelect({
+  countries,
+  preferredCountry,
+  isSaving,
+  onChange,
+}: {
+  countries: LookupOption[]
+  preferredCountry: string | null
+  isSaving: boolean
+  onChange: (preferredCountry: string | null) => void
+}) {
+  const labels = countries.map((option) => option.label)
+  const selectedLabel = preferredCountrySelectLabel(preferredCountry, countries)
+
+  return (
+    <div className="rounded-firm-2 bg-bg-secondary p-4">
+      <p className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary">
+        Country or residence
+      </p>
+      <p className="mt-2 text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
+        Used for delivery estimates and tax on products when you have no default shipping
+        address.
+      </p>
+      <label
+        htmlFor="profile-country-residence"
+        className="relative mt-4 flex h-14 w-full items-center overflow-hidden rounded-2xl border border-border-secondary px-4"
+      >
+        <select
+          id="profile-country-residence"
+          value={selectedLabel}
+          disabled={isSaving || countries.length === 0}
+          onChange={(event) => {
+            const label = event.target.value
+            if (!label) {
+              onChange(null)
+              return
+            }
+
+            const index = labels.indexOf(label)
+            const option = index >= 0 ? countries[index] : undefined
+            if (!option) return
+
+            onChange(preferredCountryPayloadForOption(option))
+          }}
+          className={`w-full appearance-none bg-transparent pr-8 text-base leading-5 tracking-[-0.32px] outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
+            selectedLabel ? 'font-medium text-text-primary' : 'font-normal text-text-tertiary'
+          }`}
+        >
+          <option value="">Select country</option>
+          {labels.map((label) => (
+            <option key={label} value={label}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <ArrowDownSLineIcon
+          className="pointer-events-none absolute right-4 size-6 text-text-secondary"
+          aria-hidden
+        />
+      </label>
+    </div>
+  )
+}
+
 function DefaultAddressCard({
   address,
   onEdit,
@@ -1400,6 +1470,10 @@ function PersonalInformationPanel({
   onEditPaymentMethod,
   address,
   paymentMethod,
+  countries,
+  preferredCountry,
+  isSavingCountry,
+  onPreferredCountryChange,
   isSaving = false,
 }: {
   profile: { fullName: string; email: string; initials: string }
@@ -1408,6 +1482,10 @@ function PersonalInformationPanel({
   onEditPaymentMethod: () => void
   address?: DefaultAddress | null
   paymentMethod?: PaymentMethodRecord | null
+  countries: LookupOption[]
+  preferredCountry: string | null
+  isSavingCountry: boolean
+  onPreferredCountryChange: (preferredCountry: string | null) => void
   isSaving?: boolean
 }) {
   return (
@@ -1432,6 +1510,15 @@ function PersonalInformationPanel({
         >
           {isSaving ? 'Saving…' : 'Edit profile'}
         </button>
+      </div>
+
+      <div className="px-4 py-4 lg:px-6">
+        <CountryResidenceSelect
+          countries={countries}
+          preferredCountry={preferredCountry}
+          isSaving={isSavingCountry}
+          onChange={onPreferredCountryChange}
+        />
       </div>
 
       <div className="flex flex-col gap-4 px-4 py-4 lg:flex-row lg:gap-8 lg:px-6">
@@ -1716,6 +1803,9 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
     initials: getProfileInitials(authUser?.fullName ?? userProfile.fullName),
   }))
   const [savedPayment, setSavedPayment] = useState<PaymentMethodRecord | null>(null)
+  const [countryOptions, setCountryOptions] = useState<LookupOption[]>([])
+  const [preferredCountry, setPreferredCountry] = useState<string | null>(null)
+  const [isSavingCountry, setIsSavingCountry] = useState(false)
 
   /**
    * The default address comes from its own hook so Your Profile and Checkout
@@ -1733,11 +1823,17 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
     async function loadProfile() {
       setIsLoading(true)
       try {
-        const [profileResponse, paymentResponse] = await Promise.all([
-          accountApi.getProfile(),
-          accountApi.listPaymentMethods(),
-        ])
+        const [profileResponse, paymentResponse, lookupCountries, preferredResponse] =
+          await Promise.all([
+            accountApi.getProfile(),
+            accountApi.listPaymentMethods(),
+            accountApi.getCountries(),
+            accountApi.getPreferredCountry().catch(() => ({ preferredCountry: null })),
+          ])
         if (cancelled) return
+
+        setCountryOptions(lookupCountries)
+        setPreferredCountry(preferredResponse.preferredCountry)
 
         if (profileResponse.profile) {
           const mapped = mapApiProfile(profileResponse.profile)
@@ -1790,6 +1886,25 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
     }
   }
 
+  const handlePreferredCountryChange = async (next: string | null) => {
+    setErrorMessage(null)
+    setIsSavingCountry(true)
+
+    try {
+      const response = await accountApi.updatePreferredCountry(next)
+      setPreferredCountry(response.preferredCountry)
+      notifyPreferredCountryChanged()
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiError && error.message
+          ? error.message
+          : 'We could not update your country of residence. Please try again.',
+      )
+    } finally {
+      setIsSavingCountry(false)
+    }
+  }
+
   return (
     <>
       <EditProfileModal
@@ -1820,6 +1935,10 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
             isSaving={isSaving}
             address={savedAddress}
             paymentMethod={savedPayment}
+            countries={countryOptions}
+            preferredCountry={preferredCountry}
+            isSavingCountry={isSavingCountry}
+            onPreferredCountryChange={(value) => void handlePreferredCountryChange(value)}
             onEditAddress={() => onSectionChange('addresses')}
             onEditPaymentMethod={() => onSectionChange('payments')}
           />

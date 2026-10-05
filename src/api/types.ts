@@ -627,6 +627,12 @@ export type ProfileResponse = {
   defaultAddress?: ApiDefaultAddress
 }
 
+/** `GET`/`PUT /users/me/country` — catalog destination when no default address applies. */
+export type PreferredCountryResponse = {
+  /** ISO code, rid, or name as stored by the API. `null` clears the preference. */
+  preferredCountry: string | null
+}
+
 /** Addresses are returned as `items` (or a bare array on some deployments). */
 export type ApiAddress = {
   id?: Rid
