@@ -491,8 +491,6 @@ function OrdersPanel({
   const [residenceMismatch, setResidenceMismatch] = useState<AddressResidenceMismatch | null>(
     null,
   )
-  const [pendingPaymentOrder, setPendingPaymentOrder] = useState<OrderRecord | null>(null)
-  const [isAligningResidence, setIsAligningResidence] = useState(false)
   const { authUser } = useAuth()
   const { address: defaultAddress } = useDefaultAddress()
   const { buyOrderAgain, addBuyAgainProductToCart } = useBuyAgain()
@@ -659,7 +657,6 @@ function OrdersPanel({
     try {
       const mismatch = await getAddressResidenceMismatch(defaultAddress, authUser?.email)
       if (mismatch) {
-        setPendingPaymentOrder(order)
         setResidenceMismatch(mismatch)
         return
       }
@@ -670,33 +667,9 @@ function OrdersPanel({
     await proceedMakePayment(order)
   }
 
-  const handleAlignResidenceForPayment = async () => {
-    if (!residenceMismatch) return
-
-    setIsAligningResidence(true)
-    setNotice(null)
-
-    try {
-      await accountApi.updatePreferredCountry(residenceMismatch.addressCountryCode)
-      writeStoredPreferredCountry(authUser?.email ?? undefined, residenceMismatch.addressCountryCode)
-      notifyPreferredCountryChanged()
-
-      const order = pendingPaymentOrder
-      setResidenceMismatch(null)
-      setPendingPaymentOrder(null)
-
-      if (order) {
-        await proceedMakePayment(order)
-      }
-    } catch (error) {
-      setNotice(
-        error instanceof ApiError && error.message
-          ? error.message
-          : 'We could not update your country of residence. Please try again.',
-      )
-    } finally {
-      setIsAligningResidence(false)
-    }
+  const handleGoToProfileForResidenceFromOrders = () => {
+    setResidenceMismatch(null)
+    navigate(getAccountPath('profile'))
   }
 
   const handleAddAddressForResidenceFromOrders = () => {
@@ -704,7 +677,6 @@ function OrdersPanel({
 
     writeResidenceAddressIntent(residenceMismatch.residenceCountryCode)
     setResidenceMismatch(null)
-    setPendingPaymentOrder(null)
     navigate(`${getAccountPath('addresses')}${ADD_RESIDENCE_ADDRESS_PARAM}`)
   }
 
@@ -779,11 +751,9 @@ function OrdersPanel({
         mismatch={residenceMismatch}
         onClose={() => {
           setResidenceMismatch(null)
-          setPendingPaymentOrder(null)
         }}
         onAddAddressForResidence={handleAddAddressForResidenceFromOrders}
-        onAlignResidenceToAddress={() => void handleAlignResidenceForPayment()}
-        isAligning={isAligningResidence}
+        onGoToProfileForResidence={handleGoToProfileForResidenceFromOrders}
       />
       {notice ? (
         <p

@@ -59,10 +59,6 @@ import {
 } from '../data/accountRoutes'
 import { writeResidenceAddressIntent } from '../api/residenceAddressIntent'
 import {
-  notifyPreferredCountryChanged,
-  writeStoredPreferredCountry,
-} from '../api/preferredCountry'
-import {
   getAddressResidenceMismatch,
   type AddressResidenceMismatch,
 } from '../utils/addressResidenceMatch'
@@ -123,9 +119,6 @@ export function HomePage() {
   const [residenceMismatch, setResidenceMismatch] = useState<AddressResidenceMismatch | null>(
     null,
   )
-  const [resumeCheckoutAfterResidenceFix, setResumeCheckoutAfterResidenceFix] = useState(false)
-  const [isAligningResidence, setIsAligningResidence] = useState(false)
-
   const pathname = location.pathname
   const productId = pathname.startsWith('/products/') ? params.productId : undefined
   const categoryListing = useMemo(() => {
@@ -425,7 +418,6 @@ export function HomePage() {
       const mismatch = await getAddressResidenceMismatch(defaultAddress, authUser.email)
       if (mismatch) {
         setResidenceMismatch(mismatch)
-        setResumeCheckoutAfterResidenceFix(true)
         return
       }
 
@@ -530,43 +522,13 @@ export function HomePage() {
 
     writeResidenceAddressIntent(residenceMismatch.residenceCountryCode)
     setResidenceMismatch(null)
-    setResumeCheckoutAfterResidenceFix(false)
     navigate(`${getAccountPath('addresses')}${ADD_RESIDENCE_ADDRESS_PARAM}`)
   }, [navigate, residenceMismatch])
 
-  const handleAlignResidenceFromCheckout = useCallback(async () => {
-    if (!residenceMismatch || !authUser) return
-
-    setIsAligningResidence(true)
-    setCheckoutError(null)
-
-    try {
-      await accountApi.updatePreferredCountry(residenceMismatch.addressCountryCode)
-      writeStoredPreferredCountry(authUser.email, residenceMismatch.addressCountryCode)
-      notifyPreferredCountryChanged()
-
-      const shouldResume = resumeCheckoutAfterResidenceFix
-      setResidenceMismatch(null)
-      setResumeCheckoutAfterResidenceFix(false)
-
-      if (shouldResume) {
-        await handleSubmitOrder()
-      }
-    } catch (error) {
-      setCheckoutError(
-        error instanceof ApiError && error.message
-          ? error.message
-          : 'We could not update your country of residence. Please try again.',
-      )
-    } finally {
-      setIsAligningResidence(false)
-    }
-  }, [
-    authUser,
-    handleSubmitOrder,
-    residenceMismatch,
-    resumeCheckoutAfterResidenceFix,
-  ])
+  const handleGoToProfileForResidenceFromCheckout = useCallback(() => {
+    setResidenceMismatch(null)
+    navigate(getAccountPath('profile'))
+  }, [navigate])
 
   /**
    * Retries checkout after a payment failure that left no order behind.
@@ -750,11 +712,9 @@ export function HomePage() {
               mismatch={residenceMismatch}
               onClose={() => {
                 setResidenceMismatch(null)
-                setResumeCheckoutAfterResidenceFix(false)
               }}
               onAddAddressForResidence={handleAddAddressForResidenceFromCheckout}
-              onAlignResidenceToAddress={() => void handleAlignResidenceFromCheckout()}
-              isAligning={isAligningResidence}
+              onGoToProfileForResidence={handleGoToProfileForResidenceFromCheckout}
             />
             <PaymentRedirectOverlay
               isVisible={paymentRedirectStep !== null}

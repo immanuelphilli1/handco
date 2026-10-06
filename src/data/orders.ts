@@ -99,6 +99,7 @@ export const orderFilterTabs: { id: OrderFilter; label: string }[] = [
   { id: 'shipped', label: 'Shipped' },
   { id: 'delivered', label: 'Delivered' },
   { id: 'returns', label: 'Returns' },
+  { id: 'cancelled', label: 'Cancelled' },
 ]
 
 export const orders: OrderRecord[] = [

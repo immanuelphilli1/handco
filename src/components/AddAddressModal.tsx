@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import ArrowDownSLineIcon from 'remixicon-react/ArrowDownSLineIcon'
 import CloseFillIcon from 'remixicon-react/CloseFillIcon'
@@ -271,6 +271,60 @@ export function AddAddressModal({
       cancelled = true
     }
   }, [isOpen])
+
+  const countryPrefillKeyRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) {
+      countryPrefillKeyRef.current = null
+      return
+    }
+
+    const countryCode = form.country.trim()
+    if (!countryCode || countryMeta.length === 0) return
+    if (countryPrefillKeyRef.current === countryCode) return
+
+    const index = countryMeta.findIndex((option) => option.code === countryCode)
+    if (index < 0) return
+
+    const meta = countryMeta[index]
+    const countryName = countries[index] ?? meta.label
+    countryPrefillKeyRef.current = countryCode
+
+    if (!form.phoneCountryCode && meta.phoneCode) {
+      setForm((current) => ({
+        ...current,
+        phoneCountryCode: meta.phoneCode ?? current.phoneCountryCode,
+      }))
+    }
+
+    const countryRid = countryCodes[index] ?? countryName
+    let cancelled = false
+
+    async function loadRegionsForPrefill() {
+      setIsLoadingRegions(true)
+      try {
+        const options = await accountApi.getRegions(countryRid)
+        if (cancelled) return
+        if (options.length > 0) {
+          setRegions(options.map((option) => option.label))
+          setRegionMeta(options)
+        } else {
+          setRegions(addressRegions)
+        }
+      } catch {
+        if (!cancelled) setRegions(addressRegions)
+      } finally {
+        if (!cancelled) setIsLoadingRegions(false)
+      }
+    }
+
+    void loadRegionsForPrefill()
+
+    return () => {
+      cancelled = true
+    }
+  }, [countryCodes, countries, countryMeta, form.country, form.phoneCountryCode, isOpen])
 
 /** Resolves a stored ISO country code to the name shown in the dropdown. */
   const getCountryLabel = (countryCode: string) => {

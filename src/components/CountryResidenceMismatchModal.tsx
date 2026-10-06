@@ -8,8 +8,7 @@ type CountryResidenceMismatchModalProps = {
   mismatch: AddressResidenceMismatch | null
   onClose: () => void
   onAddAddressForResidence: () => void
-  onAlignResidenceToAddress: () => void
-  isAligning?: boolean
+  onGoToProfileForResidence: () => void
 }
 
 const titleId = 'country-residence-mismatch-title'
@@ -19,8 +18,7 @@ export function CountryResidenceMismatchModal({
   mismatch,
   onClose,
   onAddAddressForResidence,
-  onAlignResidenceToAddress,
-  isAligning = false,
+  onGoToProfileForResidence,
 }: CountryResidenceMismatchModalProps) {
   useEffect(() => {
     if (!isOpen) return
@@ -89,26 +87,21 @@ export function CountryResidenceMismatchModal({
             <button
               type="button"
               onClick={onAddAddressForResidence}
-              disabled={isAligning}
-              className="btn-orange flex min-h-11 w-full cursor-pointer items-center justify-center rounded-full px-4 py-3 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-orange flex min-h-11 w-full cursor-pointer items-center justify-center rounded-full px-4 py-3 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse"
             >
               Add a default address in {mismatch.residenceCountryLabel}
             </button>
             <button
               type="button"
-              onClick={onAlignResidenceToAddress}
-              disabled={isAligning}
-              className="flex min-h-11 w-full cursor-pointer items-center justify-center rounded-full border border-border-primary bg-bg-secondary px-4 py-3 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={onGoToProfileForResidence}
+              className="flex min-h-11 w-full cursor-pointer items-center justify-center rounded-full border border-border-primary bg-bg-secondary px-4 py-3 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary"
             >
-              {isAligning
-                ? 'Updating…'
-                : `Use ${mismatch.addressCountryLabel} as country of residence`}
+              Update country of residence in profile
             </button>
             <button
               type="button"
               onClick={onClose}
-              disabled={isAligning}
-              className="w-full cursor-pointer rounded-full px-4 py-2 text-base font-medium leading-5 tracking-[-0.32px] text-text-secondary disabled:opacity-60"
+              className="w-full cursor-pointer rounded-full px-4 py-2 text-base font-medium leading-5 tracking-[-0.32px] text-text-secondary"
             >
               Cancel
             </button>
