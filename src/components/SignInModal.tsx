@@ -65,21 +65,21 @@ function GoogleIcon() {
   )
 }
 
-function FacebookIcon() {
-  return (
-    <span className="flex size-12 items-center justify-center overflow-hidden rounded-full">
-      <img alt="" aria-hidden className="size-12 object-contain" src={images.auth.facebook} />
-    </span>
-  )
-}
+// function FacebookIcon() {
+//   return (
+//     <span className="flex size-12 items-center justify-center overflow-hidden rounded-full">
+//       <img alt="" aria-hidden className="size-12 object-contain" src={images.auth.facebook} />
+//     </span>
+//   )
+// }
 
-function AppleIcon() {
-  return (
-    <span className="flex size-12 items-center justify-center overflow-hidden rounded-full">
-      <img alt="" aria-hidden className="size-12 object-contain" src={images.auth.apple} />
-    </span>
-  )
-}
+// function AppleIcon() {
+//   return (
+//     <span className="flex size-12 items-center justify-center overflow-hidden rounded-full">
+//       <img alt="" aria-hidden className="size-12 object-contain" src={images.auth.apple} />
+//     </span>
+//   )
+// }
 
 function LegalNotice({ onLinkClick }: { onLinkClick: () => void }) {
   return (
