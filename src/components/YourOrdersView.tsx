@@ -98,7 +98,17 @@ import EditBoxLineIcon from 'remixicon-react/EditBoxLineIcon'
 import LockFillIcon from 'remixicon-react/LockFillIcon'
 import ShieldCheckFillIcon from 'remixicon-react/ShieldCheckFillIcon'
 
-import type { AccountSection } from '../data/accountRoutes'
+import {
+  ADD_RESIDENCE_ADDRESS_PARAM,
+  getAccountPath,
+  type AccountSection,
+} from '../data/accountRoutes'
+import { writeResidenceAddressIntent } from '../api/residenceAddressIntent'
+import {
+  getAddressResidenceMismatch,
+  type AddressResidenceMismatch,
+} from '../utils/addressResidenceMatch'
+import { CountryResidenceMismatchModal } from './CountryResidenceMismatchModal'
 
 export type { AccountSection } from '../data/accountRoutes'
 
@@ -112,6 +122,8 @@ type YourOrdersViewProps = {
   startEditingDefaultAddress?: boolean
   /** Clears that intent once the form is dismissed. */
   onDismissEditIntent?: () => void
+  startAddingResidenceAddress?: boolean
+  onDismissResidenceAddIntent?: () => void
 }
 
 type RemixIcon = typeof UserLineIcon
@@ -476,6 +488,13 @@ function OrdersPanel({
   /** Order currently being cancelled, so only its button shows progress. */
   const [isCancellingOrderId, setIsCancellingOrderId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [residenceMismatch, setResidenceMismatch] = useState<AddressResidenceMismatch | null>(
+    null,
+  )
+  const [pendingPaymentOrder, setPendingPaymentOrder] = useState<OrderRecord | null>(null)
+  const [isAligningResidence, setIsAligningResidence] = useState(false)
+  const { authUser } = useAuth()
+  const { address: defaultAddress } = useDefaultAddress()
   const { buyOrderAgain, addBuyAgainProductToCart } = useBuyAgain()
   const {
     lines,
@@ -595,7 +614,7 @@ function OrdersPanel({
    * provider. The order already exists, so unlike checkout there is no
    * `POST /orders` step here — only `payment-intent` against the same order id.
    */
-  const handleMakePayment = async (order: OrderRecord) => {
+  const proceedMakePayment = async (order: OrderRecord) => {
     setNotice(null)
     setIsPayingOrderId(order.id)
 
@@ -632,6 +651,61 @@ function OrdersPanel({
           : 'We could not open payment for this order. Please try again.',
       )
     }
+  }
+
+  const handleMakePayment = async (order: OrderRecord) => {
+    setNotice(null)
+
+    try {
+      const mismatch = await getAddressResidenceMismatch(defaultAddress, authUser?.email)
+      if (mismatch) {
+        setPendingPaymentOrder(order)
+        setResidenceMismatch(mismatch)
+        return
+      }
+    } catch {
+      // If the check fails, still attempt payment rather than blocking silently.
+    }
+
+    await proceedMakePayment(order)
+  }
+
+  const handleAlignResidenceForPayment = async () => {
+    if (!residenceMismatch) return
+
+    setIsAligningResidence(true)
+    setNotice(null)
+
+    try {
+      await accountApi.updatePreferredCountry(residenceMismatch.addressCountryCode)
+      writeStoredPreferredCountry(authUser?.email ?? undefined, residenceMismatch.addressCountryCode)
+      notifyPreferredCountryChanged()
+
+      const order = pendingPaymentOrder
+      setResidenceMismatch(null)
+      setPendingPaymentOrder(null)
+
+      if (order) {
+        await proceedMakePayment(order)
+      }
+    } catch (error) {
+      setNotice(
+        error instanceof ApiError && error.message
+          ? error.message
+          : 'We could not update your country of residence. Please try again.',
+      )
+    } finally {
+      setIsAligningResidence(false)
+    }
+  }
+
+  const handleAddAddressForResidenceFromOrders = () => {
+    if (!residenceMismatch) return
+
+    writeResidenceAddressIntent(residenceMismatch.residenceCountryCode)
+    setResidenceMismatch(null)
+    setPendingPaymentOrder(null)
+    navigate(`${getAccountPath('addresses')}${ADD_RESIDENCE_ADDRESS_PARAM}`)
   }
 
   /**
@@ -699,6 +773,17 @@ function OrdersPanel({
         returnEligibility={
           returnEligibilityOrderId === returnOrderTarget?.id ? returnEligibility : null
         }
+      />
+      <CountryResidenceMismatchModal
+        isOpen={residenceMismatch !== null}
+        mismatch={residenceMismatch}
+        onClose={() => {
+          setResidenceMismatch(null)
+          setPendingPaymentOrder(null)
+        }}
+        onAddAddressForResidence={handleAddAddressForResidenceFromOrders}
+        onAlignResidenceToAddress={() => void handleAlignResidenceForPayment()}
+        isAligning={isAligningResidence}
       />
       {notice ? (
         <p
@@ -2057,6 +2142,8 @@ export function YourOrdersView({
   onViewRefundPolicy,
   startEditingDefaultAddress = false,
   onDismissEditIntent,
+  startAddingResidenceAddress = false,
+  onDismissResidenceAddIntent,
 }: YourOrdersViewProps) {
   // Orders live here so the panel and the "Buy this again" rail read from the
   // same list, which keeps the rail's products tied to real purchases.
@@ -2085,9 +2172,11 @@ export function YourOrdersView({
               <BrowsingHistoryPanel />
             ) : section === 'addresses' ? (
               <AddressesPanel
-              startEditingDefault={startEditingDefaultAddress}
-              onDismissEditIntent={onDismissEditIntent}
-            />
+                startEditingDefault={startEditingDefaultAddress}
+                onDismissEditIntent={onDismissEditIntent}
+                startAddingResidenceAddress={startAddingResidenceAddress}
+                onDismissResidenceAddIntent={onDismissResidenceAddIntent}
+              />
             ) : section === 'payments' ? (
               <PaymentMethodsPanel />
             ) : (

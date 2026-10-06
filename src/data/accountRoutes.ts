@@ -39,3 +39,10 @@ export const EDIT_DEFAULT_ADDRESS_PARAM = '?edit=default'
 export function wantsDefaultAddressEdit(search: string): boolean {
   return new URLSearchParams(search).get('edit') === 'default'
 }
+
+/** Opens the add-address form prefilled for the shopper's country of residence. */
+export const ADD_RESIDENCE_ADDRESS_PARAM = '?add=residence'
+
+export function wantsResidenceAddressAdd(search: string): boolean {
+  return new URLSearchParams(search).get('add') === 'residence'
+}

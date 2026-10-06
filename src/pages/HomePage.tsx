@@ -52,7 +52,21 @@ import {
 } from '../api/types'
 import type { Product } from '../data/products'
 import type { ProductDetailContext } from '../data/productDetail'
-import { EDIT_DEFAULT_ADDRESS_PARAM, getAccountPath } from '../data/accountRoutes'
+import {
+  ADD_RESIDENCE_ADDRESS_PARAM,
+  EDIT_DEFAULT_ADDRESS_PARAM,
+  getAccountPath,
+} from '../data/accountRoutes'
+import { writeResidenceAddressIntent } from '../api/residenceAddressIntent'
+import {
+  notifyPreferredCountryChanged,
+  writeStoredPreferredCountry,
+} from '../api/preferredCountry'
+import {
+  getAddressResidenceMismatch,
+  type AddressResidenceMismatch,
+} from '../utils/addressResidenceMatch'
+import { CountryResidenceMismatchModal } from '../components/CountryResidenceMismatchModal'
 import {
   getCartPath,
   getCategoryPathFromSelection,
@@ -106,6 +120,11 @@ export function HomePage() {
     message: string
     isOrderPlaced: boolean
   } | null>(null)
+  const [residenceMismatch, setResidenceMismatch] = useState<AddressResidenceMismatch | null>(
+    null,
+  )
+  const [resumeCheckoutAfterResidenceFix, setResumeCheckoutAfterResidenceFix] = useState(false)
+  const [isAligningResidence, setIsAligningResidence] = useState(false)
 
   const pathname = location.pathname
   const productId = pathname.startsWith('/products/') ? params.productId : undefined
@@ -398,6 +417,18 @@ export function HomePage() {
         return
       }
 
+      if (!paymentMethodId) {
+        setCheckoutError('Choose a payment method before submitting your order.')
+        return
+      }
+
+      const mismatch = await getAddressResidenceMismatch(defaultAddress, authUser.email)
+      if (mismatch) {
+        setResidenceMismatch(mismatch)
+        setResumeCheckoutAfterResidenceFix(true)
+        return
+      }
+
       // The two calls get separate keys: they carry different bodies, and the
       // server rejects one key reused with a different body
       // (`422 idempotency_key_reused`).
@@ -493,6 +524,49 @@ export function HomePage() {
       }
     }
   }, [authUser, cartItems, defaultAddress, paymentMethodId, refreshCart, setLastOrder])
+
+  const handleAddAddressForResidenceFromCheckout = useCallback(() => {
+    if (!residenceMismatch) return
+
+    writeResidenceAddressIntent(residenceMismatch.residenceCountryCode)
+    setResidenceMismatch(null)
+    setResumeCheckoutAfterResidenceFix(false)
+    navigate(`${getAccountPath('addresses')}${ADD_RESIDENCE_ADDRESS_PARAM}`)
+  }, [navigate, residenceMismatch])
+
+  const handleAlignResidenceFromCheckout = useCallback(async () => {
+    if (!residenceMismatch || !authUser) return
+
+    setIsAligningResidence(true)
+    setCheckoutError(null)
+
+    try {
+      await accountApi.updatePreferredCountry(residenceMismatch.addressCountryCode)
+      writeStoredPreferredCountry(authUser.email, residenceMismatch.addressCountryCode)
+      notifyPreferredCountryChanged()
+
+      const shouldResume = resumeCheckoutAfterResidenceFix
+      setResidenceMismatch(null)
+      setResumeCheckoutAfterResidenceFix(false)
+
+      if (shouldResume) {
+        await handleSubmitOrder()
+      }
+    } catch (error) {
+      setCheckoutError(
+        error instanceof ApiError && error.message
+          ? error.message
+          : 'We could not update your country of residence. Please try again.',
+      )
+    } finally {
+      setIsAligningResidence(false)
+    }
+  }, [
+    authUser,
+    handleSubmitOrder,
+    residenceMismatch,
+    resumeCheckoutAfterResidenceFix,
+  ])
 
   /**
    * Retries checkout after a payment failure that left no order behind.
@@ -670,6 +744,17 @@ export function HomePage() {
                 setIsAddAddressModalOpen(false)
                 handleGoToAddresses()
               }}
+            />
+            <CountryResidenceMismatchModal
+              isOpen={residenceMismatch !== null}
+              mismatch={residenceMismatch}
+              onClose={() => {
+                setResidenceMismatch(null)
+                setResumeCheckoutAfterResidenceFix(false)
+              }}
+              onAddAddressForResidence={handleAddAddressForResidenceFromCheckout}
+              onAlignResidenceToAddress={() => void handleAlignResidenceFromCheckout()}
+              isAligning={isAligningResidence}
             />
             <PaymentRedirectOverlay
               isVisible={paymentRedirectStep !== null}

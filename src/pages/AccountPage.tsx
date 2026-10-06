@@ -9,6 +9,7 @@ import {
   getAccountPath,
   parseAccountSection,
   wantsDefaultAddressEdit,
+  wantsResidenceAddressAdd,
   type AccountSection,
 } from '../data/accountRoutes'
 import {
@@ -30,12 +31,28 @@ export function AccountPage() {
     [searchParams, section],
   )
 
+  const startAddingResidenceAddress = useMemo(
+    () => section === 'addresses' && wantsResidenceAddressAdd(searchParams.toString()),
+    [searchParams, section],
+  )
+
   /** Drops the flag once the form is dismissed, so it does not reopen. */
   const handleDismissEditIntent = useCallback(() => {
     setSearchParams(
       (current) => {
         const next = new URLSearchParams(current)
         next.delete('edit')
+        return next
+      },
+      { replace: true },
+    )
+  }, [setSearchParams])
+
+  const handleDismissResidenceAddIntent = useCallback(() => {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current)
+        next.delete('add')
         return next
       },
       { replace: true },
@@ -112,6 +129,8 @@ export function AccountPage() {
             onViewRefundPolicy={handleViewRefundPolicy}
             startEditingDefaultAddress={startEditingDefaultAddress}
             onDismissEditIntent={handleDismissEditIntent}
+            startAddingResidenceAddress={startAddingResidenceAddress}
+            onDismissResidenceAddIntent={handleDismissResidenceAddIntent}
           />
         </main>
         <Footer onOpenCategories={toggleCategoriesFromLinkBar} />

@@ -8,7 +8,6 @@ import { shippingSummary, type CartItem } from '../data/cart'
 import {
   getMethodHint,
   mapCheckoutPaymentMethods,
-  mergeCheckoutPaymentMethods,
   type CheckoutPaymentMethod,
 } from '../data/checkoutPaymentMethods'
 import { formatAmount, formatAmountDecimal, formatDeliveryDays } from '../data/format'
@@ -260,19 +259,7 @@ export function CheckoutView({
         const preview = await checkoutApi.getCheckoutPreview()
         if (cancelled) return
 
-        // The preview list can be narrower than the full checkout catalog; merge
-        // in `GET /payment-methods/checkout` (no query params) and keep any
-        // preview-only method the second call omits.
-        let methods = mapCheckoutPaymentMethods(preview.paymentMethods)
-
-        try {
-          const scoped = await checkoutApi.getCheckoutPaymentMethods()
-          if (cancelled) return
-
-          methods = mergeCheckoutPaymentMethods(methods, scoped.paymentMethods ?? scoped.items)
-        } catch {
-          // The scoped list is an enhancement; the preview list still stands.
-        }
+        const methods = mapCheckoutPaymentMethods(preview.paymentMethods)
 
         // Methods are admin-configured, so the backend is the source of truth. An
         // empty list is respected: the backend withheld every method for this
@@ -306,7 +293,7 @@ export function CheckoutView({
     return () => {
       cancelled = true
     }
-  }, [onPaymentMethodChange, defaultAddress?.countryCode])
+  }, [onPaymentMethodChange])
 
   /**
    * Quotes shipping for the address actually being used.

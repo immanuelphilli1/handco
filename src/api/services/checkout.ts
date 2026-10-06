@@ -1,7 +1,6 @@
 import { apiRequest } from '../client'
 import type {
   CartSummary,
-  CheckoutPaymentMethodsResponse,
   CheckoutPreviewResponse,
   Money,
   ApiDeliveryDays,
@@ -12,22 +11,6 @@ import type {
 
 export async function getCheckoutPreview(): Promise<CheckoutPreviewResponse> {
   return apiRequest<CheckoutPreviewResponse>('/checkout/preview')
-}
-
-/**
- * Payment methods for checkout, independent of whether a cart exists.
- *
- * `GET /checkout/preview` only reports methods for the currency it priced the cart
- * in, which is a fixed store currency when no destination is known. This call
- * omits query params so the server returns active checkout methods unfiltered;
- * the client merges them with the preview list. Public — works signed out and
- * with no cart.
- */
-export async function getCheckoutPaymentMethods(): Promise<CheckoutPaymentMethodsResponse> {
-  return apiRequest<CheckoutPaymentMethodsResponse>('/payment-methods/checkout', {
-    auth: false,
-    cart: false,
-  })
 }
 
 /**

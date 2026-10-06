@@ -13,12 +13,14 @@ import { ListingLoader } from './ListingLoader'
 import {
   addressSafeguardNotice,
   addressToFormValues,
+  emptyAddressForm,
   formValuesToAddress,
   formatAddressContact,
   getAddressesEmptyStateMessage,
   type AddressFormValues,
   type AddressRecord,
 } from '../data/addresses'
+import { clearResidenceAddressIntent, readResidenceAddressIntent } from '../api/residenceAddressIntent'
 
 /**
  * Ensures exactly one address reads as default: the preferred one when given,
@@ -149,11 +151,16 @@ type AddressesPanelProps = {
   startEditingDefault?: boolean
   /** Clears the `?edit=default` flag once the form is dismissed. */
   onDismissEditIntent?: () => void
+  /** Opens add-address prefilled for country of residence (checkout mismatch). */
+  startAddingResidenceAddress?: boolean
+  onDismissResidenceAddIntent?: () => void
 }
 
 export function AddressesPanel({
   startEditingDefault = false,
   onDismissEditIntent,
+  startAddingResidenceAddress = false,
+  onDismissResidenceAddIntent,
 }: AddressesPanelProps) {
   // Starts empty: the API is the only source of truth, so a new account sees the
   // empty state rather than sample addresses.
@@ -207,6 +214,18 @@ export function AddressesPanel({
   const shouldAutoEditDefault =
     startEditingDefault && !isLoading && !isModalOpen && Boolean(defaultAddressId)
 
+  const residenceCountryCode = readResidenceAddressIntent()
+  const shouldAutoAddResidence =
+    startAddingResidenceAddress &&
+    !isLoading &&
+    !isModalOpen &&
+    !shouldAutoEditDefault &&
+    Boolean(residenceCountryCode)
+
+  const residenceAddInitialValues: AddressFormValues | undefined = residenceCountryCode
+    ? { ...emptyAddressForm, country: residenceCountryCode, isDefault: true }
+    : undefined
+
   const editingAddress = addresses.find(
     (address) =>
       address.id === editingAddressId ||
@@ -227,6 +246,8 @@ export function AddressesPanel({
 
   /** Dismissing also drops the `?edit=default` flag, so the form stays closed. */
   const closeModal = () => {
+    clearResidenceAddressIntent()
+    onDismissResidenceAddIntent?.()
     setIsModalOpen(false)
     setEditingAddressId(null)
     onDismissEditIntent?.()
@@ -354,10 +375,16 @@ export function AddressesPanel({
           address) mounts a fresh form seeded from the new initial values.
           `shouldAutoEditDefault` keeps the form up until the user dismisses it. */}
       <AddAddressModal
-        key={`${editingAddressId ?? (shouldAutoEditDefault ? defaultAddressId : 'new')}-${isModalOpen || shouldAutoEditDefault ? 'open' : 'closed'}`}
-        isOpen={isModalOpen || shouldAutoEditDefault}
+        key={`${editingAddressId ?? (shouldAutoEditDefault ? defaultAddressId : shouldAutoAddResidence ? 'residence' : 'new')}-${isModalOpen || shouldAutoEditDefault || shouldAutoAddResidence ? 'open' : 'closed'}`}
+        isOpen={isModalOpen || shouldAutoEditDefault || shouldAutoAddResidence}
         mode={shouldAutoEditDefault && !editingAddressId ? 'edit' : modalMode}
-        initialValues={editingAddress ? addressToFormValues(editingAddress) : undefined}
+        initialValues={
+          editingAddress
+            ? addressToFormValues(editingAddress)
+            : shouldAutoAddResidence
+              ? residenceAddInitialValues
+              : undefined
+        }
         onClose={closeModal}
         onSubmit={handleSubmit}
       />
