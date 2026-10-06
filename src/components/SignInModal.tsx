@@ -490,12 +490,12 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
                 >
                   <GoogleIcon />
                 </button>
-                <button type="button" aria-label="Continue with Facebook" className="cursor-pointer">
+                {/* <button type="button" aria-label="Continue with Facebook" className="cursor-pointer">
                   <FacebookIcon />
                 </button>
                 <button type="button" aria-label="Continue with Apple" className="cursor-pointer">
                   <AppleIcon />
-                </button>
+                </button> */}
               </div>
             </div>
           ) : null}
