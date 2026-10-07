@@ -8,7 +8,7 @@ type CountryResidenceMismatchModalProps = {
   mismatch: AddressResidenceMismatch | null
   onClose: () => void
   onAddAddressForResidence: () => void
-  onGoToProfileForResidence: () => void
+  onProceedAnyway: () => void
 }
 
 const titleId = 'country-residence-mismatch-title'
@@ -18,7 +18,7 @@ export function CountryResidenceMismatchModal({
   mismatch,
   onClose,
   onAddAddressForResidence,
-  onGoToProfileForResidence,
+  onProceedAnyway,
 }: CountryResidenceMismatchModalProps) {
   useEffect(() => {
     if (!isOpen) return
@@ -93,10 +93,10 @@ export function CountryResidenceMismatchModal({
             </button>
             <button
               type="button"
-              onClick={onGoToProfileForResidence}
+              onClick={onProceedAnyway}
               className="flex min-h-11 w-full cursor-pointer items-center justify-center rounded-full border border-border-primary bg-bg-secondary px-4 py-3 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary"
             >
-              Update country of residence in profile
+              Proceed anyways
             </button>
             <button
               type="button"

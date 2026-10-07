@@ -491,6 +491,7 @@ function OrdersPanel({
   const [residenceMismatch, setResidenceMismatch] = useState<AddressResidenceMismatch | null>(
     null,
   )
+  const [pendingPaymentOrder, setPendingPaymentOrder] = useState<OrderRecord | null>(null)
   const { authUser } = useAuth()
   const { address: defaultAddress } = useDefaultAddress()
   const { buyOrderAgain, addBuyAgainProductToCart } = useBuyAgain()
@@ -657,6 +658,7 @@ function OrdersPanel({
     try {
       const mismatch = await getAddressResidenceMismatch(defaultAddress, authUser?.email)
       if (mismatch) {
+        setPendingPaymentOrder(order)
         setResidenceMismatch(mismatch)
         return
       }
@@ -667,9 +669,13 @@ function OrdersPanel({
     await proceedMakePayment(order)
   }
 
-  const handleGoToProfileForResidenceFromOrders = () => {
+  const handleProceedAnywayFromOrders = () => {
+    const order = pendingPaymentOrder
     setResidenceMismatch(null)
-    navigate(getAccountPath('profile'))
+    setPendingPaymentOrder(null)
+    if (order) {
+      void proceedMakePayment(order)
+    }
   }
 
   const handleAddAddressForResidenceFromOrders = () => {
@@ -751,9 +757,10 @@ function OrdersPanel({
         mismatch={residenceMismatch}
         onClose={() => {
           setResidenceMismatch(null)
+          setPendingPaymentOrder(null)
         }}
         onAddAddressForResidence={handleAddAddressForResidenceFromOrders}
-        onGoToProfileForResidence={handleGoToProfileForResidenceFromOrders}
+        onProceedAnyway={handleProceedAnywayFromOrders}
       />
       {notice ? (
         <p

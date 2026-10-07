@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { accountApi, catalogApi, checkoutApi } from '../api'
 import { ApiError } from '../api/client'
@@ -119,6 +119,7 @@ export function HomePage() {
   const [residenceMismatch, setResidenceMismatch] = useState<AddressResidenceMismatch | null>(
     null,
   )
+  const skipResidenceMismatchCheckRef = useRef(false)
   const pathname = location.pathname
   const productId = pathname.startsWith('/products/') ? params.productId : undefined
   const categoryListing = useMemo(() => {
@@ -238,6 +239,11 @@ export function HomePage() {
     }
   }, [cartItems.length, navigate, paymentError, paymentRedirectStep, pathname])
 
+  useEffect(() => {
+    if (pathname !== '/cart') return
+    void refreshCart()
+  }, [pathname, refreshCart])
+
   const handleOpenAllCategories = useCallback(() => {
     navigate(getCategoryPathFromSelection(getAllCategoriesListingSelection(categories)))
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -287,8 +293,9 @@ export function HomePage() {
   const handleOpenCart = useCallback(() => {
     closeCategories()
     navigate(getCartPath())
+    void refreshCart()
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [closeCategories, navigate])
+  }, [closeCategories, navigate, refreshCart])
 
   // Cart lines carry no category context, so the product page falls back to the
   // product's own category/subcategory for its breadcrumb and "back" target.
@@ -415,10 +422,15 @@ export function HomePage() {
         return
       }
 
-      const mismatch = await getAddressResidenceMismatch(defaultAddress, authUser.email)
-      if (mismatch) {
-        setResidenceMismatch(mismatch)
-        return
+      const skipMismatchCheck = skipResidenceMismatchCheckRef.current
+      skipResidenceMismatchCheckRef.current = false
+
+      if (!skipMismatchCheck) {
+        const mismatch = await getAddressResidenceMismatch(defaultAddress, authUser.email)
+        if (mismatch) {
+          setResidenceMismatch(mismatch)
+          return
+        }
       }
 
       // The two calls get separate keys: they carry different bodies, and the
@@ -525,10 +537,11 @@ export function HomePage() {
     navigate(`${getAccountPath('addresses')}${ADD_RESIDENCE_ADDRESS_PARAM}`)
   }, [navigate, residenceMismatch])
 
-  const handleGoToProfileForResidenceFromCheckout = useCallback(() => {
+  const handleProceedAnywayFromCheckout = useCallback(() => {
     setResidenceMismatch(null)
-    navigate(getAccountPath('profile'))
-  }, [navigate])
+    skipResidenceMismatchCheckRef.current = true
+    void handleSubmitOrder()
+  }, [handleSubmitOrder])
 
   /**
    * Retries checkout after a payment failure that left no order behind.
@@ -714,7 +727,7 @@ export function HomePage() {
                 setResidenceMismatch(null)
               }}
               onAddAddressForResidence={handleAddAddressForResidenceFromCheckout}
-              onGoToProfileForResidence={handleGoToProfileForResidenceFromCheckout}
+              onProceedAnyway={handleProceedAnywayFromCheckout}
             />
             <PaymentRedirectOverlay
               isVisible={paymentRedirectStep !== null}
