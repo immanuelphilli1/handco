@@ -1,0 +1,122 @@
+name: Deploy storefront
+
+# Builds the production image, smoke-tests it, and publishes the exact same
+# files to the web root the API gateway bind-mounts. The API deploy and this
+# one are independent releases on purpose: rolling the storefront back never
+# rolls the API back and vice versa.
+#
+# Required secrets: SSH_HOST, SSH_USERNAME, SSH_KEY.
+# Optional secrets: SSH_PORT (default 22), WEB_ROOT
+# (default /var/www/handco/shared/web), VITE_API_BASE_URL (default is the
+# live API origin baked into the Dockerfile).
+#
+# One-time server setup: rsync installed (publish-web.sh requires it).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never let two publishes overlap: they share the web root's current symlink.
+concurrency:
+  group: storefront
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  WEB_ROOT: ${{ secrets.WEB_ROOT || '/var/www/handco/shared/web' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the commit being deployed
+        id: version
+        run: echo "sha=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build the production image
+        env:
+          SHA: ${{ steps.version.outputs.sha }}
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+        run: |
+          args=()
+          if [ -n "${VITE_API_BASE_URL}" ]; then
+            args+=(--build-arg "VITE_API_BASE_URL=${VITE_API_BASE_URL}")
+          fi
+          docker build --pull -t "handco-web:${SHA}" "${args[@]}" .
+          docker run --rm "handco-web:${SHA}" test -f /usr/share/nginx/html/index.html
+
+      - name: Smoke-test the image
+        env:
+          SHA: ${{ steps.version.outputs.sha }}
+        run: |
+          docker run -d --rm --name "handco-web-smoke" -p 127.0.0.1:8080:80 "handco-web:${SHA}"
+          trap 'docker stop handco-web-smoke >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 15); do
+            curl -fsS -o /dev/null http://127.0.0.1:8080/ 2>/dev/null && break
+            sleep 2
+          done
+          # 1. / serves the SPA shell.
+          curl -fsS http://127.0.0.1:8080/ | grep -q 'id="root"'
+          # 2. Client-side routes fall back to index.html, not 404.
+          curl -fsS http://127.0.0.1:8080/products/anything | grep -q 'id="root"'
+          # 3. Hashed chunks are cached hard.
+          ASSET="$(docker exec handco-web-smoke sh -c 'ls /usr/share/nginx/html/assets/*.js | head -1' | xargs basename)"
+          curl -fsSI "http://127.0.0.1:8080/assets/${ASSET}" | grep -qi 'immutable'
+          echo "storefront smoke test OK"
+
+      - name: Extract the build
+        env:
+          SHA: ${{ steps.version.outputs.sha }}
+        run: |
+          rm -rf storefront-dist
+          CID="$(docker create "handco-web:${SHA}")"
+          trap 'docker rm "${CID}" >/dev/null 2>&1 || true' EXIT
+          docker cp "${CID}:/usr/share/nginx/html/." storefront-dist/
+          docker rm "${CID}"
+          trap - EXIT
+          test -f storefront-dist/index.html
+          if grep -qE '@vite/client|/@vite|localhost:517[0-9]' storefront-dist/index.html; then
+            echo "index.html references the Vite dev server" >&2
+            exit 1
+          fi
+          echo "extracted $(find storefront-dist -type f | wc -l) files"
+
+      - name: Copy the build to the server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: storefront-dist/
+          target: /tmp/handco-web-${{ steps.version.outputs.sha }}
+          strip_components: 0
+
+      - name: Publish the build
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -euo pipefail
+            SRC="/tmp/handco-web-${{ steps.version.outputs.sha }}/storefront-dist"
+            # publish-web.sh ships in every API release; the live one is current.
+            PUBLISH=/var/www/handco/current/docker/scripts/publish-web.sh
+            if [ ! -x "${PUBLISH}" ]; then
+              # Fall back to any staged release (e.g. before the first API deploy
+              # that stages it, never the bootstrap stub which has no scripts).
+              PUBLISH="$(find /var/www/handco/releases -mindepth 3 -path '*docker/scripts/publish-web.sh' | head -1)"
+            fi
+            [ -n "${PUBLISH}" ] && [ -x "${PUBLISH}" ] \
+              || { echo "publish-web.sh not found on the server" >&2; exit 1; }
+            "${PUBLISH}" "${SRC}" --web-root "${WEB_ROOT}"
+            rm -rf "/tmp/handco-web-${{ steps.version.outputs.sha }}"
+            echo "published ${{ steps.version.outputs.sha }} to ${WEB_ROOT}"
