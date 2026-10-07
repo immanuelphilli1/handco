@@ -18,14 +18,13 @@ name: Deploy storefront
 #     --url https://github.com/LHDexpress/handco-web-client \
 #     --token TOKEN_FROM_A_REPOSITORY_ADMIN \
 #     --name "handco-web-$(hostname)" \
-#     --labels Linux,ARM64,storefront \
+#     --labels Linux,ARM64 \
 #     --work _work \
 #     --replace
 #
-# (Token: this repo's Settings -> Actions -> Runners -> New self-hosted
-# runner. The `storefront` label is what pins this workflow to that runner;
-# without it the job could land on the API repo's runner, which cannot see
-# this repo.)
+# No extra label is needed: a repository runner only serves its own repo, so
+# this job can never land on the API repo's runner. (Token: this repo's
+# Settings -> Actions -> Runners -> New self-hosted runner.)
 #
 # One-time server setup: rsync installed (publish-web.sh requires it).
 
@@ -52,7 +51,7 @@ jobs:
   deploy:
     # The production host itself. Shares the box (and its build load) with
     # the shop, exactly like the API deploy; off-peak publishing applies.
-    runs-on: [self-hosted, Linux, ARM64, storefront]
+    runs-on: [self-hosted, Linux, ARM64]
     environment: production
 
     steps:
