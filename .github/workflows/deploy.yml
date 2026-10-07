@@ -1,14 +1,31 @@
 name: Deploy storefront
 
-# Builds the production image, smoke-tests it, and publishes the exact same
-# files to the web root the API gateway bind-mounts. The API deploy and this
-# one are independent releases on purpose: rolling the storefront back never
-# rolls the API back and vice versa.
+# Builds the production image on the production host itself, smoke-tests it,
+# and publishes the exact same files to the web root the API gateway
+# bind-mounts. No registry, no SSH, no secrets: the runner is already on the
+# machine. The API deploy and this one are independent releases on purpose:
+# rolling the storefront back never rolls the API back and vice versa.
 #
-# Required secrets: SSH_HOST, SSH_USERNAME, SSH_KEY.
-# Optional secrets: SSH_PORT (default 22), WEB_ROOT
-# (default /var/www/handco/shared/web), VITE_API_BASE_URL (default is the
-# live API origin baked into the Dockerfile).
+# Runner: a second repository runner on the production host, registered to
+# THIS repo (not an organisation runner, which would let every repo in the
+# org execute code on this box):
+#
+#   mkdir -p /opt/actions-runner-web && cd /opt/actions-runner-web
+#   curl -fsSL -o runner.tar.gz \
+#     https://github.com/actions/runner/releases/download/v<VERSION>/actions-runner-linux-arm64-v<VERSION>.tar.gz
+#   tar -xzf runner.tar.gz
+#   ./config.sh --unattended \
+#     --url https://github.com/LHDexpress/handco-web-client \
+#     --token TOKEN_FROM_A_REPOSITORY_ADMIN \
+#     --name "handco-web-$(hostname)" \
+#     --labels Linux,ARM64,storefront \
+#     --work _work \
+#     --replace
+#
+# (Token: this repo's Settings -> Actions -> Runners -> New self-hosted
+# runner. The `storefront` label is what pins this workflow to that runner;
+# without it the job could land on the API repo's runner, which cannot see
+# this repo.)
 #
 # One-time server setup: rsync installed (publish-web.sh requires it).
 
@@ -26,48 +43,70 @@ permissions:
   contents: read
 
 env:
-  WEB_ROOT: ${{ secrets.WEB_ROOT || '/var/www/handco/shared/web' }}
+  WEB_ROOT: /var/www/handco/shared/web
+  # Baked into the bundle at build time. Same origin as the API, so no CORS.
+  # Override per market with a repository variable when needed.
+  VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://handcoliveapi.craftsmanjohn.com/api/v1' }}
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # The production host itself. Shares the box (and its build load) with
+    # the shop, exactly like the API deploy; off-peak publishing applies.
+    runs-on: [self-hosted, Linux, ARM64, storefront]
+    environment: production
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Resolve the commit being deployed
         id: version
         run: echo "sha=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Preflight
+        run: |
+          set -uo pipefail
+          docker info >/dev/null 2>&1 || {
+            echo "docker is NOT reachable as $(whoami). Add the runner user to the docker group and restart the runner."
+            exit 1
+          }
+          [ -d "${WEB_ROOT}" ] && [ -w "${WEB_ROOT}" ] || {
+            echo "${WEB_ROOT} is missing or not writable. That is server setup: publish-web.sh's web root must exist first."
+            exit 1
+          }
+          command -v rsync >/dev/null 2>&1 || {
+            echo "rsync is required by publish-web.sh and is not installed."
+            exit 1
+          }
+          echo "preflight OK as $(whoami)"
+
       - name: Build the production image
         env:
           SHA: ${{ steps.version.outputs.sha }}
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
         run: |
-          args=()
-          if [ -n "${VITE_API_BASE_URL}" ]; then
-            args+=(--build-arg "VITE_API_BASE_URL=${VITE_API_BASE_URL}")
-          fi
-          docker build --pull -t "handco-web:${SHA}" "${args[@]}" .
+          docker build --pull -t "handco-web:${SHA}" \
+            --build-arg "VITE_API_BASE_URL=${VITE_API_BASE_URL}" .
+          docker image inspect "handco-web:${SHA}" >/dev/null
           docker run --rm "handco-web:${SHA}" test -f /usr/share/nginx/html/index.html
 
       - name: Smoke-test the image
         env:
           SHA: ${{ steps.version.outputs.sha }}
         run: |
-          docker run -d --rm --name "handco-web-smoke" -p 127.0.0.1:8080:80 "handco-web:${SHA}"
+          docker run -d --rm --name "handco-web-smoke" -p 127.0.0.1:8091:80 "handco-web:${SHA}"
           trap 'docker stop handco-web-smoke >/dev/null 2>&1 || true' EXIT
           for _ in $(seq 1 15); do
-            curl -fsS -o /dev/null http://127.0.0.1:8080/ 2>/dev/null && break
+            curl -fsS -o /dev/null http://127.0.0.1:8091/ 2>/dev/null && break
             sleep 2
           done
           # 1. / serves the SPA shell.
-          curl -fsS http://127.0.0.1:8080/ | grep -q 'id="root"'
+          curl -fsS http://127.0.0.1:8091/ | grep -q 'id="root"'
           # 2. Client-side routes fall back to index.html, not 404.
-          curl -fsS http://127.0.0.1:8080/products/anything | grep -q 'id="root"'
+          curl -fsS http://127.0.0.1:8091/products/anything | grep -q 'id="root"'
           # 3. Hashed chunks are cached hard.
           ASSET="$(docker exec handco-web-smoke sh -c 'ls /usr/share/nginx/html/assets/*.js | head -1' | xargs basename)"
-          curl -fsSI "http://127.0.0.1:8080/assets/${ASSET}" | grep -qi 'immutable'
+          curl -fsSI "http://127.0.0.1:8091/assets/${ASSET}" | grep -qi 'immutable'
           echo "storefront smoke test OK"
 
       - name: Extract the build
@@ -87,36 +126,19 @@ jobs:
           fi
           echo "extracted $(find storefront-dist -type f | wc -l) files"
 
-      - name: Copy the build to the server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          source: storefront-dist/
-          target: /tmp/handco-web-${{ steps.version.outputs.sha }}
-          strip_components: 0
-
       - name: Publish the build
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
-            set -euo pipefail
-            SRC="/tmp/handco-web-${{ steps.version.outputs.sha }}/storefront-dist"
-            # publish-web.sh ships in every API release; the live one is current.
-            PUBLISH=/var/www/handco/current/docker/scripts/publish-web.sh
-            if [ ! -x "${PUBLISH}" ]; then
-              # Fall back to any staged release (e.g. before the first API deploy
-              # that stages it, never the bootstrap stub which has no scripts).
-              PUBLISH="$(find /var/www/handco/releases -mindepth 3 -path '*docker/scripts/publish-web.sh' | head -1)"
-            fi
-            [ -n "${PUBLISH}" ] && [ -x "${PUBLISH}" ] \
-              || { echo "publish-web.sh not found on the server" >&2; exit 1; }
-            "${PUBLISH}" "${SRC}" --web-root "${WEB_ROOT}"
-            rm -rf "/tmp/handco-web-${{ steps.version.outputs.sha }}"
-            echo "published ${{ steps.version.outputs.sha }} to ${WEB_ROOT}"
+        env:
+          SHA: ${{ steps.version.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # publish-web.sh ships in every API release; the live one is current.
+          PUBLISH=/var/www/handco/current/docker/scripts/publish-web.sh
+          if [ ! -x "${PUBLISH}" ]; then
+            # Fall back to any staged release (never the bootstrap stub,
+            # which has no scripts).
+            PUBLISH="$(find /var/www/handco/releases -mindepth 3 -path '*docker/scripts/publish-web.sh' | head -1)"
+          fi
+          [ -n "${PUBLISH}" ] && [ -x "${PUBLISH}" ] \
+            || { echo "publish-web.sh not found on the server" >&2; exit 1; }
+          "${PUBLISH}" storefront-dist --web-root "${WEB_ROOT}"
+          echo "published ${SHA} to ${WEB_ROOT}"
