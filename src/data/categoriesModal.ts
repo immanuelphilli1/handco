@@ -15,7 +15,8 @@ export type SidebarCategoryId =
 
 export type Subcategory = {
   label: string
-  image: string
+  /** Omitted when the API sends no category image. */
+  image?: string
 }
 
 /**

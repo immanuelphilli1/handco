@@ -1,6 +1,5 @@
 import type { ApiCategory, ApiCategoryNode, ApiSubcategory } from '../api/types'
 import { resolveAssetUrl } from '../api/mappers'
-import { images } from '../assets/images'
 import type { CategoryListingSelection } from './categoryListing'
 import {
   ALL_PRODUCTS_LABEL,
@@ -202,18 +201,16 @@ export function getSubcategoryOptions(
   return []
 }
 
-const modalFallbackImages = images.categoriesModal.items
-
 export function mapApiSubcategoriesToModalItems(
   subcategories: ApiSubcategory[],
-  startIndex = 0,
 ): Subcategory[] {
-  return subcategories.map((subcategory, index) => ({
-    label: subcategory.label,
-    image:
-      resolveAssetUrl(subcategory.imageUrl ?? subcategory.image ?? undefined) ||
-      modalFallbackImages[(startIndex + index) % modalFallbackImages.length],
-  }))
+  return subcategories.map((subcategory) => {
+    const imageUrl = resolveAssetUrl(subcategory.imageUrl ?? subcategory.image ?? undefined)
+    return {
+      label: subcategory.label,
+      ...(imageUrl ? { image: imageUrl } : {}),
+    }
+  })
 }
 
 export function getCategoryLabel(
@@ -315,12 +312,13 @@ function buildDiscoverySections(
     // Only the first level is offered. Grandchildren are too deep to scan as a
     // shortcut grid, and their labels repeat ("Sneakers" and "Running" both sit
     // several levels down) which would make the grid ambiguous.
-    const items = getApiChildNodes(category).map((child) => ({
-      label: child.label,
-      image:
-        resolveAssetUrl(child.imageUrl ?? child.image ?? undefined) ||
-        modalFallbackImages[sections.length % modalFallbackImages.length],
-    }))
+    const items = getApiChildNodes(category).map((child) => {
+      const imageUrl = resolveAssetUrl(child.imageUrl ?? child.image ?? undefined)
+      return {
+        label: child.label,
+        ...(imageUrl ? { image: imageUrl } : {}),
+      }
+    })
 
     const fresh = items.filter((item) => {
       const key = item.label.toLowerCase()

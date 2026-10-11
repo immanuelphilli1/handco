@@ -61,7 +61,8 @@ type NewArrivalsSectionProps = {
 export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps) {
   const { newArrivalProducts, isReady } = useCatalog()
   const newArrivalProductsList = isReady ? newArrivalProducts : []
-  const productCount = Math.max(newArrivalProductsList.length, 1)
+  const hasProducts = newArrivalProductsList.length > 0
+  const productCount = hasProducts ? newArrivalProductsList.length : 1
   const mobileProducts = newArrivalProductsList.slice(0, MOBILE_PRODUCT_COUNT)
   const isDesktop = useIsDesktop()
   const mobileTrackRef = useRef<HTMLDivElement>(null)
@@ -222,12 +223,12 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
   }, [enableTransition, isDesktop, slideIndex])
 
   useEffect(() => {
-    if (!isDesktop || isPaused) return
+    if (!hasProducts || !isDesktop || isPaused) return
 
     const intervalId = window.setInterval(showNextSlide, AUTO_PLAY_INTERVAL_MS)
 
     return () => window.clearInterval(intervalId)
-  }, [isDesktop, isPaused, showNextSlide])
+  }, [hasProducts, isDesktop, isPaused, showNextSlide])
 
   useEffect(() => clearResetTimeout, [clearResetTimeout])
 
@@ -267,10 +268,6 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
     scrollToMobileProduct(Math.min(mobileProducts.length - 1, mobileActiveIndex + 1))
   }, [mobileActiveIndex, mobileProducts.length, scrollToMobileProduct])
 
-  if (isReady && newArrivalProductsList.length === 0) {
-    return null
-  }
-
   return (
     <section className="overflow-x-clip border-b border-border-primary px-4 lg:px-16">
       <div className="flex flex-col gap-2 py-4 lg:gap-4 lg:py-6">
@@ -278,27 +275,29 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
           <h2 className="flex-1 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary lg:text-2xl lg:leading-8 lg:tracking-[-0.48px]">
             New Arrivals
           </h2>
-          <div className="flex items-center gap-2 lg:gap-4">
-            <button
-              type="button"
-              onClick={isDesktop ? showPreviousSlide : showMobilePrevious}
-              className={carouselArrowButton}
-              aria-label="Previous products"
-            >
-              <ArrowLeftSLineIcon className={carouselArrowIcon} aria-hidden />
-            </button>
-            <button
-              type="button"
-              onClick={isDesktop ? showNextSlide : showMobileNext}
-              className={carouselArrowButton}
-              aria-label="Next products"
-            >
-              <ArrowRightSLineIcon className={carouselArrowIcon} aria-hidden />
-            </button>
-          </div>
+          {hasProducts ? (
+            <div className="flex items-center gap-2 lg:gap-4">
+              <button
+                type="button"
+                onClick={isDesktop ? showPreviousSlide : showMobilePrevious}
+                className={carouselArrowButton}
+                aria-label="Previous products"
+              >
+                <ArrowLeftSLineIcon className={carouselArrowIcon} aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={isDesktop ? showNextSlide : showMobileNext}
+                className={carouselArrowButton}
+                aria-label="Next products"
+              >
+                <ArrowRightSLineIcon className={carouselArrowIcon} aria-hidden />
+              </button>
+            </div>
+          ) : null}
         </div>
 
-        {isDesktop ? (
+        {hasProducts && isDesktop ? (
           <>
             <div
               className="overflow-hidden"
@@ -345,7 +344,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
               ))}
             </div>
           </>
-        ) : (
+        ) : hasProducts ? (
           <>
             <div
               ref={mobileTrackRef}
@@ -373,7 +372,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
               onSelect={scrollToMobileProduct}
             />
           </>
-        )}
+        ) : null}
       </div>
     </section>
   )

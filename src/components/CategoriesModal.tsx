@@ -86,7 +86,7 @@ function SubcategoryCard({
   return (
     <button type="button" onClick={onSelect} className="flex flex-col items-center gap-2 text-center">
       <div className="relative size-24 shrink-0 overflow-hidden rounded-full bg-bg-secondary">
-        <img alt="" className="size-full object-cover" src={image} />
+        {image ? <img alt="" className="size-full object-cover" src={image} /> : null}
       </div>
       <span className="line-clamp-2 w-full text-base font-medium tracking-[-0.32px] text-text-primary">
         {label}

@@ -10,16 +10,13 @@ type FeaturedItemsSectionProps = {
 export function FeaturedItemsSection({ onProductSelect }: FeaturedItemsSectionProps) {
   const { featuredProducts, isReady } = useCatalog()
 
-  if (!isReady || featuredProducts.length === 0) {
-    return null
-  }
-
   return (
     <section className="border-b border-border-primary px-4 lg:px-16">
       <div className="flex flex-col gap-4 pt-6 pb-4 lg:py-6">
         <h2 className="text-base font-medium leading-6 tracking-[-0.32px] text-text-primary lg:text-2xl lg:leading-10 lg:tracking-[-0.64px]">
           Featured items
         </h2>
+        {isReady && featuredProducts.length > 0 ? (
         <div className="grid grid-cols-2 items-stretch gap-2 lg:grid-cols-5">
           {featuredProducts.map((product, index) => (
             <ProductCard
@@ -31,6 +28,7 @@ export function FeaturedItemsSection({ onProductSelect }: FeaturedItemsSectionPr
             />
           ))}
         </div>
+        ) : null}
       </div>
     </section>
   )
