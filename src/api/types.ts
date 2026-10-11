@@ -163,6 +163,18 @@ export type PaginatedProductsResponse = {
   facets?: ApiProductFacets
 }
 
+export type ApiProductGalleryImage = {
+  rid: Rid | null
+  imageUrl: string
+  variantRid: Rid | null
+}
+
+export type ApiProductOptionGroup = {
+  key: string
+  label: string
+  values: string[]
+}
+
 export type ApiProductVariant = {
   rid: Rid
   name: string
@@ -179,6 +191,8 @@ export type ApiProductVariant = {
   handlingDays?: number | null
   /** Per-variant delivery quote, which differs from the product's. */
   deliveryQuote?: ApiDeliveryQuote | null
+  /** Index in `gallery` for this variant's primary photo. */
+  imageIndex?: number | null
 }
 
 /** A selectable option axis (e.g. size or colour) shown on the detail page. */
@@ -194,6 +208,8 @@ export type ApiProductDetailResponse = {
   images: string[]
   /** Every image path, in order. Preferred over the fixed-length `images`. */
   imageUrls?: string[]
+  gallery?: ApiProductGalleryImage[]
+  optionGroups?: ApiProductOptionGroup[]
   ratingValue: number
   reviewCount: number
   soldCount: number
@@ -607,6 +623,8 @@ export type ApiProfile = {
   /** Returned as `null` until the account sets one. */
   phone?: string | null
   rid?: Rid
+  /** ISO country code for catalog pricing when no default address applies. */
+  preferredCountry?: string | null
 }
 
 export type ApiDefaultAddress = {

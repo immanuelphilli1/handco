@@ -1,25 +1,16 @@
 import type { ApiCategory } from '../api/types'
 import type { SidebarCategoryId } from './categoriesModal'
-import { sidebarCategories } from './categoriesModal'
 import type { CategoryListingSelection } from './categoryListing'
 import {
   buildAllCategoriesListingSelection,
   buildCategoryListingSelection,
-  getCategoryLabel,
-  getSubcategoryOptions,
+  findApiCategory,
+  isSpecialCategoryId,
 } from './catalogCategories'
-import {
-  buildFeaturedProductDetailContext,
-  buildHomeProductDetailContext,
-  buildProductDetailContext,
-  buildWishlistProductDetailContext,
-  type ProductDetailContext,
-} from './productDetail'
-import { getProductById } from './products'
 
 export type ProductLinkContext =
   | { from: 'home' | 'featured' | 'wishlist' | 'order-complete' }
-  | { categoryId: SidebarCategoryId; subcategory: string }
+  | { categoryId: SidebarCategoryId | string; subcategory: string }
 
 export function getHomePath(): string {
   return '/'
@@ -37,11 +28,6 @@ export function getOrderCompletePath(): string {
   return '/order-complete'
 }
 
-/**
- * Return / cancel landing pages for the provider redirect. The backend appends
- * `?reference=<payment rid>` to both, so the path is fixed and the reference is
- * read from the query string at render time.
- */
 export function getPaymentReturnPath(): string {
   return '/checkout/return'
 }
@@ -50,11 +36,6 @@ export function getPaymentCancelPath(): string {
   return '/checkout/cancel'
 }
 
-/**
- * Google redirects here after the user picks an account. The path must match the
- * `redirect_uri` registered with Google exactly (currently
- * `https://handco.onrender.com/oauth/google/callback`), so it is not configurable.
- */
 export function getGoogleOAuthCallbackPath(): string {
   return '/oauth/google/callback'
 }
@@ -73,7 +54,7 @@ export function getSearchQuery(searchParams: URLSearchParams): string {
 }
 
 export function getCategoryPath(
-  categoryId: SidebarCategoryId,
+  categoryId: SidebarCategoryId | string,
   subcategoryLabel?: string,
 ): string {
   if (categoryId === 'all-categories') {
@@ -111,10 +92,6 @@ export function getProductPath(productId: string, context?: ProductLinkContext):
   return `${base}?${params.toString()}`
 }
 
-function isSidebarCategoryId(value: string): value is SidebarCategoryId {
-  return sidebarCategories.some((category) => category.id === value)
-}
-
 export function parseCategoryRoute(
   categoryIdParam: string | undefined,
   subcategoryParam: string | null,
@@ -124,57 +101,25 @@ export function parseCategoryRoute(
     return buildAllCategoriesListingSelection(apiCategories)
   }
 
-  if (!isSidebarCategoryId(categoryIdParam)) {
-    return null
-  }
-
   if (categoryIdParam === 'all-categories') {
     return buildAllCategoriesListingSelection(apiCategories)
   }
 
-  return buildCategoryListingSelection(categoryIdParam, apiCategories, subcategoryParam)
-}
+  if (isSpecialCategoryId(categoryIdParam)) {
+    return buildCategoryListingSelection(
+      categoryIdParam as SidebarCategoryId,
+      apiCategories,
+      subcategoryParam,
+    )
+  }
 
-export function parseProductRoute(
-  productId: string | undefined,
-  searchParams: URLSearchParams,
-  apiCategories: ApiCategory[] = [],
-): ProductDetailContext | null {
-  if (!productId) {
+  if (apiCategories.length > 0 && !findApiCategory(apiCategories, categoryIdParam)) {
     return null
   }
 
-  const product = getProductById(productId)
-  if (!product) {
-    return null
-  }
-
-  const from = searchParams.get('from')
-  if (from === 'wishlist') {
-    return buildWishlistProductDetailContext(product)
-  }
-  if (from === 'featured') {
-    return buildFeaturedProductDetailContext(product)
-  }
-  if (from === 'home') {
-    return buildHomeProductDetailContext(product)
-  }
-
-  const categoryId = searchParams.get('category')
-  const subcategory = searchParams.get('subcategory')
-  if (categoryId && isSidebarCategoryId(categoryId) && subcategory) {
-    return buildProductDetailContext(product, {
-      categoryId,
-      categoryLabel: getCategoryLabel(categoryId, apiCategories),
-      subcategoryLabel: subcategory,
-      subcategoryOptions: getSubcategoryOptions(categoryId, apiCategories),
-    })
-  }
-
-  return buildProductDetailContext(product, {
-    categoryId: product.categoryId,
-    categoryLabel: getCategoryLabel(product.categoryId, apiCategories),
-    subcategoryLabel: product.subcategory,
-    subcategoryOptions: getSubcategoryOptions(product.categoryId, apiCategories),
-  })
+  return buildCategoryListingSelection(
+    categoryIdParam as SidebarCategoryId,
+    apiCategories,
+    subcategoryParam,
+  )
 }

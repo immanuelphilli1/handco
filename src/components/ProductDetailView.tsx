@@ -21,8 +21,10 @@ import { useShareLink } from '../hooks/useShareLink'
 import type {
   ProductDetail,
   ProductDetailContext,
+  ProductOptionGroup,
   ProductReview,
 } from '../data/productDetail'
+import { useProductDetailSelection } from '../hooks/useProductDetailSelection'
 import type { Product } from '../data/products'
 import { getProductPath } from '../data/shopRoutes'
 import { ProductCard } from './ProductCard'
@@ -88,18 +90,24 @@ function ProductDetailBreadcrumbs({
 function ProductImageGallery({
   images,
   productName,
+  activeIndex: controlledIndex,
+  onActiveIndexChange,
 }: {
   images: string[]
   productName: string
+  activeIndex?: number
+  onActiveIndexChange?: (index: number) => void
 }) {
-  const [activeIndex, setActiveIndex] = useState(0)
+  const [internalIndex, setInternalIndex] = useState(0)
+  const activeIndex = controlledIndex ?? internalIndex
+  const setActiveIndex = onActiveIndexChange ?? setInternalIndex
 
   const showPrevious = () => {
-    setActiveIndex((index) => (index === 0 ? images.length - 1 : index - 1))
+    setActiveIndex(activeIndex === 0 ? images.length - 1 : activeIndex - 1)
   }
 
   const showNext = () => {
-    setActiveIndex((index) => (index === images.length - 1 ? 0 : index + 1))
+    setActiveIndex(activeIndex === images.length - 1 ? 0 : activeIndex + 1)
   }
 
   return (
@@ -283,8 +291,19 @@ function ProductInfoPanel({
   detail,
   isLiked,
   onToggleLike,
-  selectedModelIndex,
-  onSelectModel,
+  variantTitle,
+  optionGroups,
+  selections,
+  onSelectOption,
+  isOptionDisabled,
+  showLegacyVariantRow,
+  legacyVariantNames,
+  legacyVariantIndex,
+  onSelectLegacyVariant,
+  showVariantPicker,
+  displayPriceAmount,
+  displayPriceCurrency,
+  inStock,
   quantity,
   onDecreaseQuantity,
   onIncreaseQuantity,
@@ -297,16 +316,25 @@ function ProductInfoPanel({
   detail: ProductDetail
   isLiked: boolean
   onToggleLike: () => void
-  selectedModelIndex: number
-  onSelectModel: (index: number) => void
+  variantTitle?: string
+  optionGroups: ProductOptionGroup[]
+  selections: Record<string, string>
+  onSelectOption: (groupKey: string, value: string) => void
+  isOptionDisabled: (groupKey: string, value: string) => boolean
+  showLegacyVariantRow: boolean
+  legacyVariantNames: string[]
+  legacyVariantIndex: number
+  onSelectLegacyVariant: (index: number) => void
+  showVariantPicker: boolean
+  displayPriceAmount: string
+  displayPriceCurrency: string
+  inStock: boolean
   quantity: number
   onDecreaseQuantity: () => void
   onIncreaseQuantity: () => void
   onAddToCart: () => void
   onBuyNow: () => void
-  /** Shares this product's page URL. */
   onShare: () => void
-  /** Short confirmation shown after a share attempt. */
   shareStatus: string | null
 }) {
   // `discount` is derived from the API's `discountPercent` during mapping; the
@@ -364,9 +392,14 @@ function ProductInfoPanel({
       </div>
 
       <div className="border-b border-border-primary py-4 xl:p-4">
+        {variantTitle ? (
+          <p className="mb-2 text-sm font-medium leading-4 tracking-[-0.28px] text-text-secondary">
+            {variantTitle}
+          </p>
+        ) : null}
         <div className="mb-2 flex items-center gap-1 text-text-primary">
-          <span className="text-sm leading-4 tracking-[-0.28px]">{detail.priceCurrency}</span>
-          <span className="text-xl font-semibold leading-6 tracking-[-0.4px]">{detail.priceAmount}</span>
+          <span className="text-sm leading-4 tracking-[-0.28px]">{displayPriceCurrency}</span>
+          <span className="text-xl font-semibold leading-6 tracking-[-0.4px]">{displayPriceAmount}</span>
         </div>
         {/* The promo notice string is deprecated, so the badge is driven by the
             real discount percentage and hidden when there is no discount. */}
@@ -380,30 +413,68 @@ function ProductInfoPanel({
         ) : null}
       </div>
 
-      <div className="border-b border-border-primary py-4 xl:p-4">
-        <p className="mb-2 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
-          Model Number
-        </p>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {detail.modelOptions.map((option, index) => {
-            const isSelected = selectedModelIndex === index
+      {showVariantPicker ? (
+        <div className="border-b border-border-primary py-4 xl:p-4">
+          {optionGroups.map((group) => (
+            <div key={group.key} className="mb-4 last:mb-0">
+              <p className="mb-2 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
+                {group.label}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {group.values.map((value) => {
+                  const isSelected = selections[group.key] === value
+                  const disabled = isOptionDisabled(group.key, value)
 
-            return (
-              <button
-                key={`${option}-${index}`}
-                type="button"
-                onClick={() => onSelectModel(index)}
-                className={`cursor-pointer rounded-lg border px-2 py-1 text-xs font-medium leading-4 tracking-[-0.24px] ${
-                  isSelected
-                    ? 'border-text-primary bg-bg-secondary text-text-primary'
-                    : 'border-border-primary bg-bg-secondary text-text-tertiary'
-                }`}
-              >
-                {option}
-              </button>
-            )
-          })}
+                  return (
+                    <button
+                      key={`${group.key}-${value}`}
+                      type="button"
+                      onClick={() => onSelectOption(group.key, value)}
+                      className={`cursor-pointer rounded-lg border px-2 py-1 text-xs font-medium leading-4 tracking-[-0.24px] disabled:cursor-not-allowed disabled:opacity-50 ${
+                        isSelected
+                          ? 'border-text-primary bg-bg-secondary text-text-primary'
+                          : 'border-border-primary bg-bg-secondary text-text-tertiary'
+                      }`}
+                      aria-disabled={disabled}
+                    >
+                      {value}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+
+          {showLegacyVariantRow ? (
+            <div className="mb-4">
+              <p className="mb-2 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
+                Option
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {legacyVariantNames.map((name, index) => {
+                  const isSelected = legacyVariantIndex === index
+                  return (
+                    <button
+                      key={`${name}-${index}`}
+                      type="button"
+                      onClick={() => onSelectLegacyVariant(index)}
+                      className={`cursor-pointer rounded-lg border px-2 py-1 text-xs font-medium leading-4 tracking-[-0.24px] ${
+                        isSelected
+                          ? 'border-text-primary bg-bg-secondary text-text-primary'
+                          : 'border-border-primary bg-bg-secondary text-text-tertiary'
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
+      ) : null}
+
+      <div className="border-b border-border-primary py-4 xl:p-4">
         <div className="flex items-center gap-4">
           <span className="text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">QTY</span>
           <QuantityStepper
@@ -450,14 +521,16 @@ function ProductInfoPanel({
         <button
           type="button"
           onClick={onAddToCart}
-          className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-full border border-text-primary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary"
+          disabled={!inStock}
+          className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-full border border-text-primary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Add to Cart
+          {inStock ? 'Add to Cart' : 'Out of stock'}
         </button>
         <button
           type="button"
           onClick={onBuyNow}
-          className="btn-orange flex h-10 flex-1 cursor-pointer items-center justify-center rounded-full px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-inverse"
+          disabled={!inStock}
+          className="btn-orange flex h-10 flex-1 cursor-pointer items-center justify-center rounded-full px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-inverse disabled:cursor-not-allowed disabled:opacity-50"
         >
           Buy Now
         </button>
@@ -593,14 +666,18 @@ export function ProductDetailView({
   } = useShop()
   const { share, status: shareStatus } = useShareLink()
 
-  const [selectedModelIndex, setSelectedModelIndex] = useState(0)
   const [quantity, setQuantity] = useState(1)
+  const variantState = useProductDetailSelection(detail)
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([])
   const [reviews, setReviews] = useState<ProductReview[]>(detail.reviews)
 
   const isLiked = isProductLiked(product.id)
   // Related cards show delivery quotes, which need a known destination.
   const { country } = useProductDestination()
+
+  useEffect(() => {
+    document.title = `${product.name} | H&CO.`
+  }, [product.name])
 
   useEffect(() => {
     let cancelled = false
@@ -632,19 +709,22 @@ export function ProductDetailView({
     }
   }, [country, detail.reviews, product.id])
 
+  const selectedVariantId = variantState.selectedVariant?.rid
+
   const handleAddToCart = () => {
-    void addToCart(product, quantity)
+    if (!variantState.inStock) return
+    void addToCart(product, quantity, selectedVariantId)
   }
 
   const handleBuyNow = async () => {
     // Buy Now must not stack a second line for a product already in the cart,
     // so an existing line is topped up to the chosen quantity instead.
-    const existingItem = findCartItemForProduct(product)
+    const existingItem = findCartItemForProduct(product, selectedVariantId)
     try {
       if (existingItem) {
         await updateCartItem(existingItem.id, { quantity: existingItem.quantity + quantity })
       } else {
-        await addToCart(product, quantity)
+        await addToCart(product, quantity, selectedVariantId)
       }
     } catch {
       // Cart stayed unchanged; still take the user to the cart so they can see why.
@@ -684,7 +764,12 @@ export function ProductDetailView({
       <section className="border-t border-border-primary px-4 pb-10 pt-6 lg:px-16 lg:pt-10">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
           <div className="flex min-w-0 flex-1 flex-col gap-4 xl:max-w-132">
-            <ProductImageGallery images={detail.images} productName={product.name} />
+            <ProductImageGallery
+              images={detail.images}
+              productName={product.name}
+              activeIndex={variantState.galleryIndex}
+              onActiveIndexChange={variantState.setGalleryIndex}
+            />
             <div className="hidden xl:block">
               <ProductReviewsSection
                 reviewCount={detail.reviewCount}
@@ -699,8 +784,21 @@ export function ProductDetailView({
             detail={detail}
             isLiked={isLiked}
             onToggleLike={() => toggleWishlist(product)}
-            selectedModelIndex={selectedModelIndex}
-            onSelectModel={setSelectedModelIndex}
+            variantTitle={variantState.variantTitle}
+            optionGroups={detail.optionGroups}
+            selections={variantState.selections}
+            onSelectOption={variantState.selectOption}
+            isOptionDisabled={variantState.isOptionDisabled}
+            showLegacyVariantRow={variantState.showLegacyVariantRow}
+            legacyVariantNames={detail.variants.map((variant) => variant.name)}
+            legacyVariantIndex={variantState.legacyVariantIndex}
+            onSelectLegacyVariant={variantState.selectLegacyVariant}
+            showVariantPicker={
+              variantState.showOptionGroups || variantState.showLegacyVariantRow
+            }
+            displayPriceAmount={variantState.displayPriceAmount}
+            displayPriceCurrency={variantState.displayPriceCurrency}
+            inStock={variantState.inStock}
             quantity={quantity}
             onDecreaseQuantity={() => setQuantity((value) => Math.max(1, value - 1))}
             onIncreaseQuantity={() => setQuantity((value) => value + 1)}

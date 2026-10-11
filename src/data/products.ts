@@ -1,9 +1,15 @@
 import type { SidebarCategoryId } from './categoriesModal'
-import productsCatalog from './products.json'
+
+/** One product attribute, ready to display. */
+export type ProductAttribute = {
+  key: string
+  label: string
+  value: string
+}
 
 export type Product = {
   id: string
-  categoryId: SidebarCategoryId
+  categoryId: SidebarCategoryId | string
   subcategory: string
   image: string
   tag: string
@@ -33,76 +39,6 @@ export type Product = {
   attributes?: ProductAttribute[]
   /** False when the default variant cannot currently be bought. */
   inStock?: boolean
-}
-
-/** One product attribute, ready to display. */
-export type ProductAttribute = {
-  key: string
-  label: string
-  value: string
-}
-
-type ProductRecord = Omit<Product, 'categoryId'>
-
-type CategoryCatalog = {
-  id: SidebarCategoryId
-  label: string
-  products: ProductRecord[]
-}
-
-const catalog = productsCatalog as { categories: CategoryCatalog[] }
-
-function withCategoryId(categoryId: SidebarCategoryId, product: ProductRecord): Product {
-  return { ...product, categoryId }
-}
-
-const productsByCategoryId = Object.fromEntries(
-  catalog.categories.map((category) => [
-    category.id,
-    category.products.map((product) => withCategoryId(category.id, product)),
-  ]),
-) as Record<SidebarCategoryId, Product[]>
-
-export const allProducts: Product[] = catalog.categories.flatMap((category) =>
-  category.products.map((product) => withCategoryId(category.id, product)),
-)
-
-export function getProductById(productId: string): Product | undefined {
-  return allProducts.find((product) => product.id === productId)
-}
-
-export function getProductsByCategoryId(categoryId: SidebarCategoryId): Product[] {
-  return productsByCategoryId[categoryId] ?? []
-}
-
-export const featuredProducts: Product[] = getProductsByCategoryId('featured')
-
-export const newArrivalProducts: Product[] = getProductsByCategoryId('new-releases')
-
-export function getHomeFeaturedProducts(): Product[] {
-  const seen = new Set<string>()
-  const result: Product[] = []
-
-  const addProducts = (products: Product[]) => {
-    for (const product of products) {
-      if (result.length >= 10) return
-      if (seen.has(product.id)) continue
-      seen.add(product.id)
-      result.push(product)
-    }
-  }
-
-  addProducts(featuredProducts)
-  addProducts(newArrivalProducts)
-  addProducts(allProducts)
-
-  let fillIndex = 0
-  while (result.length < 10 && featuredProducts.length > 0) {
-    result.push(featuredProducts[fillIndex % featuredProducts.length])
-    fillIndex += 1
-  }
-
-  return result.slice(0, 10)
 }
 
 export function getProductKey(product: Pick<Product, 'id'>): string {

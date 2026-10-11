@@ -35,8 +35,8 @@ export async function login(email: string, password: string): Promise<AuthRespon
 export async function register(input: {
   email: string
   password: string
-  fullName?: string
-  displayName?: string
+  fullName: string
+  country: string
 }): Promise<AuthResponse> {
   const response = await apiRequest<AuthResponse>('/auth/register', {
     method: 'POST',
@@ -44,8 +44,8 @@ export async function register(input: {
       email: input.email,
       password: input.password,
       password_confirmation: input.password,
-      fullName: input.fullName ?? input.email.split('@')[0],
-      displayName: input.displayName ?? input.fullName ?? input.email.split('@')[0],
+      fullName: input.fullName,
+      country: input.country,
     },
     auth: false,
   })

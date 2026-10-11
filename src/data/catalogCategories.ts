@@ -4,10 +4,6 @@ import { images } from '../assets/images'
 import type { CategoryListingSelection } from './categoryListing'
 import {
   ALL_PRODUCTS_LABEL,
-  categoryIdByTitle,
-  categoryPanelContent,
-  getSubcategoryOptions as getStaticSubcategoryOptions,
-  sidebarCategories,
   type CategorySection,
   type SidebarCategoryId,
   type Subcategory,
@@ -15,45 +11,36 @@ import {
 
 const SPECIAL_CATEGORY_IDS = new Set<string>(['all-categories', 'featured', 'new-releases'])
 
-/**
- * Major categories as shown in the link bar, mapped to the API categories they
- * group together.
- *
- * The API models Accessories, Furniture and Decor as separate top-level
- * categories, but the link bar presents them under one major category. So every
- * member id resolves to the same grouped panel and highlights the same link bar
- * entry, rendered as one section per member (mirroring how Featured shows both
- * "Featured" and "New Releases").
- */
-const MAJOR_CATEGORY_GROUPS: Partial<Record<SidebarCategoryId, SidebarCategoryId[]>> = {
-  electronics: ['electronics'],
-  fashion: ['fashion', 'accessories'],
-  'home-garden': ['home-garden', 'furniture', 'decor'],
-  construction: ['construction'],
-  energy: ['energy'],
+const VIRTUAL_CATEGORY_LABELS: Record<string, string> = {
+  'all-categories': 'All categories',
+  featured: 'Featured',
+  'new-releases': 'New Releases',
 }
 
-/**
- * Reverse lookup from a category id to its major link bar category, so browsing
- * Accessories or Furniture highlights "Fashion & Accessories" or "Home & Garden".
- */
-const MAJOR_CATEGORY_BY_MEMBER = new Map<SidebarCategoryId, SidebarCategoryId>(
-  Object.entries(MAJOR_CATEGORY_GROUPS).flatMap(([majorId, memberIds]) =>
-    memberIds.map((memberId) => [memberId, majorId as SidebarCategoryId]),
-  ),
-)
+/** Sidebar / mobile list entries: virtual shortcuts plus `GET /categories` roots. */
+export type CatalogSidebarEntry = {
+  id: string
+  label: string
+}
 
-/**
- * Resolves any category id to the major category that represents it in the link
- * bar. Ids outside a group (e.g. "decor" is grouped, but "all-categories" is
- * not) are returned unchanged.
- */
-export function getMajorCategoryId(categoryId: SidebarCategoryId): SidebarCategoryId {
-  return MAJOR_CATEGORY_BY_MEMBER.get(categoryId) ?? categoryId
+export function buildCatalogSidebar(apiCategories: ApiCategory[] = []): CatalogSidebarEntry[] {
+  return [
+    { id: 'all-categories', label: VIRTUAL_CATEGORY_LABELS['all-categories'] },
+    { id: 'featured', label: VIRTUAL_CATEGORY_LABELS.featured },
+    { id: 'new-releases', label: VIRTUAL_CATEGORY_LABELS['new-releases'] },
+    ...apiCategories.map((category) => ({
+      id: getCategoryNodeId(category),
+      label: category.label,
+    })),
+  ]
+}
+
+export function getMajorCategoryId(categoryId: SidebarCategoryId | string): SidebarCategoryId | string {
+  return categoryId
 }
 
 export type CategoryPanelSectionView = CategorySection & {
-  sectionId: SidebarCategoryId
+  sectionId: string
 }
 
 export function isSpecialCategoryId(categoryId: string): boolean {
@@ -79,6 +66,96 @@ export function findApiCategory(
   return categories.find((category) => getCategoryNodeId(category) === categoryId)
 }
 
+type CategoryTreeMatch = {
+  node: ApiCategoryNode
+  root: ApiCategory
+}
+
+/** Finds a category node anywhere in the tree and its top-level root. */
+export function findCategoryInTree(
+  categories: ApiCategory[],
+  categoryId: string,
+): CategoryTreeMatch | null {
+  function search(
+    nodes: ApiCategoryNode[],
+    root: ApiCategory,
+  ): CategoryTreeMatch | null {
+    for (const node of nodes) {
+      const nodeId = getCategoryNodeId(node)
+      if (nodeId === categoryId) {
+        return { node, root }
+      }
+      const childMatch = search(getApiChildNodes(node), root)
+      if (childMatch) {
+        return childMatch
+      }
+    }
+    return null
+  }
+
+  for (const root of categories) {
+    const rootId = getCategoryNodeId(root)
+    if (rootId === categoryId) {
+      return { node: root, root }
+    }
+    const match = search(getApiChildNodes(root), root)
+    if (match) {
+      return match
+    }
+  }
+
+  return null
+}
+
+/**
+ * Breadcrumb order: parent department, then the product's leaf category label.
+ * Listing `categoryId` is always the top-level slug; `subcategoryLabel` is the
+ * leaf label the API filters on.
+ */
+export function resolveProductListingSelection(
+  productCategoryId: string,
+  productSubcategory: string | undefined,
+  apiCategories: ApiCategory[] = [],
+): Pick<
+  CategoryListingSelection,
+  'categoryId' | 'categoryLabel' | 'subcategoryLabel' | 'subcategoryOptions'
+> {
+  const match = findCategoryInTree(apiCategories, productCategoryId)
+  if (match) {
+    const rootId = getCategoryNodeId(match.root)
+    const nodeId = getCategoryNodeId(match.node)
+    const subcategoryOptions = getSubcategoryOptions(rootId, apiCategories)
+
+    if (rootId === nodeId) {
+      const subcategoryLabel =
+        productSubcategory && subcategoryOptions.includes(productSubcategory)
+          ? productSubcategory
+          : (subcategoryOptions[0] ?? ALL_PRODUCTS_LABEL)
+
+      return {
+        categoryId: rootId,
+        categoryLabel: match.root.label,
+        subcategoryLabel,
+        subcategoryOptions,
+      }
+    }
+
+    return {
+      categoryId: rootId,
+      categoryLabel: match.root.label,
+      subcategoryLabel: match.node.label,
+      subcategoryOptions,
+    }
+  }
+
+  return {
+    categoryId: productCategoryId,
+    categoryLabel: getCategoryLabel(productCategoryId, apiCategories),
+    subcategoryLabel: productSubcategory ?? ALL_PRODUCTS_LABEL,
+    subcategoryOptions: getSubcategoryOptions(productCategoryId, apiCategories),
+  }
+}
+
 /**
  * Returns a node's child nodes, preferring the API's `children` key and falling
  * back to the legacy `subcategories` key. Both are optional on the wire, so this
@@ -102,40 +179,27 @@ export function getSubcategoryLabels(category: ApiCategory): string[] {
 }
 
 export function getSubcategoryOptions(
-  categoryId: SidebarCategoryId,
+  categoryId: SidebarCategoryId | string,
   apiCategories: ApiCategory[] = [],
 ): string[] {
   if (categoryId === 'all-categories') {
-    if (apiCategories.length > 0) {
-      return apiCategories.flatMap(getSubcategoryLabels)
-    }
-
-    return getStaticSubcategoryOptions('all-categories')
+    if (apiCategories.length === 0) return []
+    return apiCategories.flatMap(getSubcategoryLabels)
   }
 
   if (isSpecialCategoryId(categoryId)) {
-    // Featured and New Releases are shortcuts into other categories, so their
-    // options are the first-level subcategories of the whole catalog. They must
-    // mirror the cards the modal renders, or a chosen card would not be listed
-    // as a valid option and the listing would silently widen.
-    if (apiCategories.length > 0) {
-      return apiCategories.flatMap((category) =>
-        getApiChildNodes(category).map((child) => child.label),
-      )
-    }
-
-    return getStaticSubcategoryOptions(categoryId)
+    if (apiCategories.length === 0) return []
+    return apiCategories.flatMap((category) =>
+      getApiChildNodes(category).map((child) => child.label),
+    )
   }
 
-  // Deliberately NOT grouped. A subcategory label only resolves when paired with
-  // the category that owns it (e.g. "Bags" needs categoryId=accessories), so
-  // merging the chips under the major category makes them match zero products.
   const apiCategory = findApiCategory(apiCategories, categoryId)
   if (apiCategory) {
     return getSubcategoryLabels(apiCategory)
   }
 
-  return getStaticSubcategoryOptions(categoryId)
+  return []
 }
 
 const modalFallbackImages = images.categoriesModal.items
@@ -153,7 +217,7 @@ export function mapApiSubcategoriesToModalItems(
 }
 
 export function getCategoryLabel(
-  categoryId: SidebarCategoryId,
+  categoryId: SidebarCategoryId | string,
   apiCategories: ApiCategory[] = [],
 ): string {
   const apiCategory = findApiCategory(apiCategories, categoryId)
@@ -161,7 +225,7 @@ export function getCategoryLabel(
     return apiCategory.label
   }
 
-  return sidebarCategories.find((category) => category.id === categoryId)?.label ?? categoryId
+  return VIRTUAL_CATEGORY_LABELS[categoryId] ?? categoryId
 }
 
 /**
@@ -183,7 +247,7 @@ export function buildAllCategoriesListingSelection(
 }
 
 export function buildCategoryListingSelection(
-  categoryId: SidebarCategoryId,
+  categoryId: SidebarCategoryId | string,
   apiCategories: ApiCategory[] = [],
   subcategoryParam: string | null = null,
 ): CategoryListingSelection {
@@ -205,38 +269,22 @@ export function buildCategoryListingSelection(
   }
 }
 
-function resolveSectionId(
-  title: string,
-  apiCategories: ApiCategory[],
-): SidebarCategoryId | undefined {
-  const apiMatch = apiCategories.find((category) => category.label === title)
-  if (apiMatch) {
-    return apiMatch.slug as SidebarCategoryId
-  }
-
-  return categoryIdByTitle[title]
-}
-
 function buildSectionsForCategory(
-  categoryId: SidebarCategoryId,
+  categoryId: string,
   apiCategories: ApiCategory[],
 ): CategoryPanelSectionView[] {
   const apiCategory = findApiCategory(apiCategories, categoryId)
-  if (apiCategory) {
-    return [
-      {
-        title: apiCategory.label,
-        sectionId: getCategoryNodeId(apiCategory) as SidebarCategoryId,
-        items: mapApiSubcategoriesToModalItems(flattenApiSubcategories(apiCategory)),
-      },
-    ]
+  if (!apiCategory) {
+    return []
   }
 
-  const fallbackSections = categoryPanelContent[categoryId] ?? []
-  return fallbackSections.flatMap((section) => {
-    const sectionId = resolveSectionId(section.title, apiCategories) ?? categoryId
-    return [{ ...section, sectionId }]
-  })
+  return [
+    {
+      title: apiCategory.label,
+      sectionId: getCategoryNodeId(apiCategory),
+      items: mapApiSubcategoriesToModalItems(flattenApiSubcategories(apiCategory)),
+    },
+  ]
 }
 
 /**
@@ -254,16 +302,10 @@ function buildSectionsForCategory(
  * and image below comes from the API.
  */
 function buildDiscoverySections(
-  mode: 'featured' | 'new-releases',
   apiCategories: ApiCategory[],
 ): CategoryPanelSectionView[] {
-  const fallbackSections = categoryPanelContent[mode]
-
   if (apiCategories.length === 0) {
-    return fallbackSections.map((section) => ({
-      ...section,
-      sectionId: mode,
-    }))
+    return []
   }
 
   const seen = new Set<string>()
@@ -291,7 +333,7 @@ function buildDiscoverySections(
 
     sections.push({
       title: category.label,
-      sectionId: getCategoryNodeId(category) as SidebarCategoryId,
+      sectionId: getCategoryNodeId(category),
       items: fresh,
     })
   }
@@ -300,28 +342,15 @@ function buildDiscoverySections(
 }
 
 export function getCategoryPanelSections(
-  categoryId: SidebarCategoryId,
+  categoryId: string,
   apiCategories: ApiCategory[] = [],
 ): CategoryPanelSectionView[] {
-  if (categoryId === 'featured') {
-    return buildDiscoverySections('featured', apiCategories)
-  }
-
-  if (categoryId === 'new-releases') {
-    return buildDiscoverySections('new-releases', apiCategories)
+  if (categoryId === 'featured' || categoryId === 'new-releases') {
+    return buildDiscoverySections(apiCategories)
   }
 
   if (categoryId === 'all-categories') {
     return []
-  }
-
-  // Resolve to the major category first so every entry point (link bar, category
-  // grid, and the mobile list) shows the same grouped panel. Without this, a
-  // grouped member id like "accessories" would fall through to the
-  // single-section path and hide the rest of its group.
-  const group = MAJOR_CATEGORY_GROUPS[getMajorCategoryId(categoryId)]
-  if (group) {
-    return group.flatMap((groupedId) => buildSectionsForCategory(groupedId, apiCategories))
   }
 
   return buildSectionsForCategory(categoryId, apiCategories)

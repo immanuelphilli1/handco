@@ -1,9 +1,8 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import {
   applyListingFilters,
   defaultListingFilters,
-  getListingProducts,
   hasActiveFilters,
   type CategoryListingSelection,
 } from '../data/categoryListing'
@@ -176,14 +175,9 @@ export function CategoryListingView({
     [activeCategory, country, filters.delivery, isAllProducts, selection.categoryId],
   )
 
-  const fallbackProducts = useMemo(
-    () => getListingProducts(selection, activeCategory),
-    [activeCategory, selection],
-  )
-
   const { products: queriedProducts, isLoading: isQueryLoading } = useProductListing(
     listParams,
-    fallbackProducts,
+    [],
   )
 
   // Facet filtering runs on the fetched list rather than in the query string.
@@ -200,6 +194,10 @@ export function CategoryListingView({
   const isLoading =
     isDestinationLoading ||
     (isNewArrivalsSubcategory ? isNewArrivalsLoading : isQueryLoading)
+
+  useEffect(() => {
+    document.title = `${selection.categoryLabel} | H&CO.`
+  }, [selection.categoryLabel])
 
   return (
     <>

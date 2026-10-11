@@ -1,68 +1,36 @@
 import { useEffect, useState } from 'react'
-import { images } from '../assets/images'
 import { CarouselDots } from './CarouselDots'
+import { useHomePlacements } from '../context/HomePlacementsContext'
+import { BannerLink } from '../utils/bannerLink'
 
 type PromoBannerSectionProps = {
   onShopAllCategories: () => void
 }
 
-/**
- * Offer copy per slide. The images are borrowed from the hero/category art
- * because the project ships a single promo banner; each slide pairs an image
- * with its own offer so the rotation reads as distinct promotions rather than
- * the same banner repeating. Add an entry here to add a slide.
- *
- * `fashion` and `home-garden` are used deliberately: the hero carousel already
- * shows furniture, electronics, decor and accessories, so reusing those here
- * would put identical images next to each other on the same page.
- */
-const promoSlides = [
-  {
-    image: images.promo.banner,
-    alt: 'Limited-time offers across the store',
-    badge: 'Special Offer',
-    title: 'Save more on the things you love.',
-    description: "Explore limited-time deals and get amazing products at prices you'll love.",
-  },
-  {
-    image: images.categories.fashion,
-    alt: 'Fashion and apparel for the whole family',
-    badge: 'Fashion Deal',
-    title: 'Style for every season.',
-    description: 'Refresh your wardrobe with trending pieces at prices you will not find in store.',
-  },
-  {
-    image: images.categories.homeGarden,
-    alt: 'Home and garden essentials',
-    badge: 'Home & Garden',
-    // title: 'Make home feel like yours.',
-    // description: 'Hand-picked furniture and garden essentials, delivered to your door.',
-  },
-] as const
-
 const AUTO_PLAY_INTERVAL_MS = 5000
 
-/**
- * Promotional carousel. Matches `HeroSection`: the same banner height
- * (`h-40 lg:h-80`), the same crossfade, the same dots and the same 5s auto-play.
- *
- * There are no arrows here by design — the rotation drives itself and the dots
- * are the only manual control, so the promo band stays a passive promotion rather
- * than something that has to be operated.
- */
 export function PromoBannerSection({ onShopAllCategories: _onShopAllCategories }: PromoBannerSectionProps) {
+  const { promo: promoSlides, isLoading } = useHomePlacements()
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
 
   useEffect(() => {
-    if (isPaused) return
+    setCurrentSlide(0)
+  }, [promoSlides.length])
+
+  useEffect(() => {
+    if (isPaused || promoSlides.length <= 1) return
 
     const intervalId = window.setInterval(() => {
       setCurrentSlide((slide) => (slide + 1) % promoSlides.length)
     }, AUTO_PLAY_INTERVAL_MS)
 
     return () => window.clearInterval(intervalId)
-  }, [isPaused])
+  }, [isPaused, promoSlides.length])
+
+  if (isLoading && promoSlides.length === 0) {
+    return null
+  }
 
   const activeSlide = promoSlides[currentSlide]
 
@@ -73,45 +41,72 @@ export function PromoBannerSection({ onShopAllCategories: _onShopAllCategories }
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
       >
-        {promoSlides.map((slide, index) => (
-          <img
-            key={slide.image}
-            alt={slide.alt}
-            aria-hidden={index !== currentSlide}
-            className={`absolute inset-0 size-full rounded-[12px] object-cover transition-opacity duration-500 ${
-              index === currentSlide ? 'opacity-100' : 'opacity-0'
-            }`}
-            src={slide.image}
-          />
-        ))}
+        {promoSlides.map((slide, index) => {
+          const image = (
+            <img
+              alt={slide.altText}
+              aria-hidden={index !== currentSlide}
+              className={`absolute inset-0 size-full rounded-[12px] object-cover transition-opacity duration-500 ${
+                index === currentSlide ? 'opacity-100' : 'opacity-0'
+              }`}
+              src={slide.imageUrl}
+            />
+          )
 
-        {/* Offer copy sits over the active image only, so it does not sit on top
-            of the outgoing slide during the crossfade. */}
-        <div
-          key={activeSlide.image}
-          className="relative flex h-full flex-col justify-center overflow-hidden px-6 py-8 transition-opacity duration-500 lg:px-20 lg:py-10"
-        >
-          <div className="flex flex-col justify-center gap-4">
-            <span className="inline-flex w-fit rounded-full bg-primary-green px-2 py-1 text-sm tracking-[-0.28px] text-text-inverse">
-              {activeSlide.badge}
-            </span>
-            {/* <h2 className="max-w-50 text-xl font-medium leading-8 tracking-[-0.48px] text-text-inverse lg:max-w-xl lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
-              {activeSlide.title}
-            </h2>
-            <p className="max-w-50 text-base tracking-[-0.32px] text-text-inverse lg:max-w-xl">
-              {activeSlide.description}
-            </p> */}
+          return slide.linkUrl ? (
+            <BannerLink
+              key={slide.rid}
+              linkUrl={slide.linkUrl}
+              className="absolute inset-0 block"
+            >
+              {image}
+            </BannerLink>
+          ) : (
+            <div key={slide.rid} className="absolute inset-0">
+              {image}
+            </div>
+          )
+        })}
+
+        {activeSlide &&
+        (activeSlide.title || activeSlide.description || activeSlide.buttonText) ? (
+          <div
+            key={activeSlide.rid}
+            className="pointer-events-none relative flex h-full flex-col justify-center overflow-hidden px-6 py-8 transition-opacity duration-500 lg:px-20 lg:py-10"
+          >
+            <div className="flex flex-col justify-center gap-4">
+              {activeSlide.title ? (
+                <h2 className="max-w-50 text-xl font-medium leading-8 tracking-[-0.48px] text-text-inverse lg:max-w-xl lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
+                  {activeSlide.title}
+                </h2>
+              ) : null}
+              {activeSlide.description ? (
+                <p className="max-w-50 text-base tracking-[-0.32px] text-text-inverse lg:max-w-xl">
+                  {activeSlide.description}
+                </p>
+              ) : null}
+              {activeSlide.buttonText && activeSlide.linkUrl ? (
+                <BannerLink
+                  linkUrl={activeSlide.linkUrl}
+                  className="pointer-events-auto inline-flex w-fit rounded-full bg-primary-orange px-4 py-2 text-sm font-medium text-text-inverse"
+                >
+                  {activeSlide.buttonText}
+                </BannerLink>
+              ) : null}
+            </div>
           </div>
-        </div>
+        ) : null}
 
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-glass p-1 lg:bottom-4 lg:gap-2 lg:p-2">
-          <CarouselDots
-            count={promoSlides.length}
-            activeIndex={currentSlide}
-            onSelect={setCurrentSlide}
-            className="gap-1 px-0 py-0 lg:gap-2 lg:px-0 lg:py-0"
-          />
-        </div>
+        {promoSlides.length > 1 ? (
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-glass p-1 lg:bottom-4 lg:gap-2 lg:p-2">
+            <CarouselDots
+              count={promoSlides.length}
+              activeIndex={currentSlide}
+              onSelect={setCurrentSlide}
+              className="gap-1 px-0 py-0 lg:gap-2 lg:px-0 lg:py-0"
+            />
+          </div>
+        ) : null}
       </div>
     </section>
   )

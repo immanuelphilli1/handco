@@ -1,4 +1,4 @@
-import { allProducts, featuredProducts, newArrivalProducts, type Product } from './products'
+import type { Product } from './products'
 
 export function getWishlistCategoryOptions(products: Product[]): string[] {
   return [...new Set(products.map((product) => product.category))]
@@ -15,10 +15,3 @@ export function filterWishlistProducts(
 export const wishlistPageTitle = 'Liked items'
 
 export { getProductKey } from './products'
-
-export const cartRecommendations: Product[] = [
-  ...featuredProducts.slice(0, 3),
-  ...newArrivalProducts.slice(0, 3),
-]
-
-export const browseableProducts: Product[] = allProducts

@@ -1,10 +1,9 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import DeleteBin7LineIcon from 'remixicon-react/DeleteBin7LineIcon'
 import type { CartItem } from '../data/cart'
 import { formatAmountDecimal } from '../data/format'
 import { useShop } from '../context/ShopContext'
 import { useRecommendations } from '../hooks/useCatalogProducts'
-import { cartRecommendations } from '../data/wishlist'
 import { OrderSummaryPanel } from './OrderSummaryPanel'
 import { ListingLoader } from './ListingLoader'
 import { PageBreadcrumbs } from './PageBreadcrumbs'
@@ -218,7 +217,11 @@ export function CartView({ onGoHome, onCheckout, onGoToProduct }: CartViewProps)
     selectAllCartItems,
     moveSelectedToWishlist,
   } = useShop()
-  const recommendationProducts = useRecommendations('cart', cartRecommendations)
+  const recommendationProducts = useRecommendations('cart')
+
+  useEffect(() => {
+    document.title = 'Cart | H&CO.'
+  }, [])
 
   const selectedCount = useMemo(() => cartItems.filter((item) => item.selected).length, [cartItems])
   const allSelected = cartItems.length > 0 && selectedCount === cartItems.length

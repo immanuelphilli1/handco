@@ -29,8 +29,8 @@ type ShopContextValue = {
   refreshCart: () => Promise<void>
   /** Applies a cart response the caller already has, avoiding a redundant GET. */
   applyCartResponse: (response: Awaited<ReturnType<typeof cartApi.getCart>>) => void
-  addToCart: (product: Product, quantity?: number) => Promise<void>
-  findCartItemForProduct: (product: Product) => CartItem | undefined
+  addToCart: (product: Product, quantity?: number, variantId?: string) => Promise<void>
+  findCartItemForProduct: (product: Product, variantId?: string) => CartItem | undefined
   updateCartItem: (itemId: string, patch: { quantity?: number; selected?: boolean }) => Promise<void>
   removeCartItem: (itemId: string) => Promise<void>
   removeSelectedCartItems: () => Promise<void>
@@ -141,9 +141,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     [cartItems],
   )
 
-  const addToCart = useCallback(async (product: Product, quantity = 1) => {
+  const addToCart = useCallback(async (product: Product, quantity = 1, variantId?: string) => {
     try {
-      const response = await cartApi.addCartItem(product.id, quantity)
+      const response = await cartApi.addCartItem(product.id, quantity, variantId)
       applyCartResponse(setCartItems, setCartSummary, response)
     } catch (error) {
       // `insufficient_stock` and `currency_mismatch` arrive as 422 with a
@@ -161,10 +161,16 @@ export function ShopProvider({ children }: { children: ReactNode }) {
    * carry no `productRid`.
    */
   const findCartItemForProduct = useCallback(
-    (product: Product) =>
-      cartItems.find((item) =>
-        item.productRid ? item.productRid === product.id : item.id === product.id,
-      ),
+    (product: Product, variantId?: string) =>
+      cartItems.find((item) => {
+        if (item.productRid !== product.id && item.id !== product.id) {
+          return false
+        }
+        if (variantId) {
+          return item.variantRid === variantId
+        }
+        return true
+      }),
     [cartItems],
   )
 

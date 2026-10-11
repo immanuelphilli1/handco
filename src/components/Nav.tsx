@@ -17,7 +17,6 @@ import HeartLineIcon from 'remixicon-react/HeartLineIcon'
 import ListCheckLineIcon from 'remixicon-react/ListCheckIcon'
 import UserLineIcon from 'remixicon-react/UserLineIcon'
 import { NavSearchBar } from './NavSearchBar'
-import type { SidebarCategoryId } from '../data/categoriesModal'
 import type { CategoryListingSelection } from '../data/categoryListing'
 import { useAuth } from '../context/AuthContext'
 import { useShop } from '../context/ShopContext'
@@ -38,7 +37,7 @@ const SCROLL_THRESHOLD_PX = 24
 
 type NavProps = {
   isCategoriesOpen: boolean
-  categoriesTargetId: SidebarCategoryId
+  categoriesTargetId: string
   onToggleCategories: () => void
   onCloseCategories: () => void
   onSubcategorySelect: (selection: CategoryListingSelection) => void
@@ -48,8 +47,8 @@ type NavProps = {
   mobileActiveTab?: MobileNavTab
   onMobileHome?: () => void
   showCategoryLinksBar?: boolean
-  onOpenCategories?: (categoryId: SidebarCategoryId, label: string) => void
-  activeCategoryId?: SidebarCategoryId
+  onOpenCategories?: (categoryId: string, label: string) => void
+  activeCategoryId?: string
   openToInitialCategory?: boolean
 }
 
@@ -100,6 +99,20 @@ export function Nav({
   const [isMobileAccountMenuOpen, setIsMobileAccountMenuOpen] = useState(false)
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
   const desktopAccountRef = useRef<HTMLDivElement>(null)
+
+  const bannerVideoRef = useCallback((video: HTMLVideoElement | null) => {
+    if (!video) return
+    video.muted = true
+    video.defaultMuted = true
+    video.setAttribute('muted', '')
+    video.play().catch(() => {
+      const retry = () => {
+        video.play().catch(() => {})
+        window.removeEventListener('pointerdown', retry)
+      }
+      window.addEventListener('pointerdown', retry, { once: true })
+    })
+  }, [])
 
   const closeAccountMenu = useCallback(() => setIsAccountMenuOpen(false), [])
   const closeMobileAccountMenu = useCallback(() => setIsMobileAccountMenuOpen(false), [])
@@ -284,12 +297,15 @@ export function Nav({
         >
           <div className="relative hidden lg:block h-10 overflow-hidden lg:h-12">
             <video
+              ref={bannerVideoRef}
               className="size-full object-cover"
               src={images.nav.bannerVid}
+              poster="/assets/nav/banner-poster.png"
               autoPlay
               loop
               muted
               playsInline
+              preload="auto"
               aria-label="Advertisement"
             />
           </div>

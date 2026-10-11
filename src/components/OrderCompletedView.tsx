@@ -4,7 +4,6 @@ import { ordersApi } from '../api'
 import { mapApiOrderAddress, type OrderAddress } from '../api/mappers'
 import type { ApiOrderDetail } from '../api/types'
 import { orderCompletedCopy } from '../data/cart'
-import { cartRecommendations } from '../data/wishlist'
 import { getProductPath } from '../data/shopRoutes'
 import { useShop } from '../context/ShopContext'
 import { useRecommendations } from '../hooks/useCatalogProducts'
@@ -31,7 +30,7 @@ type OrderCompletedViewProps = {
  */
 export function OrderCompletedView({ onGoHome }: OrderCompletedViewProps) {
   const { lastOrder } = useShop()
-  const recommendationProducts = useRecommendations('order-complete', cartRecommendations)
+  const recommendationProducts = useRecommendations('order-complete')
 
   // Populated from `GET /orders/:rid`. Null until it loads, and stays null if the
   // read fails, so the address block can report that rather than invent one.

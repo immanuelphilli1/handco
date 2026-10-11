@@ -15,7 +15,12 @@ type AuthContextValue = {
   authUser: AuthUser | null
   isBootstrapping: boolean
   signIn: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, fullName?: string) => Promise<void>
+  register: (input: {
+    email: string
+    password: string
+    fullName: string
+    country: string
+  }) => Promise<void>
   /**
    * Adopts a session returned by a non-email flow (Google sign-in), so the app
    * does not have to re-fetch `/auth/me` after the tokens are already stored.
@@ -85,10 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthUser(response.user)
   }, [])
 
-  const register = useCallback(async (email: string, password: string, fullName?: string) => {
-    const response = await authApi.register({ email, password, fullName })
-    setAuthUser(response.user)
-  }, [])
+  const register = useCallback(
+    async (input: { email: string; password: string; fullName: string; country: string }) => {
+      const response = await authApi.register(input)
+      setAuthUser(response.user)
+    },
+    [],
+  )
 
   const adoptSession = useCallback((user: AuthUser) => {
     setAuthUser(user)

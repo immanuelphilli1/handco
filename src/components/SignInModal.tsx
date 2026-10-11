@@ -7,9 +7,13 @@ import CloseFillIcon from 'remixicon-react/CloseFillIcon'
 import EyeLineIcon from 'remixicon-react/EyeLineIcon'
 import EyeOffLineIcon from 'remixicon-react/EyeOffLineIcon'
 import LockPasswordLineIcon from 'remixicon-react/LockPasswordLineIcon'
+import GlobalLineIcon from 'remixicon-react/GlobalLineIcon'
 import MailLineIcon from 'remixicon-react/MailLineIcon'
+import User6LineIcon from 'remixicon-react/User6LineIcon'
 import { images } from '../assets/images'
-import { authApi, cartApi } from '../api'
+import { accountApi, authApi, cartApi, localeApi, type LookupOption } from '../api'
+import { preferredCountryPayloadForOption } from '../api/services/account'
+import { notifyPreferredCountryChanged, writeStoredPreferredCountry } from '../api/preferredCountry'
 import { clearOAuthState, saveOAuthReturnPath, saveOAuthState } from '../api/googleOAuth'
 import { useAuth } from '../context/AuthContext'
 import { useShop } from '../context/ShopContext'
@@ -112,6 +116,9 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
   const [step, setStep] = useState<SignInStep>('email')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [registerCountry, setRegisterCountry] = useState('')
+  const [registerCountries, setRegisterCountries] = useState<LookupOption[]>([])
   const [showPassword, setShowPassword] = useState(false)
   const [isRegisterFlow, setIsRegisterFlow] = useState(false)
   /**
@@ -132,6 +139,9 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
     setStep('email')
     setEmail('')
     setPassword('')
+    setFullName('')
+    setRegisterCountry('')
+    setRegisterCountries([])
     setShowPassword(false)
     setIsRegisterFlow(false)
     setIsOAuthOnlyAccount(false)
@@ -188,13 +198,70 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
     }
   }
 
+  useEffect(() => {
+    if (!isOpen || !isRegisterFlow || step !== 'password') return
+
+    let cancelled = false
+
+    async function loadRegisterDefaults() {
+      try {
+        const [countries, locale] = await Promise.all([
+          accountApi.getCountries(),
+          localeApi.getLocale(),
+        ])
+        if (cancelled) return
+        setRegisterCountries(countries)
+        const code = locale.country?.code?.toUpperCase()
+        if (code) {
+          setRegisterCountry(code)
+        } else if (countries[0]?.code) {
+          setRegisterCountry(countries[0].code.toUpperCase())
+        }
+      } catch {
+        if (!cancelled) setRegisterCountries([])
+      }
+    }
+
+    void loadRegisterDefaults()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, isRegisterFlow, step])
+
   const handlePasswordContinue = async () => {
     if (!password.trim()) return
+    if (isRegisterFlow) {
+      if (!fullName.trim()) {
+        setErrorMessage('Enter your full name.')
+        return
+      }
+      if (!registerCountry.trim()) {
+        setErrorMessage('Choose your country of residence.')
+        return
+      }
+    }
     setIsSubmitting(true)
     setErrorMessage(null)
     try {
       if (isRegisterFlow) {
-        await register(email.trim(), password.trim())
+        await register({
+          email: email.trim(),
+          password: password.trim(),
+          fullName: fullName.trim().slice(0, 120),
+          country: registerCountry.trim().toUpperCase(),
+        })
+        void localeApi.getLocale().catch(() => undefined)
+        const selected = registerCountries.find(
+          (row) => row.code?.toUpperCase() === registerCountry.trim().toUpperCase(),
+        )
+        if (selected) {
+          writeStoredPreferredCountry(
+            email.trim(),
+            preferredCountryPayloadForOption(selected),
+          )
+          notifyPreferredCountryChanged()
+        }
       } else {
         await signIn(email.trim(), password.trim())
       }
@@ -358,7 +425,7 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
                   Create your account
                 </h2>
                 <p className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-secondary">
-                  Registration is easy, just fill in the password.
+                  Enter your name, country of residence, and a password to create your account.
                 </p>
               </div>
             )}
@@ -375,6 +442,37 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
                 step === 'forgot' ? forgotPasswordCopy.emailPlaceholder : 'Email address'
               }
             />
+
+            {step === 'password' && isRegisterFlow ? (
+              <>
+                <IconInputField
+                  id="sign-in-full-name"
+                  icon={User6LineIcon}
+                  value={fullName}
+                  onChange={setFullName}
+                  placeholder="Full name"
+                />
+                <label
+                  htmlFor="sign-in-country"
+                  className="flex h-14 w-full items-center overflow-hidden rounded-2xl border border-border-secondary"
+                >
+                  <GlobalLineIcon className="ml-4 size-6 shrink-0 text-text-secondary" aria-hidden />
+                  <select
+                    id="sign-in-country"
+                    value={registerCountry}
+                    onChange={(event) => setRegisterCountry(event.target.value)}
+                    className="min-w-0 flex-1 bg-transparent px-4 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary outline-none"
+                  >
+                    <option value="">Country of residence</option>
+                    {registerCountries.map((country) => (
+                      <option key={country.rid} value={country.code?.toUpperCase() ?? country.rid}>
+                        {country.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : null}
 
             {step === 'password' ? (
               <IconInputField

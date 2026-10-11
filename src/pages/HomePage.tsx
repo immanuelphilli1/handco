@@ -31,6 +31,7 @@ import { WishlistView } from '../components/WishlistView'
 import { SearchResultsView } from '../components/SearchResultsView'
 import { useAuth } from '../context/AuthContext'
 import { useCatalog } from '../context/CatalogContext'
+import { HomePlacementsProvider } from '../context/HomePlacementsContext'
 import { useShop } from '../context/ShopContext'
 import { useProductDestination } from '../hooks/useProductDestination'
 import { useDefaultAddress } from '../hooks/useDefaultAddress'
@@ -792,17 +793,21 @@ export function HomePage() {
             <Footer onOpenCategories={openCategories} />
           </>
         ) : (
-          <>
+          <HomePlacementsProvider>
             <main>
               <HeroSection />
               {/* <FeaturesSection /> */}
-              <CategoryGridSection onOpenCategories={openCategories} />
+              <CategoryGridSection
+                onOpenCategories={(categoryId) =>
+                  openCategories(categoryId as SidebarCategoryId)
+                }
+              />
               <NewArrivalsSection onProductSelect={handleNewArrivalProductSelect} />
               <FeaturedItemsSection onProductSelect={handleFeaturedProductSelect} />
               <PromoBannerSection onShopAllCategories={handleOpenAllCategories} />
             </main>
             <Footer onOpenCategories={openCategories} />
-          </>
+          </HomePlacementsProvider>
         )}
       </div>
       <BackToTopButton />

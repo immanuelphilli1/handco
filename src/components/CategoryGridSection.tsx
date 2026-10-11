@@ -1,38 +1,14 @@
 import { useMemo } from 'react'
-import { images } from '../assets/images'
+import { resolveAssetUrl } from '../api/mappers'
 import { useCatalog } from '../context/CatalogContext'
-import { sidebarCategories, type SidebarCategoryId } from '../data/categoriesModal'
 import { getCategoryNodeId } from '../data/catalogCategories'
-
-const GRID_CATEGORY_IDS = [
-  'electronics',
-  'furniture',
-  'accessories',
-  'decor',
-  'fashion',
-  'home-garden',
-] as const satisfies readonly SidebarCategoryId[]
-
-type GridCategoryId = (typeof GRID_CATEGORY_IDS)[number]
+import type { SidebarCategoryId } from '../data/categoriesModal'
 
 type CategoryGridCard = {
-  id: GridCategoryId
-  image: string
-  badge: string
+  id: string
+  imageUrl: string | null
   title: string
-}
-
-const categoryImages: Record<GridCategoryId, string> = {
-  electronics: images.categories.electronics,
-  furniture: images.categories.furniture,
-  accessories: images.categories.accessories,
-  decor: images.categories.decor,
-  fashion: images.categories.fashion,
-  'home-garden': images.categories.homeGarden,
-}
-
-function getFallbackTitle(categoryId: GridCategoryId): string {
-  return sidebarCategories.find((category) => category.id === categoryId)?.label ?? categoryId
+  productCount: number
 }
 
 function formatProductBadge(count: number): string {
@@ -43,62 +19,44 @@ function formatProductBadge(count: number): string {
   return `${count} Products`
 }
 
-/**
- * Counts catalog products per grid category.
- *
- * Products carry a leaf categoryId (e.g. "electronics-headphones-audio") while
- * the grid shows roots (e.g. "electronics"), so the prefix is matched instead of
- * an exact comparison. This is what the badge reports: the number of products
- * actually in that category, not how many happen to be new arrivals.
- */
-function countProductsByCategory(
+function productsInCategory(
+  items: Array<{ categoryId?: string; image?: string }>,
+  categoryId: string,
+) {
+  return items.filter((item) => {
+    const id = item.categoryId
+    if (!id) return false
+    return id === categoryId || id.startsWith(`${categoryId}-`)
+  })
+}
+
+function countProductsForCategory(
   items: Array<{ categoryId?: string }>,
-): Partial<Record<GridCategoryId, number>> {
-  const counts: Partial<Record<GridCategoryId, number>> = {}
-
-  for (const item of items) {
-    const categoryId = item.categoryId
-    if (!categoryId) {
-      continue
-    }
-
-    const gridCategoryId = GRID_CATEGORY_IDS.find(
-      (id) => categoryId === id || categoryId.startsWith(`${id}-`),
-    )
-
-    if (!gridCategoryId) {
-      continue
-    }
-
-    counts[gridCategoryId] = (counts[gridCategoryId] ?? 0) + 1
-  }
-
-  return counts
+  categoryId: string,
+): number {
+  return productsInCategory(items, categoryId).length
 }
 
-function buildCategoryGridCards(
-  apiLabels: Partial<Record<GridCategoryId, string>>,
-  productCounts: Partial<Record<GridCategoryId, number>>,
-): CategoryGridCard[] {
-  return GRID_CATEGORY_IDS.map((id) => ({
-    id,
-    image: categoryImages[id],
-    badge: formatProductBadge(productCounts[id] ?? 0),
-    title: apiLabels[id] ?? getFallbackTitle(id),
-  }))
+function productImageForCategory(
+  items: Array<{ categoryId?: string; image?: string }>,
+  categoryId: string,
+  categoryImageUrl: string | null,
+): string | null {
+  const match = productsInCategory(items, categoryId).find((item) => item.image)
+  if (match?.image) return match.image
+  return categoryImageUrl
 }
-
-const fallbackCategories = buildCategoryGridCards({}, {})
 
 function CategoryCardItem({
   id,
-  image,
+  imageUrl,
   badge,
   title,
   onOpenCategories,
   className = '',
 }: CategoryGridCard & {
-  onOpenCategories: (categoryId: SidebarCategoryId, label: string) => void
+  badge: string
+  onOpenCategories: (categoryId: SidebarCategoryId | string, label: string) => void
   className?: string
 }) {
   return (
@@ -106,12 +64,14 @@ function CategoryCardItem({
       type="button"
       onClick={() => onOpenCategories(id, title)}
       aria-label={`Browse ${title}`}
-      className={`relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-lg border border-border-primary text-left ${className}`}
+      className={`relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-lg border border-border-primary bg-bg-secondary text-left ${className}`}
     >
-      <div aria-hidden className="pointer-events-none absolute inset-0">
-        <img alt="" className="absolute size-full object-cover" src={image} />
-        <div className="absolute inset-0 bg-[rgba(0,6,7,0.2)]" />
-      </div>
+      {imageUrl ? (
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          <img alt="" className="absolute size-full object-cover" src={imageUrl} />
+          <div className="absolute inset-0 bg-[rgba(0,6,7,0.2)]" />
+        </div>
+      ) : null}
       <div className="relative p-4">
         <span className="inline-flex rounded-full bg-glass px-2 py-1 text-xs font-medium tracking-[-0.24px] text-text-inverse">
           {badge}
@@ -127,34 +87,45 @@ function CategoryCardItem({
 export function CategoryGridSection({
   onOpenCategories,
 }: {
-  onOpenCategories: (categoryId: SidebarCategoryId, label?: string) => void
+  onOpenCategories: (categoryId: SidebarCategoryId | string, label?: string) => void
 }) {
   const { categories: apiCategories, allProducts, isReady } = useCatalog()
 
-  const categories = useMemo(() => {
+  const categories = useMemo((): CategoryGridCard[] => {
     if (!isReady) {
-      return fallbackCategories
+      return []
     }
 
-    // Keyed by `slug`, the wire field the API uses for the category id (see
-    // `getCategoryNodeId`). Reading `.id` yielded `undefined` for every
-    // category, so all cards fell back to their static labels.
-    const apiLabels = Object.fromEntries(
-      apiCategories.map((category) => [getCategoryNodeId(category), category.label]),
-    ) as Partial<Record<GridCategoryId, string>>
-
-    return buildCategoryGridCards(apiLabels, countProductsByCategory(allProducts))
+    return apiCategories.map((category) => {
+      const id = getCategoryNodeId(category)
+      const categoryImageUrl =
+        resolveAssetUrl(category.imageUrl ?? category.image ?? undefined) || null
+      const imageUrl = productImageForCategory(allProducts, id, categoryImageUrl)
+      return {
+        id,
+        imageUrl,
+        title: category.label,
+        productCount: countProductsForCategory(allProducts, id),
+      }
+    })
   }, [allProducts, apiCategories, isReady])
+
+  if (isReady && categories.length === 0) {
+    return null
+  }
 
   return (
     <section className="px-4 lg:px-16">
-      <h2 className="text-base pt-6 lg:pt-0 font-medium leading-6 tracking-[-0.32px] text-text-primary lg:text-2xl lg:leading-10 lg:tracking-[-0.64px]">Shop by Category</h2>
+      <h2 className="text-base pt-6 lg:pt-0 font-medium leading-6 tracking-[-0.32px] text-text-primary lg:text-2xl lg:leading-10 lg:tracking-[-0.64px]">
+        Shop by Category
+      </h2>
       <div className="py-4 lg:py-6">
         <div className="flex gap-2 overflow-x-auto scroll-smooth [-ms-overflow-style:none] scrollbar-none lg:grid lg:grid-cols-6 lg:overflow-visible [&::-webkit-scrollbar]:hidden">
           {categories.map((category) => (
             <div key={category.id} className="shrink-0 lg:min-w-0 lg:shrink">
               <CategoryCardItem
                 {...category}
+                badge={formatProductBadge(category.productCount)}
                 onOpenCategories={onOpenCategories}
                 className="size-40 lg:aspect-square lg:size-auto lg:w-full"
               />

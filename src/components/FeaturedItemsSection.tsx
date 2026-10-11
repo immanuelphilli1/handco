@@ -1,4 +1,4 @@
-import { getHomeFeaturedProducts, type Product } from '../data/products'
+import type { Product } from '../data/products'
 import { getProductPath } from '../data/shopRoutes'
 import { useCatalog } from '../context/CatalogContext'
 import { ProductCard } from './ProductCard'
@@ -7,12 +7,12 @@ type FeaturedItemsSectionProps = {
   onProductSelect?: (product: Product) => void
 }
 
-const fallbackFeaturedProducts = getHomeFeaturedProducts()
-
 export function FeaturedItemsSection({ onProductSelect }: FeaturedItemsSectionProps) {
   const { featuredProducts, isReady } = useCatalog()
-  const homeFeaturedProducts =
-    isReady && featuredProducts.length > 0 ? featuredProducts : fallbackFeaturedProducts
+
+  if (!isReady || featuredProducts.length === 0) {
+    return null
+  }
 
   return (
     <section className="border-b border-border-primary px-4 lg:px-16">
@@ -21,7 +21,7 @@ export function FeaturedItemsSection({ onProductSelect }: FeaturedItemsSectionPr
           Featured items
         </h2>
         <div className="grid grid-cols-2 items-stretch gap-2 lg:grid-cols-5">
-          {homeFeaturedProducts.map((product, index) => (
+          {featuredProducts.map((product, index) => (
             <ProductCard
               key={`${product.id}-${index}`}
               product={product}

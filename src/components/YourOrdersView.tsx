@@ -11,10 +11,10 @@ import { accountApi, ordersApi } from '../api'
 import type { LookupOption } from '../api'
 import {
   notifyPreferredCountryChanged,
-  readStoredPreferredCountry,
   writeStoredPreferredCountry,
 } from '../api/preferredCountry'
 import {
+  coercePreferredCountryStoredValue,
   preferredCountryOptionValue,
   preferredCountryOptionValueForStored,
   preferredCountryPayloadForOption,
@@ -1371,7 +1371,7 @@ function CountryResidenceSelect({
   return (
     <div className="rounded-firm-2 bg-bg-secondary p-4">
       <p className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary">
-        Country or residence
+        Country of residence
       </p>
       <p className="mt-2 text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
         Used for delivery estimates and tax on products when you have no default shipping
@@ -1909,12 +1909,11 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
         if (cancelled) return
 
         setCountryOptions(lookupCountries)
-        setPreferredCountry(
-          readStoredPreferredCountry(authUser?.email ?? undefined),
-        )
-
         if (profileResponse.profile) {
           const mapped = mapApiProfile(profileResponse.profile)
+          setPreferredCountry(
+            coercePreferredCountryStoredValue(profileResponse.profile.preferredCountry),
+          )
           // `/users/me/profile` may omit the email, in which case the session's
           // email is the accurate one to show.
           setProfile({

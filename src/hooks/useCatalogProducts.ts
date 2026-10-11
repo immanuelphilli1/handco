@@ -44,8 +44,8 @@ export function useProductListing(params: ProductListingQuery, initialProducts: 
   return { products, isLoading }
 }
 
-export function useRecommendations(context: string | undefined, fallback: Product[]) {
-  const [products, setProducts] = useState<Product[]>(fallback)
+export function useRecommendations(context: string | undefined) {
+  const [products, setProducts] = useState<Product[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -58,7 +58,7 @@ export function useRecommendations(context: string | undefined, fallback: Produc
         }
       } catch {
         if (!cancelled) {
-          setProducts(fallback)
+          setProducts([])
         }
       }
     }

@@ -11,7 +11,7 @@ import {
   formatStatCount,
   type AboutStat,
 } from '../data/about'
-import { getHomeFeaturedProducts, type Product } from '../data/products'
+import type { Product } from '../data/products'
 import { useCatalog } from '../context/CatalogContext'
 import { PageBreadcrumbs } from './PageBreadcrumbs'
 import { getProductPath } from '../data/shopRoutes'
@@ -29,8 +29,6 @@ type AboutPageContentProps = {
  * and artwork start on the same line instead of drifting apart.
  */
 const PAGE_GUTTER = 'px-4 lg:px-16'
-
-const fallbackRecommendedProducts = getHomeFeaturedProducts().slice(0, 5)
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -185,9 +183,7 @@ export function AboutPageContent({ onGoHome, onProductSelect }: AboutPageContent
   const { categories, facets, featuredProducts, allProducts, isReady } = useCatalog()
 
   const recommendedProducts =
-    isReady && featuredProducts.length > 0
-      ? featuredProducts.slice(0, 5)
-      : fallbackRecommendedProducts
+    isReady && featuredProducts.length > 0 ? featuredProducts.slice(0, 5) : []
 
   // The figures describe the store the shopper is actually looking at, so they
   // come from the loaded catalog rather than being written into the copy. While

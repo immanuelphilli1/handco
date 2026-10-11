@@ -4,6 +4,7 @@ export type CartItem = {
   id: string
   /** Rid of the product this line belongs to, when the API supplies it. */
   productRid?: string
+  variantRid?: string
   name: string
   variant: string
   image: string

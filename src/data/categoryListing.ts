@@ -1,10 +1,10 @@
 import type { ApiCategory } from '../api/types'
 import { buildAllCategoriesListingSelection } from './catalogCategories'
-import { ALL_PRODUCTS_LABEL, type SidebarCategoryId } from './categoriesModal'
-import { allProducts, getProductsByCategoryId, type Product } from './products'
+import type { SidebarCategoryId } from './categoriesModal'
+import type { Product } from './products'
 
 export type CategoryListingSelection = {
-  categoryId: SidebarCategoryId
+  categoryId: SidebarCategoryId | string
   categoryLabel: string
   subcategoryLabel: string
   subcategoryOptions: string[]
@@ -20,11 +20,6 @@ export const collapsedFilterSections = ['Brand', 'Color', 'Seller']
 
 export const mobileCollapsedFilterSections = ['Color', 'Connectivity', 'Storage']
 
-/**
- * All active facet selections. Each value is a single choice or a range because
- * the API only supports one value per facet, so the UI mirrors that instead of
- * advertising multi-select it cannot honour.
- */
 export type ListingFilters = {
   minPrice: number
   maxPrice: number
@@ -69,8 +64,6 @@ function matchesRating(product: Product, rating: string): boolean {
 }
 
 function matchesPrice(product: Product, minPrice: number, maxPrice: number): boolean {
-  // Products without a numeric price (only reachable on static fallback data)
-  // stay visible rather than being silently dropped from every range.
   if (product.priceAmount === undefined) {
     return true
   }
@@ -78,14 +71,6 @@ function matchesPrice(product: Product, minPrice: number, maxPrice: number): boo
   return product.priceAmount >= minPrice && product.priceAmount <= maxPrice
 }
 
-/**
- * Applies the facet selections to an already-fetched product list.
- *
- * Filtering runs client-side against the full catalog: the API supports every
- * facet used here, but round-tripping on each slider drag would be both chatty
- * and racy. The whole catalog is fetched up front, so local filtering is the
- * simpler and more responsive choice.
- */
 export function applyListingFilters(
   products: Product[],
   filters: ListingFilters,
@@ -118,28 +103,3 @@ export function applyListingFilters(
     return true
   })
 }
-
-export function getListingProducts(
-  selection: CategoryListingSelection,
-  activeSubcategory?: string,
-): Product[] {
-  const products =
-    selection.categoryId === 'all-categories'
-      ? allProducts
-      : getProductsByCategoryId(selection.categoryId)
-
-  // "All products" is a UI-only label that means "ignore the category", so it
-  // must not be matched against product.subcategory (nothing carries that
-  // value, which would filter the list down to zero).
-  if (activeSubcategory === ALL_PRODUCTS_LABEL) {
-    return allProducts
-  }
-
-  if (!activeSubcategory || !selection.subcategoryOptions.includes(activeSubcategory)) {
-    return products
-  }
-
-  return products.filter((product) => product.subcategory === activeSubcategory)
-}
-
-export const categoryListingProducts: Product[] = allProducts

@@ -1,21 +1,16 @@
-import AlarmWarningLineIcon from 'remixicon-react/AlarmWarningLineIcon'
-import ComputerLineIcon from 'remixicon-react/ComputerLineIcon'
-import HammerLineIcon from 'remixicon-react/HammerLineIcon'
-import LightbulbFlashLineIcon from 'remixicon-react/LightbulbFlashLineIcon'
-import PriceTag3LineIcon from 'remixicon-react/PriceTag3LineIcon'
+import { useMemo } from 'react'
 import StarLineIcon from 'remixicon-react/StarLineIcon'
-import TShirt2LineIcon from 'remixicon-react/TShirt2LineIcon'
-import { images } from '../assets/images'
+import { useCatalog } from '../context/CatalogContext'
+import { getCategoryNodeId } from '../data/catalogCategories'
+import { getCategoryNavIcon, linkBarFixedIcons } from '../data/categoryNavIcons'
 import type { SidebarCategoryId } from '../data/categoriesModal'
 import { Icon } from './Icon'
-
-type RemixIcon = typeof PriceTag3LineIcon
+import { images } from '../assets/images'
 
 type CategoryLink = {
-  /** Canonical sidebar id. Matched by id so backend label changes can't break it. */
-  id: SidebarCategoryId
+  id: SidebarCategoryId | string
   label: string
-  icon?: RemixIcon
+  icon?: ReturnType<typeof getCategoryNavIcon>
   imageIcon?: string
 }
 
@@ -25,15 +20,11 @@ const featuredLink: CategoryLink = {
   icon: StarLineIcon,
 }
 
-const categoryLinks: CategoryLink[] = [
-  { id: 'featured', label: 'Best Sellers', icon: PriceTag3LineIcon },
-  { id: 'new-releases', label: 'New Releases', icon: AlarmWarningLineIcon },
-  { id: 'electronics', label: 'Electronics & Tech', icon: ComputerLineIcon },
-  { id: 'fashion', label: 'Fashion & Accessories', icon: TShirt2LineIcon },
-  { id: 'home-garden', label: 'Home & Garden', imageIcon: images.hero.sofa },
-  { id: 'energy', label: 'Energy & Power', icon: LightbulbFlashLineIcon },
-  { id: 'construction', label: 'Construction & Tools', icon: HammerLineIcon },
-]
+type CategoryLinksBarProps = {
+  onOpenCategories: (categoryId: SidebarCategoryId | string, label: string) => void
+  activeCategoryId?: SidebarCategoryId | string
+  isCategoriesOpen?: boolean
+}
 
 function CategoryLinkIcon({
   category,
@@ -50,14 +41,8 @@ function CategoryLinkIcon({
     return <Icon src={category.imageIcon} className={iconClassName} />
   }
 
-  const CategoryIcon = category.icon!
+  const CategoryIcon = category.icon ?? getCategoryNavIcon(category.id)
   return <CategoryIcon className={iconClassName} aria-hidden />
-}
-
-type CategoryLinksBarProps = {
-  onOpenCategories: (categoryId: SidebarCategoryId, label: string) => void
-  activeCategoryId?: SidebarCategoryId
-  isCategoriesOpen?: boolean
 }
 
 export function CategoryLinksBar({
@@ -65,6 +50,27 @@ export function CategoryLinksBar({
   activeCategoryId = 'featured',
   isCategoriesOpen = false,
 }: CategoryLinksBarProps) {
+  const { categories: apiCategories } = useCatalog()
+
+  const categoryLinks = useMemo((): CategoryLink[] => {
+    const fixed: CategoryLink[] = [
+      { id: 'featured', label: 'Best Sellers', icon: linkBarFixedIcons.featured },
+      { id: 'new-releases', label: 'New Releases', icon: linkBarFixedIcons['new-releases'] },
+    ]
+
+    const fromApi: CategoryLink[] = apiCategories.map((category) => {
+      const id = getCategoryNodeId(category)
+      return {
+        id,
+        label: category.label,
+        icon: getCategoryNavIcon(id),
+        imageIcon: id === 'home-garden' ? images.hero.sofa : undefined,
+      }
+    })
+
+    return [...fixed, ...fromApi]
+  }, [apiCategories])
+
   const visibleLinks = isCategoriesOpen ? [featuredLink, ...categoryLinks] : categoryLinks
 
   return (
@@ -76,7 +82,7 @@ export function CategoryLinksBar({
 
             return (
               <button
-                key={category.label}
+                key={`${category.id}-${category.label}`}
                 type="button"
                 onClick={() => onOpenCategories(category.id, category.label)}
                 className={`group flex h-12 shrink-0 cursor-pointer items-center gap-2 rounded-lg p-4 transition-colors ${

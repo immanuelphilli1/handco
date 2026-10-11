@@ -343,3 +343,30 @@ export async function getRecommendations(context?: string): Promise<PaginatedPro
     }),
   )
 }
+
+export type HomeBannerPlacement = {
+  rid: string
+  position: 'hero' | 'promo'
+  imageUrl: string
+  altText: string
+  title: string | null
+  description: string | null
+  buttonText: string | null
+  linkUrl: string | null
+}
+
+export type HomePlacementsResponse = {
+  items: HomeBannerPlacement[]
+}
+
+export async function getHomePlacements(
+  position?: 'hero' | 'promo',
+): Promise<HomePlacementsResponse> {
+  return cachedGet(buildCacheKey('placements/home', { position }), () =>
+    apiRequest<HomePlacementsResponse>('/placements/home', {
+      auth: false,
+      cart: false,
+      searchParams: position ? { position } : undefined,
+    }),
+  )
+}

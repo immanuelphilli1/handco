@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { CategoryListingSelection } from '../data/categoryListing'
-import type { SidebarCategoryId } from '../data/categoriesModal'
 import { getMajorCategoryId } from '../data/catalogCategories'
 import { getCategoryPathFromSelection } from '../data/shopRoutes'
 
@@ -13,7 +12,7 @@ type UseCategoryNavigationOptions = {
    * precedence over the last-opened target so the link bar stays pointed at the
    * category being viewed.
    */
-  routeCategoryId?: SidebarCategoryId
+  routeCategoryId?: string
 }
 
 /**
@@ -24,8 +23,7 @@ export function useCategoryNavigation(options?: UseCategoryNavigationOptions) {
   const { scrollOnNavigate = false, routeCategoryId } = options ?? {}
   const navigate = useNavigate()
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false)
-  const [categoriesTargetId, setCategoriesTargetId] =
-    useState<SidebarCategoryId>('featured')
+  const [categoriesTargetId, setCategoriesTargetId] = useState<string>('featured')
   // Whether the current open was triggered by a deliberate category pick (the
   // link bar) rather than the generic Categories button / mobile tab. Only a
   // deliberate pick should jump straight to that category on mobile.
@@ -35,7 +33,7 @@ export function useCategoryNavigation(options?: UseCategoryNavigationOptions) {
   // "accessories" under "Fashion & Accessories") lights up its parent entry.
   const activeCategoryId = getMajorCategoryId(routeCategoryId ?? categoriesTargetId)
 
-  const openCategories = useCallback((categoryId: SidebarCategoryId = 'featured') => {
+  const openCategories = useCallback((categoryId: string = 'featured') => {
     setCategoriesTargetId(categoryId)
     setOpenToInitialCategory(true)
     setIsCategoriesOpen(true)
@@ -46,7 +44,7 @@ export function useCategoryNavigation(options?: UseCategoryNavigationOptions) {
   // button. Compared on the major category so that, for example,
   // "Fashion & Accessories" also closes a panel opened for Accessories.
   const toggleCategoriesFromLinkBar = useCallback(
-    (categoryId: SidebarCategoryId = 'featured') => {
+    (categoryId: string = 'featured') => {
       setIsCategoriesOpen((open) => {
         if (open && getMajorCategoryId(categoriesTargetId) === getMajorCategoryId(categoryId)) {
           return false

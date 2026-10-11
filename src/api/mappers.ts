@@ -12,7 +12,12 @@ import type { OrderLine, OrderRecord, OrderStatus, OrderTrackingEvent } from '..
 import type { Product, ProductAttribute } from '../data/products'
 import type { ProductDetail, ProductDetailContext, ProductReview } from '../data/productDetail'
 import type { CategoryListingSelection } from '../data/categoryListing'
-import { getCategoryLabel, getSubcategoryOptions } from '../data/catalogCategories'
+import {
+  findCategoryInTree,
+  getCategoryNodeId,
+  getSubcategoryOptions,
+  resolveProductListingSelection,
+} from '../data/catalogCategories'
 import { DELIVERY_OPTION_FREE, getDeliveryOptionByMaxDays } from '../data/deliveryFilter'
 import {
   formatAmount,
@@ -224,6 +229,7 @@ export function mapApiCartItem(item: ApiCartItem): CartItem {
   return {
     id: item.rid ?? item.id,
     productRid: item.productRid,
+    variantRid: item.variantRid,
     name: item.name,
     variant: item.variant,
     image: resolveAssetUrl(item.image),
@@ -317,36 +323,100 @@ export function mapApiOrderTracking(
   }))
 }
 
+function mapApiProductDetailVariants(
+  response: ApiProductDetailResponse,
+): ProductDetail['variants'] {
+  if (response.variants?.length) {
+    return response.variants.map((variant) => ({
+      rid: variant.rid,
+      name: variant.name,
+      color: variant.color ?? null,
+      size: variant.size ?? null,
+      isDefault: variant.isDefault ?? false,
+      inStock: variant.inStock ?? true,
+      stockQuantity: variant.stockQuantity ?? null,
+      priceAmount: formatAmountDecimal(variant.priceMoney.amount),
+      priceCurrency: variant.priceMoney.currency,
+      imageIndex: variant.imageIndex ?? null,
+      delivery: formatDeliveryQuote(variant.deliveryQuote ?? response.product.deliveryQuote),
+    }))
+  }
+
+  if (response.variantOptions?.length) {
+    return response.variantOptions.map((variant, index) => ({
+      rid: variant.rid,
+      name: variant.name,
+      color: variant.color ?? null,
+      size: variant.size ?? null,
+      isDefault: index === 0,
+      inStock: true,
+      stockQuantity: null,
+      priceAmount: formatAmountDecimal(response.priceMoney.amount),
+      priceCurrency: response.priceMoney.currency,
+      imageIndex: null,
+      delivery: formatDeliveryQuote(response.product.deliveryQuote),
+    }))
+  }
+
+  return []
+}
+
 export function mapApiProductDetail(
   response: ApiProductDetailResponse,
   selection: CategoryListingSelection,
 ): ProductDetailContext {
   const product = mapApiProduct(response.product)
-  // `priceMoney` is required by the current API, but falling back to the card's
-  // price keeps the detail page rendering if a deployment omits it.
-  const priceMoney = response.priceMoney ?? { amount: 0, currency: 'AED' }
+  const variants = mapApiProductDetailVariants(response)
+  const defaultVariant = variants.find((variant) => variant.isDefault) ?? variants[0]
+  const priceMoney =
+    defaultVariant != null
+      ? {
+          amount: Number.parseFloat(defaultVariant.priceAmount),
+          currency: defaultVariant.priceCurrency,
+        }
+      : response.priceMoney ?? response.product.priceMoney
+  if (!priceMoney) {
+    throw new Error('Product detail is missing price information.')
+  }
   const priceAmount = formatAmountDecimal(priceMoney.amount)
   const priceCurrency = priceMoney.currency
-  // `imageUrls` is the full ordered set; `images` is a fixed-length subset.
-  const images = (response.imageUrls ?? response.images).map(resolveAssetUrl)
-  const shippingFee = formatAmount(response.shippingFeeMoney ?? priceMoney)
-  const deliveryEstimate = formatDeliveryDays(response.deliveryDays)
+
+  const gallery =
+    response.gallery?.map((entry) => ({
+      rid: entry.rid,
+      imageUrl: resolveAssetUrl(entry.imageUrl),
+      variantRid: entry.variantRid,
+    })) ?? []
+
+  const images =
+    gallery.length > 0
+      ? gallery.map((entry) => entry.imageUrl)
+      : (response.imageUrls ?? response.images).map(resolveAssetUrl)
+
+  const optionGroups =
+    response.optionGroups?.map((group) => ({
+      key: group.key,
+      label: group.label,
+      values: group.values,
+    })) ?? []
+
+  const shippingFee = formatAmount(response.shippingFeeMoney ?? response.priceMoney)
+  const deliveryEstimate =
+    defaultVariant?.delivery || formatDeliveryDays(response.deliveryDays)
 
   const detail: ProductDetail = {
     product,
     images,
+    gallery,
+    optionGroups,
+    variants,
     ratingValue: response.ratingValue,
     reviewCount: response.reviewCount,
     soldCount: response.soldCount,
     priceAmount,
     priceCurrency,
-    modelOptions: response.modelOptions,
-    descriptionLines: response.descriptionLines ?? [
-      `${product.name} with premium build quality and smart features.`,
-      'Premium build quality with manufacturer warranty',
-      'Genuine product — all items verified authentic',
-      'Easy 30-day return policy',
-    ],
+    modelOptions: response.modelOptions ?? variants.map((variant) => variant.name),
+    descriptionLines: response.descriptionLines ?? [],
     reviews: [],
     shippingAddress: {
       line1: 'Hse 8 M Street',
@@ -408,20 +478,29 @@ export function buildSelectionForProduct(
   }
 
   if (categoryId && subcategory) {
-    return {
-      categoryId: categoryId as SidebarCategoryId,
-      categoryLabel: getCategoryLabel(categoryId as SidebarCategoryId, apiCategories),
-      subcategoryLabel: subcategory,
-      subcategoryOptions: getSubcategoryOptions(categoryId as SidebarCategoryId, apiCategories),
+    const treeMatch = findCategoryInTree(apiCategories, categoryId)
+    if (treeMatch && getCategoryNodeId(treeMatch.root) !== getCategoryNodeId(treeMatch.node)) {
+      return resolveProductListingSelection(categoryId, subcategory, apiCategories)
     }
+
+    const topLevel = apiCategories.find((entry) => getCategoryNodeId(entry) === categoryId)
+    if (topLevel) {
+      return {
+        categoryId,
+        categoryLabel: topLevel.label,
+        subcategoryLabel: subcategory,
+        subcategoryOptions: getSubcategoryOptions(categoryId, apiCategories),
+      }
+    }
+
+    return resolveProductListingSelection(categoryId, subcategory, apiCategories)
   }
 
-  return {
-    categoryId: product.categoryId,
-    categoryLabel: getCategoryLabel(product.categoryId, apiCategories),
-    subcategoryLabel: product.subcategory,
-    subcategoryOptions: getSubcategoryOptions(product.categoryId, apiCategories),
-  }
+  return resolveProductListingSelection(
+    product.categoryId,
+    product.subcategory,
+    apiCategories,
+  )
 }
 
 export function mapApiProductReview(review: ApiProductReview): ProductReview {

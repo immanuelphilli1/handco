@@ -8,7 +8,7 @@ import {
 } from 'react'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
-import { newArrivalProducts as fallbackNewArrivals, type Product } from '../data/products'
+import type { Product } from '../data/products'
 import { getProductPath } from '../data/shopRoutes'
 import { useCatalog } from '../context/CatalogContext'
 import { CarouselDots } from './CarouselDots'
@@ -39,9 +39,7 @@ function buildLoopedProducts(products: Product[], cloneCount: number) {
 }
 
 function useIsDesktop() {
-  const [isDesktop, setIsDesktop] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia(DESKTOP_MEDIA_QUERY).matches,
-  )
+  const [isDesktop, setIsDesktop] = useState(false)
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(DESKTOP_MEDIA_QUERY)
@@ -62,8 +60,7 @@ type NewArrivalsSectionProps = {
 
 export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps) {
   const { newArrivalProducts, isReady } = useCatalog()
-  const newArrivalProductsList =
-    isReady && newArrivalProducts.length > 0 ? newArrivalProducts : fallbackNewArrivals
+  const newArrivalProductsList = isReady ? newArrivalProducts : []
   const productCount = Math.max(newArrivalProductsList.length, 1)
   const mobileProducts = newArrivalProductsList.slice(0, MOBILE_PRODUCT_COUNT)
   const isDesktop = useIsDesktop()
@@ -269,6 +266,10 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
   const showMobileNext = useCallback(() => {
     scrollToMobileProduct(Math.min(mobileProducts.length - 1, mobileActiveIndex + 1))
   }, [mobileActiveIndex, mobileProducts.length, scrollToMobileProduct])
+
+  if (isReady && newArrivalProductsList.length === 0) {
+    return null
+  }
 
   return (
     <section className="overflow-x-clip border-b border-border-primary px-4 lg:px-16">

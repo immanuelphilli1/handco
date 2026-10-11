@@ -1,35 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import AlarmWarningLineIcon from 'remixicon-react/AlarmWarningLineIcon'
-import AppsLineIcon from 'remixicon-react/AppsLineIcon'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
-import ComputerLineIcon from 'remixicon-react/ComputerLineIcon'
-import HammerLineIcon from 'remixicon-react/HammerLineIcon'
-import HandbagLineIcon from 'remixicon-react/HandbagLineIcon'
-import Home2LineIcon from 'remixicon-react/Home2LineIcon'
-import LightbulbFlashLineIcon from 'remixicon-react/LightbulbFlashLineIcon'
-import PaletteLineIcon from 'remixicon-react/PaletteLineIcon'
-import PlantLineIcon from 'remixicon-react/PlantLineIcon'
-import StarLineIcon from 'remixicon-react/StarLineIcon'
-import TShirt2LineIcon from 'remixicon-react/TShirt2LineIcon'
 import { useCatalog } from '../context/CatalogContext'
 import {
+  buildCatalogSidebar,
   getCategoryPanelSections,
   getSubcategoryOptions,
   type CategoryPanelSectionView,
 } from '../data/catalogCategories'
+import { getCategoryNavIcon } from '../data/categoryNavIcons'
 import { getAllCategoriesListingSelection } from '../data/categoryListing'
 import type { CategoryListingSelection } from '../data/categoryListing'
-import { sidebarCategories, type SidebarCategoryId, type Subcategory } from '../data/categoriesModal'
+import type { SidebarCategoryId, Subcategory } from '../data/categoriesModal'
 
 type CategoriesModalProps = {
   isOpen: boolean
-  initialCategoryId: SidebarCategoryId
-  /**
-   * When false, opening the modal on mobile shows the category list instead of
-   * jumping straight to the initial category's subcategories. Link bar clicks
-   * pass true because the user picked a category deliberately.
-   */
+  initialCategoryId: SidebarCategoryId | string
   openToInitialCategory?: boolean
   onClose: () => void
   onSubcategorySelect: (selection: CategoryListingSelection) => void
@@ -37,32 +23,16 @@ type CategoriesModalProps = {
 
 type MobileView = 'list' | 'detail'
 
-type RemixIcon = typeof StarLineIcon
-
-const categoryIcons: Record<SidebarCategoryId, RemixIcon> = {
-  'all-categories': AppsLineIcon,
-  featured: StarLineIcon,
-  'new-releases': AlarmWarningLineIcon,
-  electronics: ComputerLineIcon,
-  fashion: TShirt2LineIcon,
-  'home-garden': PlantLineIcon,
-  decor: PaletteLineIcon,
-  furniture: Home2LineIcon,
-  accessories: HandbagLineIcon,
-  construction: HammerLineIcon,
-  energy: LightbulbFlashLineIcon,
-}
-
 function CategoryIcon({
   categoryId,
   className = 'size-6',
   isActive = false,
 }: {
-  categoryId: SidebarCategoryId
+  categoryId: string
   className?: string
   isActive?: boolean
 }) {
-  const IconComponent = categoryIcons[categoryId]
+  const IconComponent = getCategoryNavIcon(categoryId)
 
   return (
     <IconComponent
@@ -80,7 +50,7 @@ function CategoryLinkButton({
   onClick,
   showActiveState = true,
 }: {
-  category: (typeof sidebarCategories)[number]
+  category: { id: string; label: string }
   isActive?: boolean
   onClick: () => void
   showActiveState?: boolean
@@ -131,7 +101,7 @@ function CategorySectionPanel({
   items,
   onSubcategorySelect,
 }: {
-  sectionId: SidebarCategoryId
+  sectionId: string
   title: string
   items: Subcategory[]
   onSubcategorySelect: (selection: CategoryListingSelection) => void
@@ -192,15 +162,16 @@ export function CategoriesModal({
   onSubcategorySelect,
 }: CategoriesModalProps) {
   const { categories } = useCatalog()
+  const sidebarEntries = useMemo(() => buildCatalogSidebar(categories), [categories])
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const [selectedId, setSelectedId] = useState<SidebarCategoryId>('featured')
+  const [selectedId, setSelectedId] = useState<string>('featured')
   const [mobileView, setMobileView] = useState<MobileView>('list')
 
   const sections = getCategoryPanelSections(selectedId, categories)
-  const selectedCategory = sidebarCategories.find((category) => category.id === selectedId)
+  const selectedCategory = sidebarEntries.find((category) => category.id === selectedId)
 
   const handleMobileCategorySelect = useCallback(
-    (categoryId: SidebarCategoryId) => {
+    (categoryId: string) => {
       if (categoryId === 'all-categories') {
         onSubcategorySelect(getAllCategoriesListingSelection(categories))
         return
@@ -220,9 +191,6 @@ export function CategoriesModal({
     if (!isOpen) return
 
     setSelectedId(initialCategoryId)
-    // Desktop always renders the sections in place, so mobileView only matters
-    // under 1024px. Only jump to the detail view when the user deliberately
-    // picked a category (link bar); otherwise show the category list first.
     setMobileView(
       window.matchMedia('(max-width: 1023px)').matches &&
         openToInitialCategory &&
@@ -293,7 +261,7 @@ export function CategoriesModal({
 
           {mobileView === 'list' ? (
             <nav className="flex w-full flex-col overflow-y-auto p-2 lg:hidden">
-              {sidebarCategories.map((category) => (
+              {sidebarEntries.map((category) => (
                 <CategoryLinkButton
                   key={category.id}
                   category={category}
