@@ -146,7 +146,14 @@ function FooterSocialIcons() {
   return (
     <div className="flex items-center gap-4 lg:gap-1 xl:gap-4">
       {socialIcons.map((icon) => (
-        <a key={icon.label} href="#" aria-label={icon.label}>
+        <a
+          key={icon.label}
+          href={icon.href}
+          aria-label={icon.label}
+          {...(icon.href.startsWith('http')
+            ? { target: '_blank', rel: 'noopener noreferrer' }
+            : {})}
+        >
           <Icon src={icon.src} />
         </a>
       ))}
@@ -155,12 +162,20 @@ function FooterSocialIcons() {
 }
 
 const socialIcons = [
-  { src: images.footer.facebook, label: 'Facebook' },
-  { src: images.footer.instagram, label: 'Instagram' },
-  { src: images.footer.tiktok, label: 'TikTok' },
-  { src: images.footer.youtube, label: 'YouTube' },
-  { src: images.footer.linkedin, label: 'LinkedIn' },
-  { src: images.footer.twitter, label: 'X' },
+  { src: images.footer.facebook, label: 'Facebook', href: '#' },
+  {
+    src: images.footer.instagram,
+    label: 'Instagram',
+    href: 'https://instagram.com/hcomall?rpxt=MXFjOXJtZXZlN25tbw%3D%3D',
+  },
+  { src: images.footer.tiktok, label: 'TikTok', href: '#' },
+  {
+    src: images.footer.youtube,
+    label: 'YouTube',
+    href: 'https://youtube.com/@hcomall?si=dW7jY51QKcCS7LV_',
+  },
+  { src: images.footer.linkedin, label: 'LinkedIn', href: '#' },
+  { src: images.footer.twitter, label: 'X', href: '#' },
 ]
 
 const trustBadges = [
