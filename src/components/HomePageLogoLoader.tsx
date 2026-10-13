@@ -11,7 +11,7 @@ export function HomePageLogoLoader() {
         src={images.nav.logo}
         alt=""
         aria-hidden
-        className="h-8 w-auto animate-logo-loading sm:h-9"
+        className="h-8 w-auto hidden animate-logo-loading sm:h-9"
       />
     </div>
   )
