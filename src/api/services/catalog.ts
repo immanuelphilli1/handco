@@ -370,3 +370,16 @@ export async function getHomePlacements(
     }),
   )
 }
+
+export type SiteVideoPlacement = HomeBannerPlacement & { videoUrl: string | null }
+
+export async function getNavVideo(): Promise<SiteVideoPlacement | null> {
+  const response = await cachedGet(buildCacheKey('placements/site', { position: 'nav_video' }), () =>
+    apiRequest<{ items: SiteVideoPlacement[] }>('/placements/site', {
+      auth: false,
+      cart: false,
+      searchParams: { position: 'nav_video' },
+    }),
+  )
+  return response.items.find((item) => item.videoUrl) ?? null
+}

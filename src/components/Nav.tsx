@@ -18,8 +18,10 @@ import ListCheckLineIcon from 'remixicon-react/ListCheckIcon'
 import UserLineIcon from 'remixicon-react/UserLineIcon'
 import { NavSearchBar } from './NavSearchBar'
 import type { CategoryListingSelection } from '../data/categoryListing'
+import { getNavVideo, type SiteVideoPlacement } from '../api/services/catalog'
 import { useAuth } from '../context/AuthContext'
 import { useShop } from '../context/ShopContext'
+import { BannerLink } from '../utils/bannerLink'
 
 const navIconButton =
   'group flex cursor-pointer items-center justify-center rounded-full bg-bg-secondary transition-colors hover:bg-orange-light'
@@ -99,6 +101,26 @@ export function Nav({
   const [isMobileAccountMenuOpen, setIsMobileAccountMenuOpen] = useState(false)
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
   const desktopAccountRef = useRef<HTMLDivElement>(null)
+
+  const [navVideo, setNavVideo] = useState<SiteVideoPlacement | null>(null)
+  const [isNavVideoLoaded, setIsNavVideoLoaded] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    getNavVideo()
+      .then((video) => {
+        if (!cancelled) setNavVideo(video)
+      })
+      .catch(() => {
+        if (!cancelled) setNavVideo(null)
+      })
+      .finally(() => {
+        if (!cancelled) setIsNavVideoLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const bannerVideoRef = useCallback((video: HTMLVideoElement | null) => {
     if (!video) return
@@ -295,20 +317,27 @@ export function Nav({
             isHeaderFloating ? 'border-b border-transparent' : 'border-b border-border-primary'
           }`}
         >
-          <div className="relative hidden lg:block h-10 overflow-hidden lg:h-12">
-            <video
-              ref={bannerVideoRef}
-              className="size-full object-cover"
-              src={images.nav.bannerVid}
-              poster="/assets/nav/banner-poster.png"
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="auto"
-              aria-label="Advertisement"
-            />
-          </div>
+          {(!isNavVideoLoaded || navVideo) && (
+            <div className="relative hidden h-10 overflow-hidden lg:block lg:h-12">
+              {navVideo && (
+                <BannerLink linkUrl={navVideo.linkUrl} className="block size-full">
+                  <video
+                    key={navVideo.videoUrl}
+                    ref={bannerVideoRef}
+                    className="size-full object-cover"
+                    src={navVideo.videoUrl ?? undefined}
+                    poster={navVideo.imageUrl}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    preload="auto"
+                    aria-label={navVideo.altText ?? 'Advertisement'}
+                  />
+                </BannerLink>
+              )}
+            </div>
+          )}
 
           {/* Desktop navigation */}
           <div className="hidden max-w-400 mx-auto items-center gap-4 px-16 py-4 lg:flex">
