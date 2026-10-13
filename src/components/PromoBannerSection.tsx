@@ -10,7 +10,7 @@ type PromoBannerSectionProps = {
 const AUTO_PLAY_INTERVAL_MS = 5000
 
 export function PromoBannerSection({ onShopAllCategories: _onShopAllCategories }: PromoBannerSectionProps) {
-  const { promo: promoSlides, isLoading } = useHomePlacements()
+  const { promo: promoSlides } = useHomePlacements()
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
 
@@ -28,7 +28,7 @@ export function PromoBannerSection({ onShopAllCategories: _onShopAllCategories }
     return () => window.clearInterval(intervalId)
   }, [isPaused, promoSlides.length])
 
-  if (isLoading && promoSlides.length === 0) {
+  if (promoSlides.length === 0) {
     return null
   }
 

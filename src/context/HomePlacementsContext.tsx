@@ -6,7 +6,6 @@ import {
   type ReactNode,
 } from 'react'
 import { getHomePlacements, type HomeBannerPlacement } from '../api/services/catalog'
-import { fallbackPromoPlacements } from '../data/homeBannerFallbacks'
 
 type HomePlacementsContextValue = {
   hero: HomeBannerPlacement[]
@@ -18,7 +17,7 @@ const HomePlacementsContext = createContext<HomePlacementsContextValue | null>(n
 
 export function HomePlacementsProvider({ children }: { children: ReactNode }) {
   const [hero, setHero] = useState<HomeBannerPlacement[]>([])
-  const [promo, setPromo] = useState<HomeBannerPlacement[]>(fallbackPromoPlacements)
+  const [promo, setPromo] = useState<HomeBannerPlacement[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -37,11 +36,11 @@ export function HomePlacementsProvider({ children }: { children: ReactNode }) {
           else if (item.position === 'promo') promoItems.push(item)
         }
         setHero(heroItems)
-        setPromo(promoItems.length > 0 ? promoItems : fallbackPromoPlacements)
+        setPromo(promoItems)
       } catch {
         if (!cancelled) {
           setHero([])
-          setPromo(fallbackPromoPlacements)
+          setPromo([])
         }
       } finally {
         if (!cancelled) setIsLoading(false)
