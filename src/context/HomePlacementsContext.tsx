@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from 'react'
 import { getHomePlacements, type HomeBannerPlacement } from '../api/services/catalog'
-import { fallbackHeroPlacements, fallbackPromoPlacements } from '../data/homeBannerFallbacks'
+import { fallbackPromoPlacements } from '../data/homeBannerFallbacks'
 
 type HomePlacementsContextValue = {
   hero: HomeBannerPlacement[]
@@ -17,7 +17,7 @@ type HomePlacementsContextValue = {
 const HomePlacementsContext = createContext<HomePlacementsContextValue | null>(null)
 
 export function HomePlacementsProvider({ children }: { children: ReactNode }) {
-  const [hero, setHero] = useState<HomeBannerPlacement[]>(fallbackHeroPlacements)
+  const [hero, setHero] = useState<HomeBannerPlacement[]>([])
   const [promo, setPromo] = useState<HomeBannerPlacement[]>(fallbackPromoPlacements)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -36,11 +36,11 @@ export function HomePlacementsProvider({ children }: { children: ReactNode }) {
           if (item.position === 'hero') heroItems.push(item)
           else if (item.position === 'promo') promoItems.push(item)
         }
-        setHero(heroItems.length > 0 ? heroItems : fallbackHeroPlacements)
+        setHero(heroItems)
         setPromo(promoItems.length > 0 ? promoItems : fallbackPromoPlacements)
       } catch {
         if (!cancelled) {
-          setHero(fallbackHeroPlacements)
+          setHero([])
           setPromo(fallbackPromoPlacements)
         }
       } finally {

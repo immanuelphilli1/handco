@@ -162,7 +162,7 @@ function FooterSocialIcons() {
 }
 
 const socialIcons = [
-  { src: images.footer.facebook, label: 'Facebook', href: '#' },
+  { src: images.footer.facebook, label: 'Facebook', href: 'https://www.facebook.com/share/1C4ibsbyew/' },
   {
     src: images.footer.instagram,
     label: 'Instagram',

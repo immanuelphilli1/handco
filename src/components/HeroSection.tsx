@@ -13,7 +13,7 @@ const heroArrowIcon =
 const AUTO_PLAY_INTERVAL_MS = 5000
 
 export function HeroSection() {
-  const { hero: bannerSlides, isLoading } = useHomePlacements()
+  const { hero: bannerSlides } = useHomePlacements()
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
 
@@ -41,7 +41,7 @@ export function HeroSection() {
     return () => window.clearInterval(intervalId)
   }, [bannerSlides.length, isPaused])
 
-  if (isLoading && bannerSlides.length === 0) {
+  if (bannerSlides.length === 0) {
     return null
   }
 
