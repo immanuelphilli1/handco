@@ -97,7 +97,24 @@
   }
 }
 
+@keyframes logo-loading {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.08);
+    opacity: 0.65;
+  }
+}
+
 @layer utilities {
+  .animate-logo-loading {
+    animation: logo-loading 1.4s ease-in-out infinite;
+  }
+
   .btn-orange {
     background-image:
       linear-gradient(90deg, rgba(68, 19, 6, 0) 0%, rgba(68, 19, 6, 0.2) 100%),

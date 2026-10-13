@@ -9,17 +9,13 @@ import {
 } from '../api/pendingPayment'
 import { buildSelectionForProduct, mapApiProduct, mapApiProductDetail } from '../api/mappers'
 import { BackToTopButton } from '../components/BackToTopButton'
-import { CategoryGridSection } from '../components/CategoryGridSection'
 import { CategoryListingView } from '../components/CategoryListingView'
 import { ProductDetailView } from '../components/ProductDetailView'
-import { FeaturedItemsSection } from '../components/FeaturedItemsSection'
 // import { FeaturesSection } from '../components/FeaturesSection'
 import { Footer } from '../components/Footer'
-import { HeroSection } from '../components/HeroSection'
+import { HomeLanding } from '../components/HomeLanding'
 import { Nav } from '../components/Nav'
 import type { MobileNavTab } from '../components/MobileAppNavigation'
-import { NewArrivalsSection } from '../components/NewArrivalsSection'
-import { PromoBannerSection } from '../components/PromoBannerSection'
 import { CartView } from '../components/CartView'
 import { CheckoutView } from '../components/CheckoutView'
 import { AddAddressRequiredModal } from '../components/AddAddressRequiredModal'
@@ -794,19 +790,12 @@ export function HomePage() {
           </>
         ) : (
           <HomePlacementsProvider>
-            <main>
-              <HeroSection />
-              {/* <FeaturesSection /> */}
-              <CategoryGridSection
-                onOpenCategories={(categoryId) =>
-                  openCategories(categoryId as SidebarCategoryId)
-                }
-              />
-              <NewArrivalsSection onProductSelect={handleNewArrivalProductSelect} />
-              <FeaturedItemsSection onProductSelect={handleFeaturedProductSelect} />
-              <PromoBannerSection onShopAllCategories={handleOpenAllCategories} />
-            </main>
-            <Footer onOpenCategories={openCategories} />
+            <HomeLanding
+              onOpenCategories={(categoryId) => openCategories(String(categoryId))}
+              onNewArrivalProductSelect={handleNewArrivalProductSelect}
+              onFeaturedProductSelect={handleFeaturedProductSelect}
+              onShopAllCategories={handleOpenAllCategories}
+            />
           </HomePlacementsProvider>
         )}
       </div>
