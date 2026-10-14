@@ -177,6 +177,30 @@ export function getSubcategoryLabels(category: ApiCategory): string[] {
   return flattenApiSubcategories(category).map((subcategory) => subcategory.label)
 }
 
+/** Resolves a subcategory label under a parent to the child's API slug. */
+export function findSubcategorySlugByLabel(
+  parentCategoryId: string,
+  subcategoryLabel: string,
+  apiCategories: ApiCategory[] = [],
+): string | null {
+  if (subcategoryLabel === ALL_PRODUCTS_LABEL) {
+    return null
+  }
+
+  const parent = findApiCategory(apiCategories, parentCategoryId)
+  if (!parent) {
+    return null
+  }
+
+  for (const node of flattenApiSubcategories(parent)) {
+    if (node.label === subcategoryLabel) {
+      return getCategoryNodeId(node)
+    }
+  }
+
+  return null
+}
+
 export function getSubcategoryOptions(
   categoryId: SidebarCategoryId | string,
   apiCategories: ApiCategory[] = [],
@@ -256,7 +280,7 @@ export function buildCategoryListingSelection(
   const subcategoryLabel =
     subcategoryParam && subcategoryOptions.includes(subcategoryParam)
       ? subcategoryParam
-      : (subcategoryOptions[0] ?? ALL_PRODUCTS_LABEL)
+      : ALL_PRODUCTS_LABEL
 
   return {
     categoryId,

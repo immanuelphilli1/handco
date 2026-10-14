@@ -11,7 +11,11 @@ import {
 import { getCategoryNavIcon } from '../data/categoryNavIcons'
 import { getAllCategoriesListingSelection } from '../data/categoryListing'
 import type { CategoryListingSelection } from '../data/categoryListing'
-import type { SidebarCategoryId, Subcategory } from '../data/categoriesModal'
+import {
+  ALL_PRODUCTS_LABEL,
+  type SidebarCategoryId,
+  type Subcategory,
+} from '../data/categoriesModal'
 
 type CategoriesModalProps = {
   isOpen: boolean
@@ -264,7 +268,11 @@ export function CategoriesModal({
               {sidebarEntries.map((category) => (
                 <CategoryLinkButton
                   key={category.id}
-                  category={category}
+                  category={{
+                    ...category,
+                    label:
+                      category.id === 'all-categories' ? ALL_PRODUCTS_LABEL : category.label,
+                  }}
                   onClick={() => handleMobileCategorySelect(category.id)}
                   showActiveState={false}
                 />

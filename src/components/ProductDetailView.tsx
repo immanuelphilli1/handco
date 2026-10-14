@@ -15,6 +15,7 @@ import ShieldCheckLineIcon from 'remixicon-react/ShieldCheckLineIcon'
 import ShieldUserFillIcon from 'remixicon-react/ShieldUserFillIcon'
 import SubtractLineIcon from 'remixicon-react/SubtractLineIcon'
 import User6LineIcon from 'remixicon-react/User6LineIcon'
+import { useCatalog } from '../context/CatalogContext'
 import { useShop } from '../context/ShopContext'
 import { useProductDestination } from '../hooks/useProductDestination'
 import { useShareLink } from '../hooks/useShareLink'
@@ -26,7 +27,7 @@ import type {
 } from '../data/productDetail'
 import { useProductDetailSelection } from '../hooks/useProductDetailSelection'
 import type { Product } from '../data/products'
-import { getProductPath } from '../data/shopRoutes'
+import { getProductPathForListingSelection } from '../data/shopRoutes'
 import { ProductCard } from './ProductCard'
 import { RatingStars } from './RatingStars'
 
@@ -656,6 +657,7 @@ export function ProductDetailView({
 }: ProductDetailViewProps) {
   const { detail, selection } = context
   const { product } = detail
+  const { categories } = useCatalog()
   const navigate = useNavigate()
   const {
     isLiked: isProductLiked,
@@ -837,10 +839,7 @@ export function ProductDetailView({
               key={relatedProduct.id}
               product={relatedProduct}
               enableAddButton
-              to={getProductPath(relatedProduct.id, {
-                categoryId: selection.categoryId,
-                subcategory: selection.subcategoryLabel,
-              })}
+              to={getProductPathForListingSelection(relatedProduct.id, selection, categories)}
               onClick={() => onProductSelect(relatedProduct)}
             />
           ))}

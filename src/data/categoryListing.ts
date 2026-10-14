@@ -22,7 +22,8 @@ export const mobileCollapsedFilterSections = ['Color', 'Connectivity', 'Storage'
 
 export type ListingFilters = {
   minPrice: number
-  maxPrice: number
+  /** `null` means no upper limit (shopper has not set a max). */
+  maxPrice: number | null
   rating: string
   delivery: string
   brand: string
@@ -31,11 +32,10 @@ export type ListingFilters = {
 }
 
 export const PRICE_FLOOR = 0
-export const PRICE_CEILING = 6000
 
 export const defaultListingFilters: ListingFilters = {
   minPrice: PRICE_FLOOR,
-  maxPrice: PRICE_CEILING,
+  maxPrice: null,
   rating: 'all',
   delivery: '',
   brand: '',
@@ -43,10 +43,41 @@ export const defaultListingFilters: ListingFilters = {
   screenSize: '',
 }
 
+/** Rounds up so the slider ceiling covers the most expensive product in the list. */
+export function roundPriceCeiling(value: number): number {
+  if (value <= 0) {
+    return 100
+  }
+
+  if (value <= 1000) {
+    return Math.ceil(value / 100) * 100
+  }
+
+  return Math.ceil(value / 1000) * 1000
+}
+
+export function derivePriceBounds(products: Product[]): { floor: number; ceiling: number } {
+  let highest = 0
+
+  for (const product of products) {
+    if (product.priceAmount !== undefined && product.priceAmount > highest) {
+      highest = product.priceAmount
+    }
+  }
+
+  return {
+    floor: PRICE_FLOOR,
+    ceiling: roundPriceCeiling(highest),
+  }
+}
+
+export function isPriceFilterActive(filters: ListingFilters): boolean {
+  return filters.minPrice > PRICE_FLOOR || filters.maxPrice !== null
+}
+
 export function hasActiveFilters(filters: ListingFilters): boolean {
   return (
-    filters.minPrice > PRICE_FLOOR ||
-    filters.maxPrice < PRICE_CEILING ||
+    isPriceFilterActive(filters) ||
     filters.rating !== defaultListingFilters.rating ||
     filters.delivery !== '' ||
     filters.brand !== '' ||
@@ -63,12 +94,20 @@ function matchesRating(product: Product, rating: string): boolean {
   return Number(product.rating || 0) >= Number(rating)
 }
 
-function matchesPrice(product: Product, minPrice: number, maxPrice: number): boolean {
+function matchesPrice(product: Product, minPrice: number, maxPrice: number | null): boolean {
   if (product.priceAmount === undefined) {
     return true
   }
 
-  return product.priceAmount >= minPrice && product.priceAmount <= maxPrice
+  if (product.priceAmount < minPrice) {
+    return false
+  }
+
+  if (maxPrice === null) {
+    return true
+  }
+
+  return product.priceAmount <= maxPrice
 }
 
 export function applyListingFilters(

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { Product } from '../data/products'
-import { applyListingFilters } from '../data/categoryListing'
+import { applyListingFilters, derivePriceBounds } from '../data/categoryListing'
 import { useCatalog } from '../context/CatalogContext'
 import { useSearchFacets, useSearchResults } from '../hooks/useProductSearch'
 import {
@@ -48,6 +48,7 @@ export function SearchResultsView({
 
   // Search results carry the whole catalogue for the query, so the same
   // client-side facet filtering the category listing uses applies here.
+  const priceBounds = useMemo(() => derivePriceBounds(products), [products])
   const visibleProducts = useMemo(() => applyListingFilters(products, filters), [products, filters])
 
   // Built as one string because JSX would otherwise introduce stray whitespace
@@ -79,6 +80,7 @@ export function SearchResultsView({
         facets={facets}
         onClose={closeMobileFilters}
         onSave={saveMobileFilters}
+        priceCeiling={priceBounds.ceiling}
       />
 
       <section className="border-t border-border-primary px-4 pb-10 pt-4 lg:border-t-0 lg:px-16 lg:pt-8">
@@ -92,6 +94,7 @@ export function SearchResultsView({
             filters={filters}
             onFiltersChange={setFilters}
             facets={facets}
+            priceCeiling={priceBounds.ceiling}
           />
 
           <div className="min-w-0 flex-1">

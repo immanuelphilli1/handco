@@ -2,15 +2,20 @@ import type { ApiCategory } from '../api/types'
 import type { SidebarCategoryId } from './categoriesModal'
 import type { CategoryListingSelection } from './categoryListing'
 import {
+  ALL_PRODUCTS_LABEL,
   buildAllCategoriesListingSelection,
   buildCategoryListingSelection,
-  findApiCategory,
+  findCategoryInTree,
+  findSubcategorySlugByLabel,
+  getCategoryNodeId,
+  getSubcategoryOptions,
   isSpecialCategoryId,
 } from './catalogCategories'
 
 export type ProductLinkContext =
   | { from: 'home' | 'featured' | 'wishlist' | 'order-complete' }
-  | { categoryId: SidebarCategoryId | string; subcategory: string }
+  | { categorySlug: string }
+  | { categoryId: SidebarCategoryId | string; subcategory?: string }
 
 export function getHomePath(): string {
   return '/'
@@ -56,21 +61,55 @@ export function getSearchQuery(searchParams: URLSearchParams): string {
 export function getCategoryPath(
   categoryId: SidebarCategoryId | string,
   subcategoryLabel?: string,
+  apiCategories: ApiCategory[] = [],
 ): string {
   if (categoryId === 'all-categories') {
     return '/categories'
   }
 
-  const base = `/categories/${categoryId}`
-  if (!subcategoryLabel) {
-    return base
+  if (
+    subcategoryLabel &&
+    subcategoryLabel !== ALL_PRODUCTS_LABEL &&
+    !isSpecialCategoryId(categoryId)
+  ) {
+    const slug = findSubcategorySlugByLabel(categoryId, subcategoryLabel, apiCategories)
+    if (slug) {
+      return `/categories/${slug}`
+    }
   }
 
-  return `${base}?subcategory=${encodeURIComponent(subcategoryLabel)}`
+  return `/categories/${categoryId}`
 }
 
-export function getCategoryPathFromSelection(selection: CategoryListingSelection): string {
-  return getCategoryPath(selection.categoryId, selection.subcategoryLabel)
+export function getCategoryPathFromSelection(
+  selection: CategoryListingSelection,
+  apiCategories: ApiCategory[] = [],
+): string {
+  return getCategoryPath(selection.categoryId, selection.subcategoryLabel, apiCategories)
+}
+
+export function getProductPathForListingSelection(
+  productId: string,
+  selection: CategoryListingSelection,
+  apiCategories: ApiCategory[] = [],
+): string {
+  if (selection.subcategoryLabel === ALL_PRODUCTS_LABEL) {
+    return getProductPath(productId, { categoryId: selection.categoryId })
+  }
+
+  const slug = findSubcategorySlugByLabel(
+    selection.categoryId,
+    selection.subcategoryLabel,
+    apiCategories,
+  )
+  if (slug) {
+    return getProductPath(productId, { categorySlug: slug })
+  }
+
+  return getProductPath(productId, {
+    categoryId: selection.categoryId,
+    subcategory: selection.subcategoryLabel,
+  })
 }
 
 export function getProductPath(productId: string, context?: ProductLinkContext): string {
@@ -84,10 +123,15 @@ export function getProductPath(productId: string, context?: ProductLinkContext):
     return `${base}?from=${context.from}`
   }
 
-  const params = new URLSearchParams({
-    category: context.categoryId,
-    subcategory: context.subcategory,
-  })
+  if ('categorySlug' in context) {
+    const params = new URLSearchParams({ category: context.categorySlug })
+    return `${base}?${params.toString()}`
+  }
+
+  const params = new URLSearchParams({ category: context.categoryId })
+  if (context.subcategory) {
+    params.set('subcategory', context.subcategory)
+  }
 
   return `${base}?${params.toString()}`
 }
@@ -113,8 +157,31 @@ export function parseCategoryRoute(
     )
   }
 
-  if (apiCategories.length > 0 && !findApiCategory(apiCategories, categoryIdParam)) {
-    return null
+  if (apiCategories.length > 0) {
+    const match = findCategoryInTree(apiCategories, categoryIdParam)
+    if (match) {
+      const rootId = getCategoryNodeId(match.root)
+      const nodeId = getCategoryNodeId(match.node)
+      const subcategoryOptions = getSubcategoryOptions(rootId, apiCategories)
+
+      if (rootId !== nodeId) {
+        return {
+          categoryId: rootId,
+          categoryLabel: match.root.label,
+          subcategoryLabel: match.node.label,
+          subcategoryOptions,
+        }
+      }
+
+      return buildCategoryListingSelection(categoryIdParam, apiCategories, subcategoryParam)
+    }
+
+    const isTopLevel = apiCategories.some(
+      (category) => getCategoryNodeId(category) === categoryIdParam,
+    )
+    if (!isTopLevel) {
+      return null
+    }
   }
 
   return buildCategoryListingSelection(

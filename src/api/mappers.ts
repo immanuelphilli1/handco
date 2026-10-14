@@ -13,6 +13,7 @@ import type { Product, ProductAttribute } from '../data/products'
 import type { ProductDetail, ProductDetailContext, ProductReview } from '../data/productDetail'
 import type { CategoryListingSelection } from '../data/categoryListing'
 import {
+  ALL_PRODUCTS_LABEL,
   findCategoryInTree,
   getCategoryNodeId,
   getSubcategoryOptions,
@@ -474,6 +475,31 @@ export function buildSelectionForProduct(
       categoryLabel: 'Order Completed',
       subcategoryLabel: 'You may also like',
       subcategoryOptions: [],
+    }
+  }
+
+  if (categoryId && !subcategory) {
+    const treeMatch = findCategoryInTree(apiCategories, categoryId)
+    if (treeMatch) {
+      const rootId = getCategoryNodeId(treeMatch.root)
+      const nodeId = getCategoryNodeId(treeMatch.node)
+      const subcategoryOptions = getSubcategoryOptions(rootId, apiCategories)
+
+      if (rootId !== nodeId) {
+        return {
+          categoryId: rootId,
+          categoryLabel: treeMatch.root.label,
+          subcategoryLabel: treeMatch.node.label,
+          subcategoryOptions,
+        }
+      }
+
+      return {
+        categoryId: rootId,
+        categoryLabel: treeMatch.root.label,
+        subcategoryLabel: ALL_PRODUCTS_LABEL,
+        subcategoryOptions,
+      }
     }
   }
 

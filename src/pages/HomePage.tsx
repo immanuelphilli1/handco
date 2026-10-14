@@ -31,8 +31,8 @@ import { HomePlacementsProvider } from '../context/HomePlacementsContext'
 import { useShop } from '../context/ShopContext'
 import { useProductDestination } from '../hooks/useProductDestination'
 import { useDefaultAddress } from '../hooks/useDefaultAddress'
+import { findSubcategorySlugByLabel } from '../data/catalogCategories'
 import { getAllCategoriesListingSelection } from '../data/categoryListing'
-import type { SidebarCategoryId } from '../data/categoriesModal'
 import { useCategoryNavigation } from '../hooks/useCategoryNavigation'
 import type { CartStep, PaymentReturnStep } from '../data/navigation'
 import {
@@ -69,6 +69,7 @@ import {
   getPaymentCancelPath,
   getPaymentReturnPath,
   getProductPath,
+  getProductPathForListingSelection,
   getSearchQuery,
   getWishlistPath,
   parseCategoryRoute,
@@ -126,6 +127,25 @@ export function HomePage() {
 
     return parseCategoryRoute(params.categoryId, searchParams.get('subcategory'), categories)
   }, [categories, params.categoryId, pathname, searchParams])
+
+  useEffect(() => {
+    if (!pathname.startsWith('/categories/') || !params.categoryId) {
+      return
+    }
+
+    const legacySubcategory = searchParams.get('subcategory')
+    if (!legacySubcategory) {
+      return
+    }
+
+    const slug = findSubcategorySlugByLabel(params.categoryId, legacySubcategory, categories)
+    if (!slug) {
+      return
+    }
+
+    navigate(`/categories/${slug}`, { replace: true })
+  }, [categories, navigate, params.categoryId, pathname, searchParams])
+
   const cartStep: CartStep | null =
     pathname === '/cart'
       ? 'cart'
@@ -149,7 +169,6 @@ export function HomePage() {
   // whichever category the modal was last opened with (homepage, search, etc).
   // Grouped members (e.g. "accessories" under "Fashion & Accessories") resolve to
   // their major category so the link bar always highlights the right entry.
-  const routeCategoryId = params.categoryId as SidebarCategoryId | undefined
   const {
     activeCategoryId,
     categoriesTargetId,
@@ -162,7 +181,7 @@ export function HomePage() {
     toggleCategoriesFromLinkBar,
   } = useCategoryNavigation({
     scrollOnNavigate: true,
-    routeCategoryId: categoryListing && routeCategoryId ? routeCategoryId : undefined,
+    routeCategoryId: categoryListing ? categoryListing.categoryId : undefined,
   })
   const wishlistOpen = pathname === '/wishlist'
   const searchOpen = pathname === '/search'
@@ -242,7 +261,7 @@ export function HomePage() {
   }, [pathname, refreshCart])
 
   const handleOpenAllCategories = useCallback(() => {
-    navigate(getCategoryPathFromSelection(getAllCategoriesListingSelection(categories)))
+    navigate(getCategoryPathFromSelection(getAllCategoriesListingSelection(categories), categories))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [categories, navigate])
 
@@ -253,22 +272,17 @@ export function HomePage() {
 
   const handleBackToListing = useCallback(() => {
     if (!productDetail) return
-    navigate(getCategoryPathFromSelection(productDetail.selection))
+    navigate(getCategoryPathFromSelection(productDetail.selection, categories))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [navigate, productDetail])
 
   const handleProductSelect = useCallback(
     (product: Product) => {
       if (!categoryListing) return
-      navigate(
-        getProductPath(product.id, {
-          categoryId: categoryListing.categoryId,
-          subcategory: categoryListing.subcategoryLabel,
-        }),
-      )
+      navigate(getProductPathForListingSelection(product.id, categoryListing, categories))
       window.scrollTo({ top: 0, behavior: 'smooth' })
     },
-    [categoryListing, navigate],
+    [categories, categoryListing, navigate],
   )
 
   const handleNewArrivalProductSelect = useCallback(
@@ -605,14 +619,11 @@ export function HomePage() {
     (product: Product) => {
       if (!productDetail) return
       navigate(
-        getProductPath(product.id, {
-          categoryId: productDetail.selection.categoryId,
-          subcategory: productDetail.selection.subcategoryLabel,
-        }),
+        getProductPathForListingSelection(product.id, productDetail.selection, categories),
       )
       window.scrollTo({ top: 0, behavior: 'smooth' })
     },
-    [navigate, productDetail],
+    [categories, navigate, productDetail],
   )
 
   const mobileActiveTab: MobileNavTab = cartStep

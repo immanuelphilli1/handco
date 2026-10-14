@@ -1,8 +1,10 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import {
   applyListingFilters,
   defaultListingFilters,
+  derivePriceBounds,
   hasActiveFilters,
   type CategoryListingSelection,
 } from '../data/categoryListing'
@@ -13,8 +15,15 @@ import {
   useNewReleasesSubcategoryProducts,
 } from '../hooks/useNewReleasesSubcategory'
 import type { Product } from '../data/products'
-import { getProductPath } from '../data/shopRoutes'
-import { ALL_PRODUCTS_LABEL } from '../data/catalogCategories'
+import {
+  ALL_PRODUCTS_LABEL,
+  findSubcategorySlugByLabel,
+  isSpecialCategoryId,
+} from '../data/catalogCategories'
+import {
+  getCategoryPathFromSelection,
+  getProductPathForListingSelection,
+} from '../data/shopRoutes'
 import { deliveryOptionToParams } from '../data/deliveryFilter'
 import { useCatalog } from '../context/CatalogContext'
 import {
@@ -127,7 +136,8 @@ export function CategoryListingView({
   onProductSelect,
   onSeeAllProducts,
 }: CategoryListingViewProps) {
-  const { facets } = useCatalog()
+  const navigate = useNavigate()
+  const { categories, facets } = useCatalog()
   // Delivery quotes are only returned for a known destination, so the listing
   // query carries one just like the catalog load does.
   const { country, isLoading: isDestinationLoading } = useProductDestination()
@@ -160,20 +170,49 @@ export function CategoryListingView({
   // than the whole catalog.
   const isAllProducts = activeCategory === ALL_PRODUCTS_LABEL
 
-  const listParams = useMemo(
-    () => ({
+  const listParams = useMemo(() => {
+    const deliveryParams = deliveryOptionToParams(filters.delivery)
+
+    if (isAllProducts) {
+      return { country, ...deliveryParams }
+    }
+
+    if (isSpecialCategoryId(selection.categoryId)) {
+      return {
+        country,
+        categoryId: selection.categoryId,
+        subcategory: activeCategory === ALL_PRODUCTS_LABEL ? undefined : activeCategory,
+        ...deliveryParams,
+      }
+    }
+
+    if (activeCategory === ALL_PRODUCTS_LABEL) {
+      return {
+        country,
+        categoryId: selection.categoryId,
+        ...deliveryParams,
+      }
+    }
+
+    const subcategorySlug = findSubcategorySlugByLabel(
+      selection.categoryId,
+      activeCategory,
+      categories,
+    )
+
+    return {
       country,
-      // The sentinel is a UI-only label; sending it would match zero products.
-      categoryId: isAllProducts ? undefined : selection.categoryId,
-      subcategory: isAllProducts ? undefined : activeCategory,
-      // Delivery is filtered by the server (the API owns the quotes), unlike the
-      // other facets, which are applied to the fetched list below.
-      ...deliveryOptionToParams(filters.delivery),
-    }),
-    // `filters.delivery` is included so choosing a delivery option refetches;
-    // the remaining facets are handled locally and deliberately excluded.
-    [activeCategory, country, filters.delivery, isAllProducts, selection.categoryId],
-  )
+      categoryId: subcategorySlug ?? selection.categoryId,
+      ...deliveryParams,
+    }
+  }, [
+    activeCategory,
+    categories,
+    country,
+    filters.delivery,
+    isAllProducts,
+    selection.categoryId,
+  ])
 
   const { products: queriedProducts, isLoading: isQueryLoading } = useProductListing(
     listParams,
@@ -188,7 +227,25 @@ export function CategoryListingView({
     [filters, queriedProducts],
   )
 
+  const priceBounds = useMemo(
+    () => derivePriceBounds(isNewArrivalsSubcategory ? newArrivalProducts : queriedProducts),
+    [isNewArrivalsSubcategory, newArrivalProducts, queriedProducts],
+  )
+
   const listingProducts = isNewArrivalsSubcategory ? newArrivalProducts : filteredProducts
+
+  const handleCategoryChange = useCallback(
+    (label: string) => {
+      setActiveCategory(label)
+      navigate(
+        getCategoryPathFromSelection(
+          { ...selection, subcategoryLabel: label },
+          categories,
+        ),
+      )
+    },
+    [categories, navigate, selection, setActiveCategory],
+  )
   // The destination is still resolving on a signed-in customer's first visit, so
   // the loader stays up rather than showing a quote-less list that refetches.
   const isLoading =
@@ -196,8 +253,10 @@ export function CategoryListingView({
     (isNewArrivalsSubcategory ? isNewArrivalsLoading : isQueryLoading)
 
   useEffect(() => {
-    document.title = `${selection.categoryLabel} | H&CO.`
-  }, [selection.categoryLabel])
+    const titleLabel =
+      activeCategory !== ALL_PRODUCTS_LABEL ? activeCategory : selection.categoryLabel
+    document.title = `${titleLabel} | H&CO.`
+  }, [activeCategory, selection.categoryLabel])
 
   return (
     <>
@@ -221,6 +280,7 @@ export function CategoryListingView({
         facets={facets}
         onClose={closeMobileFilters}
         onSave={saveMobileFilters}
+        priceCeiling={priceBounds.ceiling}
         showAllProductOption
       />
 
@@ -229,12 +289,13 @@ export function CategoryListingView({
           <ListingFiltersSidebar
             selectedCategory={activeCategory}
             categoryOptions={selection.subcategoryOptions}
-            onCategoryChange={setActiveCategory}
+            onCategoryChange={handleCategoryChange}
             openSections={openSections}
             onToggleSection={toggleSection}
             filters={filters}
             onFiltersChange={setFilters}
             facets={facets}
+            priceCeiling={priceBounds.ceiling}
             showAllProductOption
           />
 
@@ -248,10 +309,11 @@ export function CategoryListingView({
                     key={product.id}
                     product={product}
                     enableAddButton
-                    to={getProductPath(product.id, {
-                      categoryId: selection.categoryId,
-                      subcategory: selection.subcategoryLabel,
-                    })}
+                    to={getProductPathForListingSelection(
+                      product.id,
+                      { ...selection, subcategoryLabel: activeCategory },
+                      categories,
+                    )}
                     onClick={() => onProductSelect(product)}
                   />
                 ))}

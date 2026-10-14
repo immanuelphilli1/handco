@@ -5,7 +5,7 @@ import {
   wishlistPageTitle,
 } from '../data/wishlist'
 import type { Product } from '../data/products'
-import { applyListingFilters } from '../data/categoryListing'
+import { applyListingFilters, derivePriceBounds } from '../data/categoryListing'
 import { useCatalog } from '../context/CatalogContext'
 import { useShop } from '../context/ShopContext'
 import {
@@ -67,10 +67,9 @@ export function WishlistView({ onGoHome, onProductSelect }: WishlistViewProps) {
 
   // Wishlist items come from the same catalog, so the same facet values and the
   // same client-side filtering apply here as on the category listing.
-  const visibleProducts = applyListingFilters(
-    filterWishlistProducts(wishlistProducts, activeCategory),
-    filters,
-  )
+  const categoryFilteredProducts = filterWishlistProducts(wishlistProducts, activeCategory)
+  const priceBounds = derivePriceBounds(categoryFilteredProducts)
+  const visibleProducts = applyListingFilters(categoryFilteredProducts, filters)
   const mobileTitle = activeCategory === 'all' ? wishlistPageTitle : activeCategory
 
   return (
@@ -91,6 +90,7 @@ export function WishlistView({ onGoHome, onProductSelect }: WishlistViewProps) {
         facets={facets}
         onClose={closeMobileFilters}
         onSave={saveMobileFilters}
+        priceCeiling={priceBounds.ceiling}
         showAllCategoryOption
       />
 
@@ -105,6 +105,7 @@ export function WishlistView({ onGoHome, onProductSelect }: WishlistViewProps) {
             filters={filters}
             onFiltersChange={setFilters}
             facets={facets}
+            priceCeiling={priceBounds.ceiling}
             showAllCategoryOption
           />
 

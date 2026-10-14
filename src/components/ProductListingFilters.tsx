@@ -7,8 +7,8 @@ import SubtractLineIcon from 'remixicon-react/SubtractLineIcon'
 import {
   collapsedFilterSections,
   defaultListingFilters,
+  isPriceFilterActive,
   mobileCollapsedFilterSections,
-  PRICE_CEILING,
   PRICE_FLOOR,
   type ListingFilters,
 } from '../data/categoryListing'
@@ -171,37 +171,47 @@ function RatingStars({ count, className = '' }: { count: number; className?: str
 
 type PriceRangeSliderProps = {
   variant: FilterVariant
+  priceCeiling: number
   minPrice: number
-  maxPrice: number
+  maxPrice: number | null
   onMinPriceChange: (value: number) => void
-  onMaxPriceChange: (value: number) => void
+  onMaxPriceChange: (value: number | null) => void
 }
 
 function PriceRangeSlider({
   variant,
+  priceCeiling,
   minPrice,
   maxPrice,
   onMinPriceChange,
   onMaxPriceChange,
 }: PriceRangeSliderProps) {
   const isMobile = variant === 'mobile'
+  const sliderMax = Math.max(priceCeiling, PRICE_FLOOR + 1)
+  const displayedMax = maxPrice ?? sliderMax
+  const step = sliderMax <= 1000 ? 50 : 100
 
   // The track is expressed as percentages so the handles can be positioned with
   // inline styles; the two handles share the full [floor, ceiling] range and are
   // prevented from crossing by clamping on change.
-  const priceSpan = PRICE_CEILING - PRICE_FLOOR
+  const priceSpan = sliderMax - PRICE_FLOOR
   const toPercent = (value: number) => ((value - PRICE_FLOOR) / priceSpan) * 100
 
   const handleMinChange = (value: number) => {
-    onMinPriceChange(Math.min(value, maxPrice))
+    onMinPriceChange(Math.min(value, displayedMax))
   }
 
   const handleMaxChange = (value: number) => {
-    onMaxPriceChange(Math.max(value, minPrice))
+    const clamped = Math.max(value, minPrice)
+    if (clamped >= sliderMax) {
+      onMaxPriceChange(null)
+      return
+    }
+    onMaxPriceChange(clamped)
   }
 
   const minPercent = toPercent(minPrice)
-  const maxPercent = toPercent(maxPrice)
+  const maxPercent = toPercent(displayedMax)
 
   return (
     <>
@@ -222,8 +232,8 @@ function PriceRangeSlider({
           <input
             type="range"
             min={PRICE_FLOOR}
-            max={PRICE_CEILING}
-            step={50}
+            max={sliderMax}
+            step={step}
             value={minPrice}
             onChange={(event) => handleMinChange(Number(event.target.value))}
             aria-label="Minimum price"
@@ -232,9 +242,9 @@ function PriceRangeSlider({
           <input
             type="range"
             min={PRICE_FLOOR}
-            max={PRICE_CEILING}
-            step={50}
-            value={maxPrice}
+            max={sliderMax}
+            step={step}
+            value={displayedMax}
             onChange={(event) => handleMaxChange(Number(event.target.value))}
             aria-label="Maximum price"
             className="pointer-events-none absolute inset-0 size-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-primary-orange [&::-webkit-slider-thumb]:shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_12px_0px_rgba(0,0,0,0.06)] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-4 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-primary-orange"
@@ -249,7 +259,7 @@ function PriceRangeSlider({
         <SubtractLineIcon className="size-6 shrink-0 text-text-secondary" aria-hidden />
         <div className="flex flex-1 items-center gap-1 rounded-lg border border-border-secondary p-2 text-sm font-medium tracking-[-0.28px]">
           <span className="text-text-tertiary">AED</span>
-          <span className="text-text-secondary">{maxPrice}</span>
+          <span className="text-text-secondary">{maxPrice ?? sliderMax}</span>
         </div>
       </div>
     </>
@@ -267,6 +277,7 @@ function ListingFiltersContent({
   filters,
   onFiltersChange,
   facets,
+  priceCeiling,
   showAllCategoryOption = false,
   showAllProductOption = false,
 }: {
@@ -280,6 +291,7 @@ function ListingFiltersContent({
   filters: ListingFilters
   onFiltersChange: (next: ListingFilters) => void
   facets: ProductFacets
+  priceCeiling: number
   showAllCategoryOption?: boolean
   showAllProductOption?: boolean
 }) {
@@ -307,9 +319,7 @@ function ListingFiltersContent({
 
   // Each section only offers Clear once it actually deviates from the default,
   // so an untouched panel stays free of dead links.
-  const isPriceFiltered =
-    filters.minPrice !== defaultListingFilters.minPrice ||
-    filters.maxPrice !== defaultListingFilters.maxPrice
+  const isPriceFiltered = isPriceFilterActive(filters)
   const isRatingFiltered = filters.rating !== defaultListingFilters.rating
   const isCategoryFiltered = selectedCategory !== 'all' && selectedCategory !== ''
 
@@ -339,6 +349,7 @@ function ListingFiltersContent({
       >
         <PriceRangeSlider
           variant={variant}
+          priceCeiling={priceCeiling}
           minPrice={filters.minPrice}
           maxPrice={filters.maxPrice}
           onMinPriceChange={(value) => onFiltersChange({ ...filters, minPrice: value })}
@@ -557,6 +568,7 @@ export function ListingFiltersSidebar({
   filters,
   onFiltersChange,
   facets,
+  priceCeiling,
   showAllCategoryOption = false,
   showAllProductOption = false,
 }: {
@@ -568,6 +580,7 @@ export function ListingFiltersSidebar({
   filters: ListingFilters
   onFiltersChange: (next: ListingFilters) => void
   facets: ProductFacets
+  priceCeiling: number
   showAllCategoryOption?: boolean
   showAllProductOption?: boolean
 }) {
@@ -584,6 +597,7 @@ export function ListingFiltersSidebar({
         filters={filters}
         onFiltersChange={onFiltersChange}
         facets={facets}
+        priceCeiling={priceCeiling}
         showAllCategoryOption={showAllCategoryOption}
         showAllProductOption={showAllProductOption}
       />
@@ -604,6 +618,7 @@ export function MobileFiltersSheet({
   draftFilters,
   onDraftFiltersChange,
   facets,
+  priceCeiling,
   onClose,
   onSave,
   showAllCategoryOption = false,
@@ -618,6 +633,7 @@ export function MobileFiltersSheet({
   draftFilters: ListingFilters
   onDraftFiltersChange: (next: ListingFilters) => void
   facets: ProductFacets
+  priceCeiling: number
   onClose: () => void
   onSave: () => void
   showAllCategoryOption?: boolean
@@ -666,6 +682,7 @@ export function MobileFiltersSheet({
             filters={draftFilters}
             onFiltersChange={onDraftFiltersChange}
             facets={facets}
+            priceCeiling={priceCeiling}
             showAllCategoryOption={showAllCategoryOption}
             showAllProductOption={showAllProductOption}
           />

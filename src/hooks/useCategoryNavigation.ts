@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { CategoryListingSelection } from '../data/categoryListing'
 import { getMajorCategoryId } from '../data/catalogCategories'
+import { useCatalog } from '../context/CatalogContext'
 import { getCategoryPathFromSelection } from '../data/shopRoutes'
 
 type UseCategoryNavigationOptions = {
@@ -22,6 +23,7 @@ type UseCategoryNavigationOptions = {
 export function useCategoryNavigation(options?: UseCategoryNavigationOptions) {
   const { scrollOnNavigate = false, routeCategoryId } = options ?? {}
   const navigate = useNavigate()
+  const { categories } = useCatalog()
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false)
   const [categoriesTargetId, setCategoriesTargetId] = useState<string>('featured')
   // Whether the current open was triggered by a deliberate category pick (the
@@ -76,12 +78,12 @@ export function useCategoryNavigation(options?: UseCategoryNavigationOptions) {
   const handleSubcategorySelect = useCallback(
     (selection: CategoryListingSelection) => {
       setIsCategoriesOpen(false)
-      navigate(getCategoryPathFromSelection(selection))
+      navigate(getCategoryPathFromSelection(selection, categories))
       if (scrollOnNavigate) {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       }
     },
-    [navigate, scrollOnNavigate],
+    [categories, navigate, scrollOnNavigate],
   )
 
   return {
