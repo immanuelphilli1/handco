@@ -404,7 +404,7 @@ function ListingFiltersContent({
         </FilterSection>
       ) : null}
 
-      <FilterSection
+      {/* <FilterSection
         title="Rating"
         isOpen={openSections.rating}
         onToggle={() => onToggleSection('rating')}
@@ -438,7 +438,7 @@ function ListingFiltersContent({
           onSelect={() => onFiltersChange({ ...filters, rating: 'all' })}
           variant={variant}
         />
-      </FilterSection>
+      </FilterSection> */}
 
       {isMobile ? (
         screenSizeOptions.length > 0 ? (
