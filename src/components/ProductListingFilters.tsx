@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import AddLineIcon from 'remixicon-react/AddLineIcon'
 import ArrowUpSLineIcon from 'remixicon-react/ArrowUpSLineIcon'
 import FilterLineIcon from 'remixicon-react/FilterLineIcon'
-import StarFillIcon from 'remixicon-react/StarFillIcon'
 import SubtractLineIcon from 'remixicon-react/SubtractLineIcon'
 import {
   collapsedFilterSections,
@@ -152,20 +151,6 @@ function FilterRadioOption({
         </span>
       )}
     </button>
-  )
-}
-
-function RatingStars({ count, className = '' }: { count: number; className?: string }) {
-  return (
-    <div className={`flex items-center gap-0.5 ${className}`}>
-      {Array.from({ length: 5 }, (_, index) => (
-        <StarFillIcon
-          key={index}
-          className={`size-5 ${index < count ? 'text-primary-gold' : 'text-bg-tertiary'}`}
-          aria-hidden
-        />
-      ))}
-    </div>
   )
 }
 
@@ -320,7 +305,6 @@ function ListingFiltersContent({
   // Each section only offers Clear once it actually deviates from the default,
   // so an untouched panel stays free of dead links.
   const isPriceFiltered = isPriceFilterActive(filters)
-  const isRatingFiltered = filters.rating !== defaultListingFilters.rating
   const isCategoryFiltered = selectedCategory !== 'all' && selectedCategory !== ''
 
   return (
@@ -403,42 +387,6 @@ function ListingFiltersContent({
           ) : null}
         </FilterSection>
       ) : null}
-
-      {/* <FilterSection
-        title="Rating"
-        isOpen={openSections.rating}
-        onToggle={() => onToggleSection('rating')}
-        onClear={
-          isRatingFiltered
-            ? () => onFiltersChange({ ...filters, rating: defaultListingFilters.rating })
-            : undefined
-        }
-        variant={variant}
-      >
-        {[4, 3, 2, 1].map((count) => (
-          <FilterRadioOption
-            key={count}
-            label={`${count} & above`}
-            isSelected={filters.rating === String(count)}
-            onSelect={() => onFiltersChange({ ...filters, rating: String(count) })}
-            variant={variant}
-            trailing={
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <RatingStars count={count} className={isMobile ? 'w-30 shrink-0' : ''} />
-                <span className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-secondary">
-                  & above
-                </span>
-              </div>
-            }
-          />
-        ))}
-        <FilterRadioOption
-          label="All Ratings"
-          isSelected={filters.rating === 'all'}
-          onSelect={() => onFiltersChange({ ...filters, rating: 'all' })}
-          variant={variant}
-        />
-      </FilterSection> */}
 
       {isMobile ? (
         screenSizeOptions.length > 0 ? (
