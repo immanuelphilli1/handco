@@ -35,7 +35,6 @@ import UserLineIcon from 'remixicon-react/UserLineIcon'
 import UserLocationLineIcon from 'remixicon-react/UserLocationLineIcon'
 import Wallet3LineIcon from 'remixicon-react/Wallet3LineIcon'
 import {
-  filterOrders,
   getBuyAgainProductsFromOrders,
   getOrdersEmptyStateMessage,
   orderFilterTabs,
@@ -60,13 +59,15 @@ import {
   getProfileInitials,
   privacyNotice,
   profileTabs,
-  securitySettings,
-  userProfile,
   type DefaultAddress,
   type ProfileTab,
   type SecuritySettings,
 } from '../data/profile'
-import { paymentTypeLabel, type PaymentMethodRecord } from '../data/paymentMethods'
+import {
+  paymentTypeLabel,
+  type PaymentMethodRecord,
+  type PaymentMethodType,
+} from '../data/paymentMethods'
 import { getPaymentNetworkLabel } from '../data/paymentNetworks'
 import { formatIsoDate } from '../data/format'
 import { images } from '../assets/images'
@@ -468,13 +469,15 @@ function OrderCard({
 function OrdersPanel({
   onViewRefundPolicy,
   onOrdersChange,
+  onLoadingChange,
 }: {
   onViewRefundPolicy: () => void
   onOrdersChange: (orders: OrderRecord[]) => void
+  onLoadingChange: (isLoading: boolean) => void
 }) {
   const [activeFilter, setActiveFilter] = useState<OrderFilter>('all')
   const [searchQuery, setSearchQuery] = useState('')
-  const [orders, setOrders] = useState<OrderRecord[]>(() => filterOrders(activeFilter))
+  const [orders, setOrders] = useState<OrderRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const navigate = useNavigate()
   const { applyCartResponse: applyCart } = useShop()
@@ -518,7 +521,7 @@ function OrdersPanel({
       })
       setOrders(response.orders.map(mapApiOrder))
     } catch {
-      // Keep whatever is on screen rather than blanking the list.
+      setOrders([])
     }
   }, [activeFilter, searchQuery])
 
@@ -537,7 +540,7 @@ function OrdersPanel({
         }
       } catch {
         if (!cancelled) {
-          setOrders(filterOrders(activeFilter))
+          setOrders([])
         }
       } finally {
         if (!cancelled) {
@@ -552,6 +555,10 @@ function OrdersPanel({
       cancelled = true
     }
   }, [activeFilter, searchQuery])
+
+  useEffect(() => {
+    onLoadingChange(isLoading)
+  }, [isLoading, onLoadingChange])
 
   // The "Buy this again" rail is a sibling of this panel, so the loaded orders
   // are published upward to keep both in step.
@@ -851,7 +858,11 @@ function OrdersPanel({
         </p>
         {/* Same rule as the desktop rail: only products from real orders, with
             no static fallback that would imply a purchase that never happened. */}
-        {getBuyAgainProductsFromOrders(orders).length > 0 ? (
+        {isLoading ? (
+          <div className="col-span-2">
+            <ListingLoader label="Loading buy again" />
+          </div>
+        ) : getBuyAgainProductsFromOrders(orders).length > 0 ? (
           getBuyAgainProductsFromOrders(orders)
             .slice(0, 4)
             .map((product) => (
@@ -1466,6 +1477,39 @@ function DefaultAddressCard({
   )
 }
 
+function ProfilePaymentMethodIcon({ type }: { type: PaymentMethodType }) {
+  if (type === 'paypal') {
+    return (
+      <img
+        alt=""
+        aria-hidden
+        className="h-6 w-8 shrink-0 object-contain"
+        src={images.footer.paypal}
+      />
+    )
+  }
+
+  if (type === 'visa') {
+    return (
+      <img
+        alt=""
+        aria-hidden
+        className="h-6 w-8 shrink-0 object-contain"
+        src={images.footer.visa}
+      />
+    )
+  }
+
+  return (
+    <span
+      aria-hidden
+      className="flex h-6 w-8 shrink-0 items-center justify-center rounded bg-bg-primary text-[10px] font-semibold leading-none tracking-[-0.2px] text-primary-green"
+    >
+      MM
+    </span>
+  )
+}
+
 function PaymentMethodCard({
   payment,
   onEdit,
@@ -1476,7 +1520,6 @@ function PaymentMethodCard({
   // The stored network is an enum key, so the API's label list is needed to
   // display it readably.
   const { networks } = usePaymentNetworks()
-  // Falls back to the static preview when the account has no saved method yet.
   const isEmpty = !payment
 
   return (
@@ -1488,28 +1531,15 @@ function PaymentMethodCard({
         <div className="mt-4 flex flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2">
             {isEmpty ? (
-              <>
-                <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
-                  No saved payment method
-                </span>
-                <img
-                  alt=""
-                  aria-hidden
-                  className="h-6 w-8 shrink-0 object-contain"
-                  src={images.footer.paypal}
-                />
-              </>
+              <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
+                No saved payment method
+              </span>
             ) : (
               <>
                 <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
                   {paymentTypeLabel(payment.type)}
                 </span>
-                <img
-                  alt=""
-                  aria-hidden
-                  className="h-6 w-8 shrink-0 object-contain"
-                  src={images.footer.paypal}
-                />
+                <ProfilePaymentMethodIcon type={payment.type} />
                 {payment.network ? (
                   <span className="text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
                     {/* Stored as an enum key (`mtn`), resolved to the API's label. */}
@@ -1652,8 +1682,8 @@ function SecurityRow({
 }
 
 function AccountSecurityPanel({ onDeleted }: { onDeleted: () => void }) {
-  const { signOut } = useAuth()
-  const [settings, setSettings] = useState<SecuritySettings>(securitySettings)
+  const { authUser, signOut } = useAuth()
+  const [settings, setSettings] = useState<SecuritySettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [activeAction, setActiveAction] = useState<SecurityAction | null>(null)
   /** Provisioning data from a just-enabled 2FA, shown once then discarded. */
@@ -1670,7 +1700,13 @@ function AccountSecurityPanel({ onDeleted }: { onDeleted: () => void }) {
         const loaded = await accountApi.getSecurity()
         if (!cancelled) setSettings(loaded)
       } catch {
-        // Keep the session-derived email rather than an empty row.
+        if (!cancelled) {
+          setSettings({
+            email: authUser?.email ?? '',
+            phone: null,
+            twoFactorEnabled: false,
+          })
+        }
       } finally {
         if (!cancelled) setIsLoading(false)
       }
@@ -1681,7 +1717,7 @@ function AccountSecurityPanel({ onDeleted }: { onDeleted: () => void }) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [authUser?.email])
 
   /**
    * Runs the action the dialog collected and folds the server's answer back into
@@ -1693,7 +1729,7 @@ function AccountSecurityPanel({ onDeleted }: { onDeleted: () => void }) {
     // The dialog only submits while an action is open, so this is unreachable in
     // practice. It is here so the switch below is over a non-nullable union and
     // its exhaustiveness check stays meaningful.
-    if (activeAction === null) return null
+    if (activeAction === null || !settings) return null
 
     try {
       switch (activeAction) {
@@ -1714,12 +1750,12 @@ function AccountSecurityPanel({ onDeleted }: { onDeleted: () => void }) {
         case 'twoFactor': {
           if (settings.twoFactorEnabled) {
             await accountApi.disableTwoFactor(values.currentPassword ?? '')
-            setSettings((current) => ({ ...current, twoFactorEnabled: false }))
+            setSettings({ ...settings, twoFactorEnabled: false })
             return null
           }
 
           const enrollment = await accountApi.enableTwoFactor()
-          setSettings((current) => ({ ...current, twoFactorEnabled: enrollment.enabled }))
+          setSettings({ ...settings, twoFactorEnabled: enrollment.enabled })
           // The API returns the secret and provisioning URI exactly once and
           // never again, so it is held here for the shopper to add the account to
           // their authenticator app. Not persisted: there is nowhere to keep it
@@ -1772,7 +1808,7 @@ function AccountSecurityPanel({ onDeleted }: { onDeleted: () => void }) {
       </div>
 
       <div className="px-4 py-4 lg:px-6">
-        {isLoading ? (
+        {isLoading || !settings ? (
           <ListingLoader label="Loading security settings" />
         ) : (
           <>
@@ -1842,8 +1878,8 @@ function AccountSecurityPanel({ onDeleted }: { onDeleted: () => void }) {
       <SecurityActionModal
         action={activeAction ?? 'email'}
         isOpen={activeAction !== null}
-        currentPhone={settings.phone}
-        isTwoFactorEnabled={settings.twoFactorEnabled}
+        currentPhone={settings?.phone ?? null}
+        isTwoFactorEnabled={settings?.twoFactorEnabled ?? false}
         onClose={() => setActiveAction(null)}
         onSubmit={handleSecuritySubmit}
       />
@@ -1876,9 +1912,9 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
    * endpoint can override them and also supplies the default address preview.
    */
   const [profile, setProfile] = useState(() => ({
-    fullName: authUser?.fullName ?? userProfile.fullName,
-    email: authUser?.email ?? userProfile.email,
-    initials: getProfileInitials(authUser?.fullName ?? userProfile.fullName),
+    fullName: authUser?.fullName ?? '',
+    email: authUser?.email ?? '',
+    initials: getProfileInitials(authUser?.fullName ?? ''),
   }))
   const [savedPayment, setSavedPayment] = useState<PaymentMethodRecord | null>(null)
   const [countryOptions, setCountryOptions] = useState<LookupOption[]>([])
@@ -1891,7 +1927,7 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
    */
   // ProfilePanel unmounts while the Addresses tab is open, so the hook refetches
   // on its own when the user navigates back.
-  const { address: savedAddress } = useDefaultAddress()
+  const { address: savedAddress, isLoading: isAddressLoading } = useDefaultAddress()
 
   // Profile details and saved payment methods load together; the default
   // address has its own hook because Checkout reads it too.
@@ -1917,8 +1953,8 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
           // `/users/me/profile` may omit the email, in which case the session's
           // email is the accurate one to show.
           setProfile({
-            fullName: mapped.fullName || authUser?.fullName || userProfile.fullName,
-            email: mapped.email || authUser?.email || userProfile.email,
+            fullName: mapped.fullName || authUser?.fullName || '',
+            email: mapped.email || authUser?.email || '',
             initials: getProfileInitials(mapped.fullName || authUser?.fullName || ''),
           })
         }
@@ -1926,7 +1962,7 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
         const payments = mapApiPaymentMethods(paymentResponse)
         setSavedPayment(payments.find((item) => item.isDefault) ?? payments[0] ?? null)
       } catch {
-        // Keep the session-derived values and the static address fallback.
+        // Session values from authUser remain; no fabricated profile rows.
       } finally {
         if (!cancelled) setIsLoading(false)
       }
@@ -2010,7 +2046,7 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
       ) : null}
 
       {activeTab === 'personal' ? (
-        isLoading ? (
+        isLoading || isAddressLoading ? (
           <ListingLoader label="Loading profile" />
         ) : (
           <PersonalInformationPanel
@@ -2036,17 +2072,21 @@ function ProfilePanel({ onSectionChange }: { onSectionChange: (section: AccountS
 
 function BuyAgainSidebar({
   orders,
+  ordersLoading,
   onAddToCart,
 }: {
   orders: OrderRecord[]
+  ordersLoading: boolean
   onAddToCart: (productId: string) => void
 }) {
   const [suggested, setSuggested] = useState<BuyAgainProduct[] | null>(null)
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
 
     async function loadSuggestions() {
+      setIsSuggestionsLoading(true)
       try {
         const response = await ordersApi.getBuyAgainProducts()
         if (cancelled) return
@@ -2063,9 +2103,12 @@ function BuyAgainSidebar({
           }),
         )
       } catch {
-        // Suggestions are a convenience; the rail falls back to the order lines.
         if (!cancelled) {
           setSuggested(null)
+        }
+      } finally {
+        if (!cancelled) {
+          setIsSuggestionsLoading(false)
         }
       }
     }
@@ -2084,6 +2127,7 @@ function BuyAgainSidebar({
   const purchasedProducts = getBuyAgainProductsFromOrders(orders)
   const products =
     suggested && suggested.length > 0 ? suggested : purchasedProducts
+  const isLoading = ordersLoading || isSuggestionsLoading
 
   return (
     <aside className="hidden w-37.5 shrink-0 flex-col overflow-hidden rounded-2xl border border-border-primary xl:flex">
@@ -2093,7 +2137,9 @@ function BuyAgainSidebar({
         </p>
       </div>
       <div className="flex flex-col gap-2 p-2">
-        {products.length > 0 ? (
+        {isLoading ? (
+          <ListingLoader label="Loading buy again" />
+        ) : products.length > 0 ? (
           products.map((product) => (
             <BuyAgainProductCard
               key={product.id}
@@ -2124,6 +2170,7 @@ export function YourOrdersView({
   // Orders live here so the panel and the "Buy this again" rail read from the
   // same list, which keeps the rail's products tied to real purchases.
   const [orders, setOrders] = useState<OrderRecord[]>([])
+  const [ordersLoading, setOrdersLoading] = useState(true)
   const { addBuyAgainProductToCart } = useBuyAgain()
 
   return (
@@ -2139,6 +2186,7 @@ export function YourOrdersView({
               <OrdersPanel
                 onViewRefundPolicy={onViewRefundPolicy}
                 onOrdersChange={setOrders}
+                onLoadingChange={setOrdersLoading}
               />
             ) : section === 'reviews' ? (
               <ReviewsPanel />
@@ -2163,6 +2211,7 @@ export function YourOrdersView({
           {section === 'orders' ? (
             <BuyAgainSidebar
               orders={orders}
+              ordersLoading={ordersLoading}
               onAddToCart={(productId) => {
                 void addBuyAgainProductToCart(productId)
               }}

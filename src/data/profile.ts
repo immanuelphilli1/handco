@@ -43,31 +43,6 @@ export const profileTabs: { id: ProfileTab; label: string }[] = [
   { id: 'security', label: 'Account & Security' },
 ]
 
-export const userProfile: UserProfile = {
-  fullName: 'Vikers Junior',
-  email: 'vikersjunior@gmail.com',
-  initials: 'VJ',
-}
-
-export const defaultAddress: DefaultAddress = {
-  contactName: 'Clement Nii Odai Afotey',
-  phone: '+233 54 271 7127',
-  line1: 'Room 231 - Al Ahdab Tower',
-  line2: 'Al Nahda 2 Dubai, UAE',
-}
-
-export const paymentMethod: PaymentMethod = {
-  provider: 'Paypal',
-  maskedEmail: 'vik***r@g**.com',
-  addedOn: '12/12/26',
-}
-
-export const securitySettings: SecuritySettings = {
-  email: 'vikejnr@gmail.com',
-  phone: null,
-  twoFactorEnabled: false,
-}
-
 export const privacyNotice =
   'Your information and privacy will be kept secure and uncompromised.'
 

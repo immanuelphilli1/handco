@@ -1,5 +1,3 @@
-import { images } from '../assets/images'
-
 /**
  * Order lifecycle. `pending_payment` replaced `pending`, and `cancelled`
  * replaced `failed`, since an order is now created before payment.
@@ -68,30 +66,6 @@ export type BuyAgainProduct = {
   image: string
 }
 
-const orderProductImage = images.featured.headphones
-
-/**
- * Product ids match the local catalog so Buy Again can look the line up as a
- * real `Product` and hand it to the cart. The API replaces these when it sends
- * its own order payloads.
- */
-const sampleOrderLines: OrderLine[] = [
-  {
-    productId: 'o0uf6x5aznwk',
-    name: 'Apple AirPods Pro (2nd Gen)',
-    image: orderProductImage,
-    price: 'AED 899.00',
-    quantity: 1,
-  },
-  {
-    productId: 'opdbhq3dvxzy',
-    name: 'Sony WH-1000XM5 Headphones',
-    image: orderProductImage,
-    price: 'AED 1299.00',
-    quantity: 1,
-  },
-]
-
 export const orderFilterTabs: { id: OrderFilter; label: string }[] = [
   { id: 'all', label: 'All Orders' },
   { id: 'pending_payment', label: 'Awaiting Payment' },
@@ -100,42 +74,6 @@ export const orderFilterTabs: { id: OrderFilter; label: string }[] = [
   { id: 'delivered', label: 'Delivered' },
   { id: 'returns', label: 'Returns' },
   { id: 'cancelled', label: 'Cancelled' },
-]
-
-export const orders: OrderRecord[] = [
-  {
-    id: 'PO-077-08907616420471803',
-    status: 'delivered',
-    statusDateLabel: 'Delivered on Jul 7, 2026',
-    statusBadgeLabel: 'Delivered on time',
-    itemCount: 15,
-    total: 'AED 253.90',
-    orderTime: 'Jun 19, 2025',
-    productImages: [orderProductImage, orderProductImage, orderProductImage, orderProductImage],
-    lines: sampleOrderLines,
-  },
-  {
-    id: 'PO-077-08907616420471804',
-    status: 'processing',
-    statusDateLabel: 'Delivered on Jul 7, 2026',
-    statusBadgeLabel: 'Processing Order',
-    itemCount: 15,
-    total: 'AED 253.90',
-    orderTime: 'Jun 19, 2025',
-    productImages: [orderProductImage, orderProductImage, orderProductImage, orderProductImage],
-    lines: sampleOrderLines,
-  },
-  {
-    id: 'PO-077-08907616420471805',
-    status: 'shipped',
-    statusDateLabel: 'Delivered on Jul 7, 2026',
-    statusBadgeLabel: 'Order Shipped',
-    itemCount: 15,
-    total: 'AED 253.90',
-    orderTime: 'Jun 19, 2025',
-    productImages: [orderProductImage, orderProductImage, orderProductImage, orderProductImage],
-    lines: sampleOrderLines,
-  },
 ]
 
 export const orderTrackingStages: OrderTrackingStage[] = [
@@ -258,27 +196,6 @@ export const refundCopy = {
   successTitle: 'Return request received',
   successDescription:
     'Our team will review your request and get back to you shortly. Once approved, we will arrange the refund.',
-}
-
-export const buyAgainProducts: BuyAgainProduct[] = [
-  {
-    id: 'buy-again-1',
-    name: 'Monolith Bluetooth S...',
-    price: '$179.00',
-    image: images.featured.speaker,
-  },
-  {
-    id: 'buy-again-2',
-    name: 'Monolith Bluetooth S...',
-    price: '$179.00',
-    image: images.featured.speaker,
-  },
-]
-
-export function filterOrders(activeFilter: OrderFilter): OrderRecord[] {
-  if (activeFilter === 'all') return orders
-  if (activeFilter === 'returns') return []
-  return orders.filter((order) => order.status === activeFilter)
 }
 
 /**

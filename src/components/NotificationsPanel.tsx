@@ -3,7 +3,6 @@ import { accountApi } from '../api'
 import { mapApiNotificationSettings } from '../api/mappers'
 import ShieldCheckFillIcon from 'remixicon-react/ShieldCheckFillIcon'
 import {
-  defaultNotificationSettings,
   notificationScamWarning,
   notificationSettingLabel,
   type NotificationSetting,
@@ -66,9 +65,7 @@ function NotificationRow({
 }
 
 export function NotificationsPanel() {
-  const [settings, setSettings] = useState<NotificationSetting[]>(() =>
-    defaultNotificationSettings.map((setting) => ({ ...setting })),
-  )
+  const [settings, setSettings] = useState<NotificationSetting[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -79,11 +76,13 @@ export function NotificationsPanel() {
       try {
         const response = await accountApi.getNotificationSettings()
         const items = mapApiNotificationSettings(response)
-        if (!cancelled && items.length > 0) {
+        if (!cancelled) {
           setSettings(items)
         }
       } catch {
-        // Keep static fallback settings.
+        if (!cancelled) {
+          setSettings([])
+        }
       } finally {
         if (!cancelled) setIsLoading(false)
       }
@@ -123,6 +122,10 @@ export function NotificationsPanel() {
       <div className="px-0 py-4 lg:px-2 lg:py-4">
         {isLoading ? (
           <ListingLoader label="Loading notification settings" />
+        ) : settings.length === 0 ? (
+          <p className="py-6 text-center text-sm leading-4.5 tracking-[-0.28px] text-text-secondary">
+            Notification settings are unavailable right now. Please try again later.
+          </p>
         ) : (
           settings.map((setting) => (
             <NotificationRow
