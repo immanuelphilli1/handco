@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 import {
   applyListingFilters,
@@ -18,6 +18,7 @@ import type { Product } from '../data/products'
 import {
   ALL_PRODUCTS_LABEL,
   findSubcategorySlugByLabel,
+  isCategoryRouteReady,
   isSpecialCategoryId,
 } from '../data/catalogCategories'
 import {
@@ -137,7 +138,8 @@ export function CategoryListingView({
   onSeeAllProducts,
 }: CategoryListingViewProps) {
   const navigate = useNavigate()
-  const { categories, facets } = useCatalog()
+  const { categoryId: routeCategoryId } = useParams()
+  const { categories, facets, isReady: isCatalogReady } = useCatalog()
   // Delivery quotes are only returned for a known destination, so the listing
   // query carries one just like the catalog load does.
   const { country, isLoading: isDestinationLoading } = useProductDestination()
@@ -165,15 +167,22 @@ export function CategoryListingView({
   const { products: newArrivalProducts, isLoading: isNewArrivalsLoading } =
     useNewReleasesSubcategoryProducts(isNewArrivalsSubcategory)
 
-  // "All products" ignores the category entirely, so both params are dropped.
-  // Sending categoryId=featured would return only the 13 featured items rather
-  // than the whole catalog.
-  const isAllProducts = activeCategory === ALL_PRODUCTS_LABEL
+  // Only the global "All categories → All products" view loads the full catalog
+  // with no categoryId. "All products" under Cars (or any department) still
+  // scopes the request to that category.
+  const isEntireCatalog =
+    selection.categoryId === 'all-categories' && activeCategory === ALL_PRODUCTS_LABEL
+
+  const isListingFetchEnabled = isCategoryRouteReady(
+    routeCategoryId,
+    categories,
+    isCatalogReady,
+  )
 
   const listParams = useMemo(() => {
     const deliveryParams = deliveryOptionToParams(filters.delivery)
 
-    if (isAllProducts) {
+    if (isEntireCatalog) {
       return { country, ...deliveryParams }
     }
 
@@ -210,13 +219,14 @@ export function CategoryListingView({
     categories,
     country,
     filters.delivery,
-    isAllProducts,
+    isEntireCatalog,
     selection.categoryId,
   ])
 
   const { products: queriedProducts, isLoading: isQueryLoading } = useProductListing(
     listParams,
     [],
+    isListingFetchEnabled,
   )
 
   // Facet filtering runs on the fetched list rather than in the query string.
@@ -250,6 +260,7 @@ export function CategoryListingView({
   // the loader stays up rather than showing a quote-less list that refetches.
   const isLoading =
     isDestinationLoading ||
+    !isListingFetchEnabled ||
     (isNewArrivalsSubcategory ? isNewArrivalsLoading : isQueryLoading)
 
   useEffect(() => {

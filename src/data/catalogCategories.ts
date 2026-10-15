@@ -47,6 +47,40 @@ export function isSpecialCategoryId(categoryId: string): boolean {
 }
 
 /**
+ * Whether the URL segment can be mapped to a listing query without guessing.
+ * Until the category tree has loaded, a child slug in `/categories/:id` is
+ * indistinguishable from a bogus top-level id, which would fire the wrong
+ * `GET /products` request before the real selection arrives.
+ */
+export function isCategoryRouteReady(
+  routeCategoryId: string | undefined,
+  apiCategories: ApiCategory[],
+  catalogReady: boolean,
+): boolean {
+  if (!catalogReady) {
+    return false
+  }
+
+  if (!routeCategoryId || routeCategoryId === 'all-categories') {
+    return true
+  }
+
+  if (isSpecialCategoryId(routeCategoryId)) {
+    return true
+  }
+
+  if (apiCategories.length === 0) {
+    return false
+  }
+
+  if (findCategoryInTree(apiCategories, routeCategoryId)) {
+    return true
+  }
+
+  return apiCategories.some((category) => getCategoryNodeId(category) === routeCategoryId)
+}
+
+/**
  * The category's identifier as used by the rest of the app.
  *
  * The API sends the identifier as `slug`; `id` is accepted as a fallback. Every

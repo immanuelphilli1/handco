@@ -7,12 +7,21 @@ import type { Product } from '../data/products'
 /** Params for a listing fetch. Page and limit are owned by the fetch itself. */
 export type ProductListingQuery = Omit<ProductListParams, 'page' | 'limit'>
 
-export function useProductListing(params: ProductListingQuery, initialProducts: Product[]) {
+export function useProductListing(
+  params: ProductListingQuery,
+  initialProducts: Product[],
+  enabled = true,
+) {
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [isLoading, setIsLoading] = useState(true)
   const paramsKey = JSON.stringify(params)
 
   useEffect(() => {
+    if (!enabled) {
+      setIsLoading(true)
+      return
+    }
+
     let cancelled = false
     const requestParams = JSON.parse(paramsKey) as ProductListingQuery
 
@@ -39,7 +48,7 @@ export function useProductListing(params: ProductListingQuery, initialProducts: 
     return () => {
       cancelled = true
     }
-  }, [paramsKey])
+  }, [enabled, paramsKey])
 
   return { products, isLoading }
 }
