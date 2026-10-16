@@ -134,7 +134,7 @@ function ProductImageGallery({
         <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary lg:max-w-110">
           <img
             alt={productName}
-            className="absolute inset-0 size-full object-contain p-4"
+            className="absolute inset-0 size-full object-contain"
             src={images[activeIndex]}
           />
           <div className="absolute inset-x-4 top-1/2 flex -translate-y-1/2 items-center justify-between">

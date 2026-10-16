@@ -107,7 +107,7 @@ export function ProductCard({
           ) : (
             <>
               <div className="h-6 w-18 shrink-0 lg:hidden" aria-hidden />
-              <div className="hidden rounded-full bg-glass px-2 py-1 lg:block">
+              <div className="hidden rounded-full px-2 py-1 lg:block">
                 <p className="truncate text-xs font-medium tracking-[-0.24px] text-text-inverse">
                   {tag}
                 </p>
@@ -138,7 +138,7 @@ export function ProductCard({
           )}
         </div>
 
-        <div className="relative p-3 lg:p-4">
+        <div className="relative hidden p-3 lg:p-4">
           <div className="inline-flex items-center gap-2 rounded-full bg-glass px-2 py-1">
             <StarFillIcon className="size-5 text-primary-gold" aria-hidden />
             <span className="text-base font-medium tracking-[-0.32px] text-text-inverse">
