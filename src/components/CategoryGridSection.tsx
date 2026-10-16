@@ -73,7 +73,7 @@ function CategoryCardItem({
         </div>
       ) : null}
       <div className="relative p-4">
-        <span className="inline-flex rounded-full bg-glass px-2 py-1 text-xs font-medium tracking-[-0.24px] text-text-inverse">
+        <span className="hidden rounded-full bg-glass px-2 py-1 text-xs font-medium tracking-[-0.24px] text-text-inverse">
           {badge}
         </span>
       </div>
