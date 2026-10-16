@@ -157,6 +157,7 @@ function FilterRadioOption({
 type PriceRangeSliderProps = {
   variant: FilterVariant
   priceCeiling: number
+  priceCurrency: string
   minPrice: number
   maxPrice: number | null
   onMinPriceChange: (value: number) => void
@@ -166,6 +167,7 @@ type PriceRangeSliderProps = {
 function PriceRangeSlider({
   variant,
   priceCeiling,
+  priceCurrency,
   minPrice,
   maxPrice,
   onMinPriceChange,
@@ -238,12 +240,12 @@ function PriceRangeSlider({
       </div>
       <div className="flex items-center gap-2">
         <div className="flex flex-1 items-center gap-1 rounded-lg border border-border-secondary p-2 text-sm font-medium tracking-[-0.28px]">
-          <span className="text-text-tertiary">AED</span>
+          <span className="text-text-tertiary">{priceCurrency}</span>
           <span className="text-text-secondary">{minPrice}</span>
         </div>
         <SubtractLineIcon className="size-6 shrink-0 text-text-secondary" aria-hidden />
         <div className="flex flex-1 items-center gap-1 rounded-lg border border-border-secondary p-2 text-sm font-medium tracking-[-0.28px]">
-          <span className="text-text-tertiary">AED</span>
+          <span className="text-text-tertiary">{priceCurrency}</span>
           <span className="text-text-secondary">{maxPrice ?? sliderMax}</span>
         </div>
       </div>
@@ -263,6 +265,7 @@ function ListingFiltersContent({
   onFiltersChange,
   facets,
   priceCeiling,
+  priceCurrency,
   showAllCategoryOption = false,
   showAllProductOption = false,
 }: {
@@ -277,6 +280,7 @@ function ListingFiltersContent({
   onFiltersChange: (next: ListingFilters) => void
   facets: ProductFacets
   priceCeiling: number
+  priceCurrency: string
   showAllCategoryOption?: boolean
   showAllProductOption?: boolean
 }) {
@@ -334,6 +338,7 @@ function ListingFiltersContent({
         <PriceRangeSlider
           variant={variant}
           priceCeiling={priceCeiling}
+          priceCurrency={priceCurrency}
           minPrice={filters.minPrice}
           maxPrice={filters.maxPrice}
           onMinPriceChange={(value) => onFiltersChange({ ...filters, minPrice: value })}
@@ -517,6 +522,7 @@ export function ListingFiltersSidebar({
   onFiltersChange,
   facets,
   priceCeiling,
+  priceCurrency,
   showAllCategoryOption = false,
   showAllProductOption = false,
 }: {
@@ -529,6 +535,7 @@ export function ListingFiltersSidebar({
   onFiltersChange: (next: ListingFilters) => void
   facets: ProductFacets
   priceCeiling: number
+  priceCurrency: string
   showAllCategoryOption?: boolean
   showAllProductOption?: boolean
 }) {
@@ -546,6 +553,7 @@ export function ListingFiltersSidebar({
         onFiltersChange={onFiltersChange}
         facets={facets}
         priceCeiling={priceCeiling}
+        priceCurrency={priceCurrency}
         showAllCategoryOption={showAllCategoryOption}
         showAllProductOption={showAllProductOption}
       />
@@ -567,6 +575,7 @@ export function MobileFiltersSheet({
   onDraftFiltersChange,
   facets,
   priceCeiling,
+  priceCurrency,
   onClose,
   onSave,
   showAllCategoryOption = false,
@@ -582,6 +591,7 @@ export function MobileFiltersSheet({
   onDraftFiltersChange: (next: ListingFilters) => void
   facets: ProductFacets
   priceCeiling: number
+  priceCurrency: string
   onClose: () => void
   onSave: () => void
   showAllCategoryOption?: boolean
@@ -631,6 +641,7 @@ export function MobileFiltersSheet({
             onFiltersChange={onDraftFiltersChange}
             facets={facets}
             priceCeiling={priceCeiling}
+            priceCurrency={priceCurrency}
             showAllCategoryOption={showAllCategoryOption}
             showAllProductOption={showAllProductOption}
           />

@@ -5,9 +5,14 @@ import {
   wishlistPageTitle,
 } from '../data/wishlist'
 import type { Product } from '../data/products'
-import { applyListingFilters, derivePriceBounds } from '../data/categoryListing'
+import {
+  applyListingFilters,
+  derivePriceBounds,
+  getListingPriceCurrency,
+} from '../data/categoryListing'
 import { useCatalog } from '../context/CatalogContext'
 import { useShop } from '../context/ShopContext'
+import { useProductDestination } from '../hooks/useProductDestination'
 import {
   ListingFiltersSidebar,
   MobileFiltersSheet,
@@ -47,6 +52,7 @@ function WishlistBreadcrumbs({ onGoHome }: { onGoHome: () => void }) {
 export function WishlistView({ onGoHome, onProductSelect }: WishlistViewProps) {
   const { wishlistProducts, isWishlistLoading } = useShop()
   const { facets } = useCatalog()
+  const { country } = useProductDestination()
   const categoryOptions = getWishlistCategoryOptions(wishlistProducts)
   const {
     activeCategory,
@@ -69,6 +75,7 @@ export function WishlistView({ onGoHome, onProductSelect }: WishlistViewProps) {
   // same client-side filtering apply here as on the category listing.
   const categoryFilteredProducts = filterWishlistProducts(wishlistProducts, activeCategory)
   const priceBounds = derivePriceBounds(categoryFilteredProducts)
+  const priceCurrency = getListingPriceCurrency(categoryFilteredProducts, country)
   const visibleProducts = applyListingFilters(categoryFilteredProducts, filters)
   const mobileTitle = activeCategory === 'all' ? wishlistPageTitle : activeCategory
 
@@ -91,6 +98,7 @@ export function WishlistView({ onGoHome, onProductSelect }: WishlistViewProps) {
         onClose={closeMobileFilters}
         onSave={saveMobileFilters}
         priceCeiling={priceBounds.ceiling}
+        priceCurrency={priceCurrency}
         showAllCategoryOption
       />
 
@@ -106,6 +114,7 @@ export function WishlistView({ onGoHome, onProductSelect }: WishlistViewProps) {
             onFiltersChange={setFilters}
             facets={facets}
             priceCeiling={priceBounds.ceiling}
+            priceCurrency={priceCurrency}
             showAllCategoryOption
           />
 

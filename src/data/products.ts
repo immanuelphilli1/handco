@@ -29,6 +29,8 @@ export type Product = {
    * the listing filters compare against them, so they must survive mapping.
    */
   priceAmount?: number
+  /** ISO currency code from `priceMoney`, used by listing price filters. */
+  priceCurrency?: string
   brand?: string
   color?: string
   screenSize?: string | null

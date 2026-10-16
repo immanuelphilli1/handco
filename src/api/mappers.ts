@@ -190,6 +190,7 @@ export function mapApiProduct(product: ApiProductCard): Product {
     // Facets power the listing filters, so they are carried onto the domain
     // model rather than being dropped during mapping.
     priceAmount: priceMoney?.amount,
+    priceCurrency: priceMoney?.currency,
     brand: product.brand,
     color: product.color,
     screenSize: product.screenSize,

@@ -5,6 +5,7 @@ import {
   applyListingFilters,
   defaultListingFilters,
   derivePriceBounds,
+  getListingPriceCurrency,
   hasActiveFilters,
   type CategoryListingSelection,
 } from '../data/categoryListing'
@@ -237,9 +238,16 @@ export function CategoryListingView({
     [filters, queriedProducts],
   )
 
+  const priceSourceProducts = isNewArrivalsSubcategory ? newArrivalProducts : queriedProducts
+
   const priceBounds = useMemo(
-    () => derivePriceBounds(isNewArrivalsSubcategory ? newArrivalProducts : queriedProducts),
-    [isNewArrivalsSubcategory, newArrivalProducts, queriedProducts],
+    () => derivePriceBounds(priceSourceProducts),
+    [priceSourceProducts],
+  )
+
+  const priceCurrency = useMemo(
+    () => getListingPriceCurrency(priceSourceProducts, country),
+    [country, priceSourceProducts],
   )
 
   const listingProducts = isNewArrivalsSubcategory ? newArrivalProducts : filteredProducts
@@ -292,6 +300,7 @@ export function CategoryListingView({
         onClose={closeMobileFilters}
         onSave={saveMobileFilters}
         priceCeiling={priceBounds.ceiling}
+        priceCurrency={priceCurrency}
         showAllProductOption
       />
 
@@ -307,6 +316,7 @@ export function CategoryListingView({
             onFiltersChange={setFilters}
             facets={facets}
             priceCeiling={priceBounds.ceiling}
+            priceCurrency={priceCurrency}
             showAllProductOption
           />
 

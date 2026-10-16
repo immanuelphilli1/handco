@@ -1,8 +1,13 @@
 import { useMemo } from 'react'
 import type { Product } from '../data/products'
-import { applyListingFilters, derivePriceBounds } from '../data/categoryListing'
+import {
+  applyListingFilters,
+  derivePriceBounds,
+  getListingPriceCurrency,
+} from '../data/categoryListing'
 import { useCatalog } from '../context/CatalogContext'
 import { useSearchFacets, useSearchResults } from '../hooks/useProductSearch'
+import { useProductDestination } from '../hooks/useProductDestination'
 import {
   ListingFiltersSidebar,
   MobileFiltersSheet,
@@ -27,6 +32,7 @@ export function SearchResultsView({
   onSeeAllProducts,
 }: SearchResultsViewProps) {
   const { allProducts } = useCatalog()
+  const { country } = useProductDestination()
   const { products, isLoading } = useSearchResults(query, allProducts)
   const facets = useSearchFacets(query)
   const {
@@ -49,6 +55,10 @@ export function SearchResultsView({
   // Search results carry the whole catalogue for the query, so the same
   // client-side facet filtering the category listing uses applies here.
   const priceBounds = useMemo(() => derivePriceBounds(products), [products])
+  const priceCurrency = useMemo(
+    () => getListingPriceCurrency(products, country),
+    [country, products],
+  )
   const visibleProducts = useMemo(() => applyListingFilters(products, filters), [products, filters])
 
   // Built as one string because JSX would otherwise introduce stray whitespace
@@ -81,6 +91,7 @@ export function SearchResultsView({
         onClose={closeMobileFilters}
         onSave={saveMobileFilters}
         priceCeiling={priceBounds.ceiling}
+        priceCurrency={priceCurrency}
       />
 
       <section className="border-t border-border-primary px-4 pb-10 pt-4 lg:border-t-0 lg:px-16 lg:pt-8">
@@ -95,6 +106,7 @@ export function SearchResultsView({
             onFiltersChange={setFilters}
             facets={facets}
             priceCeiling={priceBounds.ceiling}
+            priceCurrency={priceCurrency}
           />
 
           <div className="min-w-0 flex-1">

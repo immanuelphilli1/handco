@@ -1,6 +1,7 @@
 import type { ApiCategory } from '../api/types'
 import { buildAllCategoriesListingSelection } from './catalogCategories'
 import type { SidebarCategoryId } from './categoriesModal'
+import { getCheckoutCurrency } from './checkoutPaymentMethods'
 import type { Product } from './products'
 
 export type CategoryListingSelection = {
@@ -54,6 +55,25 @@ export function roundPriceCeiling(value: number): number {
   }
 
   return Math.ceil(value / 1000) * 1000
+}
+
+/**
+ * Currency label for the price filter. Prefer the catalog's own `priceMoney`
+ * currency when products are loaded; otherwise fall back to the destination
+ * country's billing currency (same mapping checkout uses).
+ */
+export function getListingPriceCurrency(
+  products: readonly Product[],
+  countryCode?: string,
+): string {
+  for (const product of products) {
+    const currency = product.priceCurrency?.trim()
+    if (currency) {
+      return currency
+    }
+  }
+
+  return getCheckoutCurrency(countryCode)
 }
 
 export function derivePriceBounds(products: Product[]): { floor: number; ceiling: number } {
