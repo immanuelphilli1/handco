@@ -66,10 +66,8 @@ export function AccountPage() {
   }, [navigate, section, sectionParam])
 
   const {
-    activeCategoryId,
     categoriesTargetId,
     closeCategories,
-    handleSubcategorySelect,
     isCategoriesOpen,
     toggleCategories,
     toggleCategoriesFromLinkBar,
@@ -110,10 +108,7 @@ export function AccountPage() {
         categoriesTargetId={categoriesTargetId}
         onToggleCategories={toggleCategories}
         onCloseCategories={closeCategories}
-        onSubcategorySelect={handleSubcategorySelect}
-        showCategoryLinksBar
-        onOpenCategories={toggleCategoriesFromLinkBar}
-        activeCategoryId={activeCategoryId}
+        showQuickNavigation
         onOpenCart={handleOpenCart}
         onOpenWishlist={handleOpenWishlist}
         onAfterSignOut={handleGoHome}

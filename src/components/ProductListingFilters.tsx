@@ -70,7 +70,7 @@ function FilterSection({
         <button
           type="button"
           onClick={onToggle}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left rtl:text-right"
         >
           <span
             className={`flex-1 font-medium text-text-secondary ${
@@ -128,7 +128,7 @@ function FilterRadioOption({
     <button
       type="button"
       onClick={onSelect}
-      className={`flex w-full cursor-pointer items-center gap-2 text-left ${
+      className={`flex w-full cursor-pointer items-center gap-2 text-left rtl:text-right ${
         isMobile ? 'py-1' : 'py-1'
       }`}
     >
@@ -209,7 +209,7 @@ function PriceRangeSlider({
           <div className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-bg-tertiary" />
           <div
             className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary-orange"
-            style={{ left: `${minPercent}%`, width: `${maxPercent - minPercent}%` }}
+            style={{ insetInlineStart: `${minPercent}%`, width: `${maxPercent - minPercent}%` }}
           />
           {/* Two stacked range inputs drive the track: the lower one owns the
               left handle, the upper one the right. Only the thumbs are
@@ -696,7 +696,7 @@ export function MobileListingHeader({
       ref={headerRef}
       className="flex items-center justify-between border-b border-border-primary px-4 py-3 lg:hidden"
     >
-      <h1 className="min-w-0 flex-1 truncate pr-4 text-xl font-medium leading-6 tracking-[-0.4px] text-text-primary">
+      <h1 className="min-w-0 flex-1 truncate pe-4 text-xl font-medium leading-6 tracking-[-0.4px] text-text-primary">
         {title}
       </h1>
       <button

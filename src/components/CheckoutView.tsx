@@ -16,6 +16,7 @@ import { useShop } from '../context/ShopContext'
 import { useDefaultAddress } from '../hooks/useDefaultAddress'
 import { OrderSummaryPanel } from './OrderSummaryPanel'
 import { PageBreadcrumbs } from './PageBreadcrumbs'
+import { inlineDirectionSign } from '../utils/layoutDirection'
 
 /**
  * Formats a shipping quote for display.
@@ -97,10 +98,10 @@ function CheckoutItemCard({ item, onSelect }: { item: CartItem; onSelect: () => 
       type="button"
       onClick={onSelect}
       aria-label={`View ${item.name}`}
-      className="flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary text-left"
+      className="flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary text-left rtl:text-right"
     >
       <span className="block w-full overflow-hidden bg-bg-secondary">
-        <img alt="" className="aspect-square w-full object-cover" src={item.image} />
+        <img alt="" className="aspect-[2/3] w-full object-cover" src={item.image} />
       </span>
       <span className="flex flex-col gap-1 p-3">
         <span className="line-clamp-2 text-sm leading-4.5 tracking-[-0.28px] text-text-primary">
@@ -345,7 +346,8 @@ export function CheckoutView({
   const scrollCarousel = (direction: 'prev' | 'next') => {
     const track = trackRef.current
     if (!track) return
-    track.scrollBy({ left: direction === 'next' ? 280 : -280, behavior: 'smooth' })
+    const distance = (direction === 'next' ? 280 : -280) * inlineDirectionSign(track)
+    track.scrollBy({ left: distance, behavior: 'smooth' })
   }
 
   return (
@@ -372,7 +374,7 @@ export function CheckoutView({
                   className="flex cursor-pointer items-center gap-1 rounded-full bg-bg-secondary px-4 py-2 text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary"
                 >
                   Change address
-                  <ArrowRightSLineIcon className="size-6 text-text-secondary" aria-hidden />
+                  <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 text-text-secondary" aria-hidden />
                 </button>
               </div>
 
@@ -436,7 +438,7 @@ export function CheckoutView({
                   className="flex cursor-pointer items-center gap-1 rounded-full bg-bg-secondary px-4 py-2 text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary"
                 >
                   View all
-                  <ArrowRightSLineIcon className="size-6 text-text-secondary" aria-hidden />
+                  <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 text-text-secondary" aria-hidden />
                 </button>
               </div>
 
@@ -445,9 +447,9 @@ export function CheckoutView({
                   type="button"
                   onClick={() => scrollCarousel('prev')}
                   aria-label="Previous items"
-                  className="absolute left-0 top-1/2 z-10 hidden size-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-bg-primary shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_40px_0px_rgba(0,0,0,0.08)] lg:flex"
+                  className="absolute start-0 top-1/2 z-10 hidden size-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-bg-primary shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_40px_0px_rgba(0,0,0,0.08)] lg:flex"
                 >
-                  <ArrowLeftSLineIcon className="size-6 text-text-secondary" aria-hidden />
+                  <ArrowLeftSLineIcon className="rtl:-scale-x-100 size-6 text-text-secondary" aria-hidden />
                 </button>
                 <div
                   ref={trackRef}
@@ -469,9 +471,9 @@ export function CheckoutView({
                   type="button"
                   onClick={() => scrollCarousel('next')}
                   aria-label="Next items"
-                  className="absolute right-0 top-1/2 z-10 hidden size-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-bg-secondary shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_40px_0px_rgba(0,0,0,0.08)] lg:flex"
+                  className="absolute end-0 top-1/2 z-10 hidden size-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-bg-secondary shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_40px_0px_rgba(0,0,0,0.08)] lg:flex"
                 >
-                  <ArrowRightSLineIcon className="size-6 text-text-secondary" aria-hidden />
+                  <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 text-text-secondary" aria-hidden />
                 </button>
               </div>
             </section>

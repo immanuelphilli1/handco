@@ -21,7 +21,7 @@ export function PageBreadcrumbs({ segments, onGoBack }: PageBreadcrumbsProps) {
           aria-label="Go back"
           className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-secondary lg:hidden"
         >
-          <ArrowLeftSLineIcon className="size-5 text-text-secondary" aria-hidden />
+          <ArrowLeftSLineIcon className="rtl:-scale-x-100 size-5 text-text-secondary" aria-hidden />
         </button>
       ) : null}
 
@@ -31,7 +31,7 @@ export function PageBreadcrumbs({ segments, onGoBack }: PageBreadcrumbsProps) {
         return (
           <span key={`${segment.label}-${index}`} className="flex min-w-0 items-center gap-2 lg:gap-1">
             {index > 0 ? (
-              <ArrowRightSLineIcon className="size-6 shrink-0 text-text-tertiary" aria-hidden />
+              <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 shrink-0 text-text-tertiary" aria-hidden />
             ) : null}
             {segment.onClick && !isLast ? (
               <button

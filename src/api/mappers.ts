@@ -10,7 +10,12 @@ import type { PaymentMethodRecord, PaymentMethodType } from '../data/paymentMeth
 import type { ReviewedReviewRecord, WaitingReviewRecord } from '../data/reviews'
 import type { OrderLine, OrderRecord, OrderStatus, OrderTrackingEvent } from '../data/orders'
 import type { Product, ProductAttribute } from '../data/products'
-import type { ProductDetail, ProductDetailContext, ProductReview } from '../data/productDetail'
+import type {
+  ProductDetail,
+  ProductDetailContext,
+  ProductOptionSwatch,
+  ProductReview,
+} from '../data/productDetail'
 import type { CategoryListingSelection } from '../data/categoryListing'
 import {
   ALL_PRODUCTS_LABEL,
@@ -46,6 +51,7 @@ import type {
   ApiProductCard,
   ApiProductDetailResponse,
   ApiProductFacets,
+  ApiProductOptionSwatch,
   ApiProductReview,
   ApiProfile,
   ApiReviewSlot,
@@ -196,6 +202,7 @@ export function mapApiProduct(product: ApiProductCard): Product {
     screenSize: product.screenSize,
     attributes: mapApiProductAttributes(product.attributes),
     inStock: product.inStock,
+    hasVariantChoice: product.hasVariantChoice,
   }
 }
 
@@ -301,6 +308,7 @@ function getOrderStatusLabel(status: OrderStatus): string {
 export function mapApiOrderLines(order: ApiOrderDetail): OrderLine[] {
   return order.items.map((item) => ({
     productId: item.productRid ?? item.id,
+    variantRid: item.variantRid ?? undefined,
     name: item.name,
     image: resolveAssetUrl(item.imageUrl ?? item.image),
     price: formatMoney(item.unitPrice),
@@ -363,6 +371,18 @@ function mapApiProductDetailVariants(
   return []
 }
 
+/**
+ * Colour circles for an option group. Only a valid `#rgb` / `#rrggbb` hex is
+ * kept; a colour without one is left out so the page keeps its text chip.
+ */
+function mapApiOptionSwatches(swatches: ApiProductOptionSwatch[]): ProductOptionSwatch[] {
+  return swatches.flatMap((swatch) => {
+    const hex = swatch.hex?.trim()
+    if (!swatch.value || !hex || !/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) return []
+    return [{ value: swatch.value, hex }]
+  })
+}
+
 export function mapApiProductDetail(
   response: ApiProductDetailResponse,
   selection: CategoryListingSelection,
@@ -400,9 +420,13 @@ export function mapApiProductDetail(
       key: group.key,
       label: group.label,
       values: group.values,
+      ...(group.swatches?.length ? { swatches: mapApiOptionSwatches(group.swatches) } : {}),
     })) ?? []
 
-  const shippingFee = formatAmount(response.shippingFeeMoney ?? response.priceMoney)
+  // Null without a destination. It is never the product price: an unknown fee
+  // stays empty and the page says it is worked out at checkout.
+  const shippingFee =
+    response.shippingFeeMoney?.amount === 0 ? 'Free' : formatAmount(response.shippingFeeMoney)
   const deliveryEstimate =
     defaultVariant?.delivery || formatDeliveryDays(response.deliveryDays)
 
@@ -420,10 +444,6 @@ export function mapApiProductDetail(
     modelOptions: response.modelOptions ?? variants.map((variant) => variant.name),
     descriptionLines: response.descriptionLines ?? [],
     reviews: [],
-    shippingAddress: {
-      line1: 'Hse 8 M Street',
-      line2: 'Accra Ghana',
-    },
     shippingFee,
     deliveryEstimate,
     itemsTotal: `${priceCurrency} ${priceAmount}`,

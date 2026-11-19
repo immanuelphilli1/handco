@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { accountApi } from '../api'
+import { useAuth } from '../context/AuthContext'
 import { addressRecordToDefaultPreview, mapApiAddresses, mapApiDefaultAddress } from '../api/mappers'
 import type { DefaultAddress } from '../data/profile'
 
@@ -20,10 +21,17 @@ type UseDefaultAddressResult = {
  * made lazily, so the common case costs a single request.
  */
 export function useDefaultAddress(): UseDefaultAddressResult {
+  const { authUser, isBootstrapping } = useAuth()
+  // Addresses belong to an account, so a guest has none to load. Asking
+  // anyway only earns a 401 on every page a guest opens.
+  const isGuest = !isBootstrapping && authUser === null
+  const accountKey = authUser?.email ?? null
   const [address, setAddress] = useState<DefaultAddress | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    if (isBootstrapping || isGuest) return
+
     let cancelled = false
 
     async function loadDefaultAddress() {
@@ -57,7 +65,9 @@ export function useDefaultAddress(): UseDefaultAddressResult {
     return () => {
       cancelled = true
     }
-  }, [])
+    // `accountKey` reloads the address when a different shopper signs in.
+  }, [accountKey, isBootstrapping, isGuest])
 
+  if (isGuest) return { address: null, isLoading: false }
   return { address, isLoading }
 }

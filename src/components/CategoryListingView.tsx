@@ -8,6 +8,7 @@ import {
   getListingPriceCurrency,
   hasActiveFilters,
   type CategoryListingSelection,
+  isOnSale,
 } from '../data/categoryListing'
 import { useProductListing } from '../hooks/useCatalogProducts'
 import { useProductDestination } from '../hooks/useProductDestination'
@@ -18,6 +19,7 @@ import {
 import type { Product } from '../data/products'
 import {
   ALL_PRODUCTS_LABEL,
+  findSubcategorySlugAcrossCatalog,
   findSubcategorySlugByLabel,
   isCategoryRouteReady,
   isSpecialCategoryId,
@@ -66,11 +68,11 @@ function CategoryBreadcrumbs({
       >
         Home
       </button>
-      <ArrowRightSLineIcon className="size-6 shrink-0 text-text-tertiary" aria-hidden />
+      <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 shrink-0 text-text-tertiary" aria-hidden />
       <span className="py-2.5 text-sm font-medium leading-4 tracking-[-0.28px] text-text-tertiary">
         {categoryLabel}
       </span>
-      <ArrowRightSLineIcon className="size-6 shrink-0 text-text-tertiary" aria-hidden />
+      <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 shrink-0 text-text-tertiary" aria-hidden />
       <span className="py-2.5 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
         {subcategoryLabel}
       </span>
@@ -174,6 +176,8 @@ export function CategoryListingView({
   const isEntireCatalog =
     selection.categoryId === 'all-categories' && activeCategory === ALL_PRODUCTS_LABEL
 
+  const isDealsListing = selection.categoryId === 'deals'
+
   const isListingFetchEnabled = isCategoryRouteReady(
     routeCategoryId,
     categories,
@@ -185,6 +189,22 @@ export function CategoryListingView({
 
     if (isEntireCatalog) {
       return { country, ...deliveryParams }
+    }
+
+    // Deals is not a category: it is every discounted product, optionally
+    // narrowed to one subcategory. `onSale` asks the API to do the narrowing;
+    // the result is also filtered below until the API supports it.
+    if (isDealsListing) {
+      const subcategorySlug =
+        activeCategory === ALL_PRODUCTS_LABEL
+          ? null
+          : findSubcategorySlugAcrossCatalog(activeCategory, categories)
+      return {
+        country,
+        onSale: 1 as const,
+        ...(subcategorySlug ? { categoryId: subcategorySlug } : {}),
+        ...deliveryParams,
+      }
     }
 
     if (isSpecialCategoryId(selection.categoryId)) {
@@ -220,6 +240,7 @@ export function CategoryListingView({
     categories,
     country,
     filters.delivery,
+    isDealsListing,
     isEntireCatalog,
     selection.categoryId,
   ])
@@ -234,8 +255,12 @@ export function CategoryListingView({
   // The catalog fits in a single request, so a local filter is instant and
   // avoids refetching on every slider tick.
   const filteredProducts = useMemo(
-    () => applyListingFilters(queriedProducts, filters),
-    [filters, queriedProducts],
+    () =>
+      applyListingFilters(
+        isDealsListing ? queriedProducts.filter(isOnSale) : queriedProducts,
+        filters,
+      ),
+    [filters, isDealsListing, queriedProducts],
   )
 
   const priceSourceProducts = isNewArrivalsSubcategory ? newArrivalProducts : queriedProducts

@@ -1,45 +1,18 @@
-import type { ApiCategory, ApiCategoryNode, ApiSubcategory } from '../api/types'
-import { resolveAssetUrl } from '../api/mappers'
+import type { ApiCategory, ApiCategoryNode } from '../api/types'
 import type { CategoryListingSelection } from './categoryListing'
-import {
-  ALL_PRODUCTS_LABEL,
-  type CategorySection,
-  type SidebarCategoryId,
-  type Subcategory,
-} from './categoriesModal'
+import { ALL_PRODUCTS_LABEL, type SidebarCategoryId } from './categoriesModal'
 
-const SPECIAL_CATEGORY_IDS = new Set<string>(['all-categories', 'featured', 'new-releases'])
+const SPECIAL_CATEGORY_IDS = new Set<string>(['all-categories', 'featured', 'new-releases', 'deals'])
 
 const VIRTUAL_CATEGORY_LABELS: Record<string, string> = {
   'all-categories': 'All categories',
   featured: 'Featured',
   'new-releases': 'New Releases',
-}
-
-/** Sidebar / mobile list entries: virtual shortcuts plus `GET /categories` roots. */
-export type CatalogSidebarEntry = {
-  id: string
-  label: string
-}
-
-export function buildCatalogSidebar(apiCategories: ApiCategory[] = []): CatalogSidebarEntry[] {
-  return [
-    { id: 'all-categories', label: VIRTUAL_CATEGORY_LABELS['all-categories'] },
-    { id: 'featured', label: VIRTUAL_CATEGORY_LABELS.featured },
-    { id: 'new-releases', label: VIRTUAL_CATEGORY_LABELS['new-releases'] },
-    ...apiCategories.map((category) => ({
-      id: getCategoryNodeId(category),
-      label: category.label,
-    })),
-  ]
+  deals: 'Deals',
 }
 
 export function getMajorCategoryId(categoryId: SidebarCategoryId | string): SidebarCategoryId | string {
   return categoryId
-}
-
-export type CategoryPanelSectionView = CategorySection & {
-  sectionId: string
 }
 
 export function isSpecialCategoryId(categoryId: string): boolean {
@@ -235,6 +208,21 @@ export function findSubcategorySlugByLabel(
   return null
 }
 
+/**
+ * Resolves a subcategory label to its slug under any top-level category, for
+ * listings that span the whole catalog (Deals).
+ */
+export function findSubcategorySlugAcrossCatalog(
+  subcategoryLabel: string,
+  apiCategories: ApiCategory[] = [],
+): string | null {
+  for (const category of apiCategories) {
+    const slug = findSubcategorySlugByLabel(getCategoryNodeId(category), subcategoryLabel, apiCategories)
+    if (slug) return slug
+  }
+  return null
+}
+
 export function getSubcategoryOptions(
   categoryId: SidebarCategoryId | string,
   apiCategories: ApiCategory[] = [],
@@ -257,18 +245,6 @@ export function getSubcategoryOptions(
   }
 
   return []
-}
-
-export function mapApiSubcategoriesToModalItems(
-  subcategories: ApiSubcategory[],
-): Subcategory[] {
-  return subcategories.map((subcategory) => {
-    const imageUrl = resolveAssetUrl(subcategory.imageUrl ?? subcategory.image ?? undefined)
-    return {
-      label: subcategory.label,
-      ...(imageUrl ? { image: imageUrl } : {}),
-    }
-  })
 }
 
 export function getCategoryLabel(
@@ -322,92 +298,4 @@ export function buildCategoryListingSelection(
     subcategoryLabel,
     subcategoryOptions,
   }
-}
-
-function buildSectionsForCategory(
-  categoryId: string,
-  apiCategories: ApiCategory[],
-): CategoryPanelSectionView[] {
-  const apiCategory = findApiCategory(apiCategories, categoryId)
-  if (!apiCategory) {
-    return []
-  }
-
-  return [
-    {
-      title: apiCategory.label,
-      sectionId: getCategoryNodeId(apiCategory),
-      items: mapApiSubcategoriesToModalItems(flattenApiSubcategories(apiCategory)),
-    },
-  ]
-}
-
-/**
- * Sections for the virtual Featured and New Releases entries.
- *
- * Neither is a real category row on the API (`/categories/featured/panel`
- * returns 404), so there is no category to resolve a subcategory against. Their
- * cards are therefore real API subcategories drawn from across the catalog,
- * offered as shortcuts into listings. Each one keeps its **own** owning category
- * as `sectionId`, because a label such as "Sneakers" only matches products when
- * the request also carries `categoryId=fashion` — pointing these at "featured"
- * would match nothing.
- *
- * Only the fallback list is invented; once the catalog has loaded, every label
- * and image below comes from the API.
- */
-function buildDiscoverySections(
-  apiCategories: ApiCategory[],
-): CategoryPanelSectionView[] {
-  if (apiCategories.length === 0) {
-    return []
-  }
-
-  const seen = new Set<string>()
-  const sections: CategoryPanelSectionView[] = []
-
-  for (const category of apiCategories) {
-    // Only the first level is offered. Grandchildren are too deep to scan as a
-    // shortcut grid, and their labels repeat ("Sneakers" and "Running" both sit
-    // several levels down) which would make the grid ambiguous.
-    const items = getApiChildNodes(category).map((child) => {
-      const imageUrl = resolveAssetUrl(child.imageUrl ?? child.image ?? undefined)
-      return {
-        label: child.label,
-        ...(imageUrl ? { image: imageUrl } : {}),
-      }
-    })
-
-    const fresh = items.filter((item) => {
-      const key = item.label.toLowerCase()
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-
-    if (fresh.length === 0) continue
-
-    sections.push({
-      title: category.label,
-      sectionId: getCategoryNodeId(category),
-      items: fresh,
-    })
-  }
-
-  return sections
-}
-
-export function getCategoryPanelSections(
-  categoryId: string,
-  apiCategories: ApiCategory[] = [],
-): CategoryPanelSectionView[] {
-  if (categoryId === 'featured' || categoryId === 'new-releases') {
-    return buildDiscoverySections(apiCategories)
-  }
-
-  if (categoryId === 'all-categories') {
-    return []
-  }
-
-  return buildSectionsForCategory(categoryId, apiCategories)
 }

@@ -32,7 +32,7 @@ function NotificationToggle({
     >
       <span
         className={`absolute top-1 size-6 rounded-full bg-bg-primary transition-transform ${
-          enabled ? 'left-5' : 'left-1'
+          enabled ? 'start-5' : 'start-1'
         }`}
         aria-hidden
       />

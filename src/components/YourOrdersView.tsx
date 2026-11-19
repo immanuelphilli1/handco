@@ -110,6 +110,7 @@ import {
   type AddressResidenceMismatch,
 } from '../utils/addressResidenceMatch'
 import { CountryResidenceMismatchModal } from './CountryResidenceMismatchModal'
+import { inlineDirectionSign } from '../utils/layoutDirection'
 
 export type { AccountSection } from '../data/accountRoutes'
 
@@ -195,7 +196,7 @@ function AccountBreadcrumbs({
         aria-label="Go back"
         className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-secondary lg:hidden"
       >
-        <ArrowLeftSLineIcon className="size-5 text-text-secondary" aria-hidden />
+        <ArrowLeftSLineIcon className="rtl:-scale-x-100 size-5 text-text-secondary" aria-hidden />
       </button>
       <button
         type="button"
@@ -204,7 +205,7 @@ function AccountBreadcrumbs({
       >
         Home
       </button>
-      <ArrowRightSLineIcon className="size-6 shrink-0 text-text-tertiary" aria-hidden />
+      <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 shrink-0 text-text-tertiary" aria-hidden />
       <span className="py-2.5 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
         {label}
       </span>
@@ -238,9 +239,9 @@ function AccountSidebar({
             key={item.id}
             type="button"
             onClick={isNavigable ? () => onSectionChange(item.id as AccountSection) : undefined}
-            className={`flex w-full items-center gap-2 p-2 text-left ${
+            className={`flex w-full items-center gap-2 p-2 text-left rtl:text-right ${
               isActive
-                ? 'border-l-2 border-primary-orange bg-orange-light'
+                ? 'border-s-2 border-primary-orange bg-orange-light'
                 : 'bg-bg-primary'
             } ${isNavigable ? 'cursor-pointer' : 'cursor-default'}`}
           >
@@ -266,7 +267,7 @@ function OrderProductCarousel({ images }: { images: string[] }) {
   const scrollByDirection = (direction: 'prev' | 'next') => {
     const track = trackRef.current
     if (!track) return
-    const amount = direction === 'next' ? 134 : -134
+    const amount = (direction === 'next' ? 134 : -134) * inlineDirectionSign(track)
     track.scrollBy({ left: amount, behavior: 'smooth' })
   }
 
@@ -284,21 +285,21 @@ function OrderProductCarousel({ images }: { images: string[] }) {
         {images.map((image, index) => (
           <div
             key={`${image}-${index}`}
-            className="size-29.5 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary"
+            className="h-44.25 w-29.5 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary"
           >
             <img alt="" className="size-full object-cover" src={image} />
           </div>
         ))}
       </div>
       {canScroll ? (
-        <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center justify-between">
+        <div className="pointer-events-none absolute inset-y-0 start-0 end-0 flex items-center justify-between">
           <button
             type="button"
             onClick={() => scrollByDirection('prev')}
             className="pointer-events-auto flex size-12 cursor-pointer items-center justify-center rounded-full bg-bg-primary shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_40px_0px_rgba(0,0,0,0.08)]"
             aria-label="Previous products"
           >
-            <ArrowLeftSLineIcon className="size-6 text-text-secondary" aria-hidden />
+            <ArrowLeftSLineIcon className="rtl:-scale-x-100 size-6 text-text-secondary" aria-hidden />
           </button>
           <button
             type="button"
@@ -306,7 +307,7 @@ function OrderProductCarousel({ images }: { images: string[] }) {
             className="pointer-events-auto flex size-12 cursor-pointer items-center justify-center rounded-full bg-bg-secondary shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_40px_0px_rgba(0,0,0,0.08)]"
             aria-label="Next products"
           >
-            <ArrowRightSLineIcon className="size-6 text-text-secondary" aria-hidden />
+            <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 text-text-secondary" aria-hidden />
           </button>
         </div>
       ) : null}
@@ -365,7 +366,7 @@ function OrderCard({
         >
           View order details
           <ArrowRightSLineIcon
-            className="size-6 text-text-secondary transition-colors group-hover:text-primary-orange"
+            className="rtl:-scale-x-100 size-6 text-text-secondary transition-colors group-hover:text-primary-orange"
             aria-hidden
           />
         </button>
@@ -943,7 +944,7 @@ function ReviewRowActions({
       >
         View order details
         <ArrowRightSLineIcon
-          className="size-6 text-text-secondary transition-colors group-hover:text-primary-orange"
+          className="rtl:-scale-x-100 size-6 text-text-secondary transition-colors group-hover:text-primary-orange"
           aria-hidden
         />
       </button>
@@ -963,7 +964,7 @@ function WaitingReviewRow({
   return (
     <article className="flex flex-col gap-6 border-b border-border-primary py-4 lg:flex-row lg:items-center lg:gap-6">
       <div className="flex w-full gap-3 lg:contents">
-        <div className="size-31 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary lg:size-29.5">
+        <div className="h-46.5 w-31 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary lg:h-44.25 lg:w-29.5">
           <img alt="" className="size-full object-cover" src={review.productImage} />
         </div>
 
@@ -1050,7 +1051,7 @@ function ReviewedReviewRow({
   return (
     <article className="flex flex-col gap-6 border-b border-border-primary py-4 lg:flex-row lg:items-center lg:gap-6">
       <div className="flex w-full gap-3 lg:contents">
-        <div className="size-31 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary lg:size-29.5">
+        <div className="h-46.5 w-31 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary lg:h-44.25 lg:w-29.5">
           <img alt="" className="size-full object-cover" src={review.productImage} />
         </div>
 
@@ -1296,7 +1297,7 @@ function BuyAgainProductCard({
   return (
     <div className="overflow-hidden rounded-lg bg-bg-primary">
       <div className="overflow-hidden rounded-lg bg-bg-secondary">
-        <img alt={product.name} className="aspect-square w-full object-cover" src={product.image} />
+        <img alt={product.name} className="aspect-[2/3] w-full object-cover" src={product.image} />
       </div>
       <div className="px-1 py-2">
         <p className="truncate text-xs font-medium leading-4 tracking-[-0.24px] text-text-primary">
@@ -1410,7 +1411,7 @@ function CountryResidenceSelect({
 
             onChange(preferredCountryPayloadForOption(option))
           }}
-          className={`w-full appearance-none bg-transparent pr-8 text-base leading-5 tracking-[-0.32px] outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
+          className={`w-full appearance-none bg-transparent pe-8 text-base leading-5 tracking-[-0.32px] outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
             selectedValue ? 'font-medium text-text-primary' : 'font-normal text-text-tertiary'
           }`}
         >
@@ -1425,7 +1426,7 @@ function CountryResidenceSelect({
           })}
         </select>
         <ArrowDownSLineIcon
-          className="pointer-events-none absolute right-4 size-6 text-text-secondary"
+          className="pointer-events-none absolute end-4 size-6 text-text-secondary"
           aria-hidden
         />
       </label>
@@ -1614,7 +1615,7 @@ function PersonalInformationPanel({
           type="button"
           onClick={onEditProfile}
           disabled={isSaving}
-          className="flex w-fit cursor-pointer items-center justify-center rounded-full bg-text-primary px-4 py-2 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse disabled:cursor-not-allowed disabled:opacity-60 lg:ml-auto lg:shrink-0"
+          className="flex w-fit cursor-pointer items-center justify-center rounded-full bg-text-primary px-4 py-2 text-base font-medium leading-5 tracking-[-0.32px] text-text-inverse disabled:cursor-not-allowed disabled:opacity-60 lg:ms-auto lg:shrink-0"
         >
           {isSaving ? 'Saving…' : 'Edit profile'}
         </button>

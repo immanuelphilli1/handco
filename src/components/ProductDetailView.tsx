@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { catalogApi } from '../api'
 import { getAccountPath } from '../data/accountRoutes'
-import { mapApiProduct, mapApiProductReview } from '../api/mappers'
+import { addressRecordToDefaultPreview, mapApiProduct, mapApiProductReview } from '../api/mappers'
 import AddLineIcon from 'remixicon-react/AddLineIcon'
 import ArrowLeftSLineIcon from 'remixicon-react/ArrowLeftSLineIcon'
 import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
@@ -17,7 +17,7 @@ import SubtractLineIcon from 'remixicon-react/SubtractLineIcon'
 import User6LineIcon from 'remixicon-react/User6LineIcon'
 import { useCatalog } from '../context/CatalogContext'
 import { useShop } from '../context/ShopContext'
-import { useProductDestination } from '../hooks/useProductDestination'
+import { useShopperCountry } from '../hooks/useShopperCountry'
 import { useShareLink } from '../hooks/useShareLink'
 import type {
   ProductDetail,
@@ -64,7 +64,7 @@ function ProductDetailBreadcrumbs({
       >
         Home
       </button>
-      <ArrowRightSLineIcon className="size-6 shrink-0 text-text-tertiary" aria-hidden />
+      <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 shrink-0 text-text-tertiary" aria-hidden />
       <button
         type="button"
         onClick={onBackToListing}
@@ -72,7 +72,7 @@ function ProductDetailBreadcrumbs({
       >
         {categoryLabel}
       </button>
-      <ArrowRightSLineIcon className="size-6 shrink-0 text-text-tertiary" aria-hidden />
+      <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 shrink-0 text-text-tertiary" aria-hidden />
       <button
         type="button"
         onClick={onBackToListing}
@@ -80,7 +80,7 @@ function ProductDetailBreadcrumbs({
       >
         {subcategoryLabel}
       </button>
-      <ArrowRightSLineIcon className="size-6 shrink-0 text-text-tertiary" aria-hidden />
+      <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 shrink-0 text-text-tertiary" aria-hidden />
       <span className="max-w-full truncate py-2.5 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
         {productName}
       </span>
@@ -119,7 +119,7 @@ function ProductImageGallery({
             key={`${image}-${index}`}
             type="button"
             onClick={() => setActiveIndex(index)}
-            className={`relative size-18 shrink-0 cursor-pointer overflow-hidden rounded-lg border bg-bg-secondary ${
+            className={`relative h-27 w-18 shrink-0 cursor-pointer overflow-hidden rounded-lg border bg-bg-secondary ${
               index === activeIndex ? 'border-text-primary' : 'border-border-primary'
             }`}
             aria-label={`View image ${index + 1}`}
@@ -131,10 +131,10 @@ function ProductImageGallery({
       </div>
 
       <div className="flex w-full flex-col gap-4 lg:flex-1">
-        <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary lg:max-w-110">
+        <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary lg:max-w-110">
           <img
             alt={productName}
-            className="absolute inset-0 size-full object-contain"
+            className="absolute inset-0 size-full object-cover"
             src={images[activeIndex]}
           />
           <div className="absolute inset-x-4 top-1/2 flex -translate-y-1/2 items-center justify-between">
@@ -144,7 +144,7 @@ function ProductImageGallery({
               className="flex size-12 cursor-pointer items-center justify-center rounded-full bg-bg-primary shadow-[0px_1px_2px_rgba(0,0,0,0.04),0px_4px_6px_rgba(0,0,0,0.06)]"
               aria-label="Previous image"
             >
-              <ArrowLeftSLineIcon className="size-6 text-text-secondary" aria-hidden />
+              <ArrowLeftSLineIcon className="rtl:-scale-x-100 size-6 text-text-secondary" aria-hidden />
             </button>
             <button
               type="button"
@@ -152,7 +152,7 @@ function ProductImageGallery({
               className="flex size-12 cursor-pointer items-center justify-center rounded-full bg-bg-primary shadow-[0px_1px_2px_rgba(0,0,0,0.04),0px_4px_6px_rgba(0,0,0,0.06)] lg:bg-bg-secondary"
               aria-label="Next image"
             >
-              <ArrowRightSLineIcon className="size-6 text-text-secondary" aria-hidden />
+              <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 text-text-secondary" aria-hidden />
             </button>
           </div>
         </div>
@@ -163,7 +163,7 @@ function ProductImageGallery({
               key={`mobile-${image}-${index}`}
               type="button"
               onClick={() => setActiveIndex(index)}
-              className={`relative size-18 shrink-0 cursor-pointer overflow-hidden rounded-lg border bg-bg-secondary ${
+              className={`relative h-27 w-18 shrink-0 cursor-pointer overflow-hidden rounded-lg border bg-bg-secondary ${
                 index === activeIndex ? 'border-text-primary' : 'border-border-primary'
               }`}
               aria-label={`View image ${index + 1}`}
@@ -204,7 +204,7 @@ function ProductReviewsSection({
         </div>
 
         <div className="hidden shrink-0 items-center overflow-hidden rounded-full bg-green-light lg:inline-flex">
-          <span className="flex items-center bg-[#004f3b] py-1 pl-1.5 pr-1">
+          <span className="flex items-center bg-[#004f3b] py-1 ps-1.5 pe-1">
             <ShieldUserFillIcon className="size-4 text-primary-green" aria-hidden />
           </span>
           <span className="px-2 py-1 text-xs font-medium leading-4 tracking-[-0.24px] text-primary-green">
@@ -216,7 +216,7 @@ function ProductReviewsSection({
           className="inline-flex shrink-0 items-center overflow-hidden rounded-full bg-green-light lg:hidden"
           aria-label="All reviews are from verified purchases"
         >
-          <span className="flex items-center bg-[#004f3b] py-1 pl-1 pr-1">
+          <span className="flex items-center bg-[#004f3b] py-1 ps-1 pe-1">
             <ShieldUserFillIcon className="size-4 text-primary-green" aria-hidden />
           </span>
         </div>
@@ -305,6 +305,8 @@ function ProductInfoPanel({
   displayPriceAmount,
   displayPriceCurrency,
   inStock,
+  isSelectionComplete,
+  missingOptionLabel,
   quantity,
   onDecreaseQuantity,
   onIncreaseQuantity,
@@ -330,6 +332,8 @@ function ProductInfoPanel({
   displayPriceAmount: string
   displayPriceCurrency: string
   inStock: boolean
+  isSelectionComplete: boolean
+  missingOptionLabel?: string
   quantity: number
   onDecreaseQuantity: () => void
   onIncreaseQuantity: () => void
@@ -375,7 +379,7 @@ function ProductInfoPanel({
             {shareStatus ? (
               <span
                 role="status"
-                className="absolute right-0 top-12 z-10 w-max rounded-lg bg-bg-secondary px-2 py-1 text-xs font-medium leading-4 tracking-[-0.24px] text-text-primary shadow-lg"
+                className="absolute end-0 top-12 z-10 w-max rounded-lg bg-bg-secondary px-2 py-1 text-xs font-medium leading-4 tracking-[-0.24px] text-text-primary shadow-lg"
               >
                 {shareStatus}
               </span>
@@ -407,7 +411,7 @@ function ProductInfoPanel({
         {discountBadge ? (
           <div className="inline-flex items-center gap-2 rounded-lg bg-orange-light px-2 py-1">
             <PriceTag3LineIcon className="size-4 text-primary-orange" aria-hidden />
-            <span className="text-xs font-medium leading-4 tracking-[-0.24px] text-primary-orange">
+            <span dir="ltr" className="text-xs font-medium leading-4 tracking-[-0.24px] text-primary-orange">
               {discountBadge}
             </span>
           </div>
@@ -420,23 +424,61 @@ function ProductInfoPanel({
             <div key={group.key} className="mb-4 last:mb-0">
               <p className="mb-2 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
                 {group.label}
+                {/* Circles carry no text, so the picked colour is named here. */}
+                {group.swatches?.length && selections[group.key] ? (
+                  <span className="font-normal text-text-secondary">: {selections[group.key]}</span>
+                ) : null}
               </p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {group.values.map((value) => {
                   const isSelected = selections[group.key] === value
                   const disabled = isOptionDisabled(group.key, value)
+                  const swatch = group.swatches?.find((entry) => entry.value === value)
+
+                  if (swatch) {
+                    return (
+                      <button
+                        key={`${group.key}-${value}`}
+                        type="button"
+                        onClick={() => onSelectOption(group.key, value)}
+                        disabled={disabled}
+                        aria-pressed={isSelected}
+                        aria-label={value}
+                        title={value}
+                        className={`relative flex size-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 p-0.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                          isSelected
+                            ? 'border-text-primary'
+                            : 'border-transparent hover:border-border-secondary'
+                        }`}
+                      >
+                        {/* The inner ring keeps white and very light colours visible. */}
+                        <span
+                          aria-hidden
+                          className="size-full rounded-full border border-border-primary"
+                          style={{ backgroundColor: swatch.hex }}
+                        />
+                        {disabled ? (
+                          <span
+                            aria-hidden
+                            className="absolute left-1/2 top-1/2 h-px w-[140%] -translate-x-1/2 -translate-y-1/2 -rotate-45 bg-text-tertiary"
+                          />
+                        ) : null}
+                      </button>
+                    )
+                  }
 
                   return (
                     <button
                       key={`${group.key}-${value}`}
                       type="button"
                       onClick={() => onSelectOption(group.key, value)}
+                      disabled={disabled}
+                      aria-pressed={isSelected}
                       className={`cursor-pointer rounded-lg border px-2 py-1 text-xs font-medium leading-4 tracking-[-0.24px] disabled:cursor-not-allowed disabled:opacity-50 ${
                         isSelected
                           ? 'border-text-primary bg-bg-secondary text-text-primary'
                           : 'border-border-primary bg-bg-secondary text-text-tertiary'
                       }`}
-                      aria-disabled={disabled}
                     >
                       {value}
                     </button>
@@ -511,7 +553,7 @@ function ProductInfoPanel({
                 className="flex items-start justify-between gap-4 text-sm leading-4 tracking-[-0.28px]"
               >
                 <dt className="text-text-secondary">{attribute.label}</dt>
-                <dd className="text-right text-text-primary">{attribute.value}</dd>
+                <dd className="text-right rtl:text-left text-text-primary">{attribute.value}</dd>
               </div>
             ))}
           </dl>
@@ -522,15 +564,19 @@ function ProductInfoPanel({
         <button
           type="button"
           onClick={onAddToCart}
-          disabled={!inStock}
+          disabled={!inStock || !isSelectionComplete}
           className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-full border border-text-primary px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {inStock ? 'Add to Cart' : 'Out of stock'}
+          {!inStock
+            ? 'Out of stock'
+            : !isSelectionComplete && missingOptionLabel
+              ? `Select ${missingOptionLabel}`
+              : 'Add to Cart'}
         </button>
         <button
           type="button"
           onClick={onBuyNow}
-          disabled={!inStock}
+          disabled={!inStock || !isSelectionComplete}
           className="btn-orange flex h-10 flex-1 cursor-pointer items-center justify-center rounded-full px-4 text-sm font-medium leading-4 tracking-[-0.28px] text-text-inverse disabled:cursor-not-allowed disabled:opacity-50"
         >
           Buy Now
@@ -548,7 +594,8 @@ function ShippingSidebar({
   subtotal,
   onChangeAddress,
 }: {
-  shippingAddress: { line1: string; line2: string }
+  /** Null when there is nothing to show: no saved address and no known country. */
+  shippingAddress: { line1: string; line2: string } | null
   shippingFee: string
   deliveryEstimate: string
   itemsTotal: string
@@ -568,7 +615,7 @@ function ShippingSidebar({
           >
             Change
             <ArrowRightSLineIcon
-              className="size-4 text-text-secondary transition-colors group-hover:text-primary-orange"
+              className="rtl:-scale-x-100 size-4 text-text-secondary transition-colors group-hover:text-primary-orange"
               aria-hidden
             />
           </button>
@@ -577,18 +624,26 @@ function ShippingSidebar({
           <div className="mb-4 flex flex-col gap-2">
             <p className="text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">Address:</p>
             <div className="flex flex-col gap-1 text-sm leading-4 tracking-[-0.28px] text-text-primary">
-              <p>{shippingAddress.line1}</p>
-              <p>{shippingAddress.line2}</p>
+              {shippingAddress ? (
+                <>
+                  {shippingAddress.line1 ? <p>{shippingAddress.line1}</p> : null}
+                  {shippingAddress.line2 ? <p>{shippingAddress.line2}</p> : null}
+                </>
+              ) : (
+                <p className="text-text-secondary">Add your address at checkout</p>
+              )}
             </div>
           </div>
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2 text-sm leading-4 tracking-[-0.28px]">
-              <span className="font-medium text-text-primary">Shipping Fee:</span>
-              <span className="text-right text-text-primary">{shippingFee}</span>
+              <span className="font-medium text-text-primary">Delivery payment / Shipping:</span>
+              <span className="text-right rtl:text-left text-text-primary">
+                {shippingFee || 'Calculated at checkout'}
+              </span>
             </div>
-            <div className="flex items-center justify-between gap-2 text-sm leading-4 tracking-[-0.28px]">
+            <div className="hidden items-center justify-between gap-2 text-sm leading-4 tracking-[-0.28px]">
               <span className="font-medium text-text-primary">Delivery:</span>
-              <span className="text-right text-text-primary">{deliveryEstimate}</span>
+              <span className="text-right rtl:text-left text-text-primary">{deliveryEstimate}</span>
             </div>
           </div>
         </div>
@@ -598,15 +653,15 @@ function ShippingSidebar({
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2 text-sm leading-4 tracking-[-0.28px]">
             <span className="font-medium text-text-primary">Items Total:</span>
-            <span className="text-right text-text-primary">{itemsTotal}</span>
+            <span className="text-right rtl:text-left text-text-primary">{itemsTotal}</span>
           </div>
           <div className="flex items-center justify-between gap-2 text-sm leading-4 tracking-[-0.28px]">
             <span className="font-medium text-text-primary">Shipping:</span>
-            <span className="text-right text-text-primary">{deliveryEstimate}</span>
+            <span className="text-right rtl:text-left text-text-primary">{deliveryEstimate}</span>
           </div>
           <div className="flex items-center justify-between gap-2 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
             <span>Subtotal</span>
-            <span className="text-right">{subtotal}</span>
+            <span className="text-right rtl:text-left">{subtotal}</span>
           </div>
         </div>
       </div>
@@ -616,7 +671,7 @@ function ShippingSidebar({
           <p className="text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
             Order Protection
           </p>
-          <ArrowRightSLineIcon className="size-5 text-text-secondary" aria-hidden />
+          <ArrowRightSLineIcon className="rtl:-scale-x-100 size-5 text-text-secondary" aria-hidden />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -674,14 +729,22 @@ export function ProductDetailView({
   const [reviews, setReviews] = useState<ProductReview[]>(detail.reviews)
 
   const isLiked = isProductLiked(product.id)
-  // Related cards show delivery quotes, which need a known destination.
-  const { country } = useProductDestination()
+  // Related cards show delivery quotes, and the sidebar the address and fee,
+  // so both use the shopper's country (a guest's comes from `GET /locale`).
+  const { country, countryName, defaultAddress, isResolved: isCountryResolved } =
+    useShopperCountry()
+  const shippingAddress = defaultAddress
+    ? addressRecordToDefaultPreview(defaultAddress)
+    : countryName
+      ? { line1: countryName, line2: '' }
+      : null
 
   useEffect(() => {
     document.title = `${product.name} | H&CO.`
   }, [product.name])
 
   useEffect(() => {
+    if (!isCountryResolved) return
     let cancelled = false
 
     async function loadProductExtras() {
@@ -709,16 +772,21 @@ export function ProductDetailView({
     return () => {
       cancelled = true
     }
-  }, [country, detail.reviews, product.id])
+  }, [country, detail.reviews, isCountryResolved, product.id])
 
   const selectedVariantId = variantState.selectedVariant?.rid
 
+  // Both buttons are disabled until every option is picked; the guards keep a
+  // stray call from adding a partial match the shopper never chose.
+  const canPurchase = variantState.inStock && variantState.isSelectionComplete
+
   const handleAddToCart = () => {
-    if (!variantState.inStock) return
+    if (!canPurchase) return
     void addToCart(product, quantity, selectedVariantId)
   }
 
   const handleBuyNow = async () => {
+    if (!canPurchase) return
     // Buy Now must not stack a second line for a product already in the cart,
     // so an existing line is topped up to the chosen quantity instead.
     const existingItem = findCartItemForProduct(product, selectedVariantId)
@@ -801,6 +869,8 @@ export function ProductDetailView({
             displayPriceAmount={variantState.displayPriceAmount}
             displayPriceCurrency={variantState.displayPriceCurrency}
             inStock={variantState.inStock}
+            isSelectionComplete={variantState.isSelectionComplete}
+            missingOptionLabel={variantState.missingOptionLabel}
             quantity={quantity}
             onDecreaseQuantity={() => setQuantity((value) => Math.max(1, value - 1))}
             onIncreaseQuantity={() => setQuantity((value) => value + 1)}
@@ -811,7 +881,7 @@ export function ProductDetailView({
           />
 
           <ShippingSidebar
-            shippingAddress={detail.shippingAddress}
+            shippingAddress={shippingAddress}
             shippingFee={detail.shippingFee}
             deliveryEstimate={detail.deliveryEstimate}
             itemsTotal={detail.itemsTotal}

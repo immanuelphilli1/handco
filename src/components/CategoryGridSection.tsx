@@ -64,7 +64,7 @@ function CategoryCardItem({
       type="button"
       onClick={() => onOpenCategories(id, title)}
       aria-label={`Browse ${title}`}
-      className={`relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-lg border border-border-primary bg-bg-secondary text-left ${className}`}
+      className={`relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-lg border border-border-primary bg-bg-secondary text-left rtl:text-right ${className}`}
     >
       {imageUrl ? (
         <div aria-hidden className="pointer-events-none absolute inset-0">

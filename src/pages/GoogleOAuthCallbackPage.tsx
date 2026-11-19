@@ -75,7 +75,6 @@ export function GoogleOAuthCallbackPage() {
   const {
     categoriesTargetId,
     closeCategories,
-    handleSubcategorySelect,
     isCategoriesOpen,
     toggleCategories,
     toggleCategoriesFromLinkBar,
@@ -168,7 +167,6 @@ export function GoogleOAuthCallbackPage() {
         categoriesTargetId={categoriesTargetId}
         onToggleCategories={toggleCategories}
         onCloseCategories={closeCategories}
-        onSubcategorySelect={handleSubcategorySelect}
         onAfterSignOut={handleGoHome}
         onMobileHome={handleGoHome}
       />

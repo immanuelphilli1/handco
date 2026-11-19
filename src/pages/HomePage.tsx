@@ -29,7 +29,7 @@ import { useAuth } from '../context/AuthContext'
 import { useCatalog } from '../context/CatalogContext'
 import { HomePlacementsProvider } from '../context/HomePlacementsContext'
 import { useShop } from '../context/ShopContext'
-import { useProductDestination } from '../hooks/useProductDestination'
+import { useShopperCountry } from '../hooks/useShopperCountry'
 import { useDefaultAddress } from '../hooks/useDefaultAddress'
 import { findSubcategorySlugByLabel } from '../data/catalogCategories'
 import { getAllCategoriesListingSelection } from '../data/categoryListing'
@@ -165,30 +165,25 @@ export function HomePage() {
         : null
   const paymentReference = searchParams.get('reference')
 
-  // While browsing a category, keep the link bar pointed at it. Falls back to
-  // whichever category the modal was last opened with (homepage, search, etc).
-  // Grouped members (e.g. "accessories" under "Fashion & Accessories") resolve to
-  // their major category so the link bar always highlights the right entry.
+  // While browsing a category, the Categories menu opens on it. Falls back to
+  // whichever category the menu was last opened with (homepage, search, etc).
   const {
-    activeCategoryId,
     categoriesTargetId,
     closeCategories,
-    handleSubcategorySelect,
     isCategoriesOpen,
     openCategories,
-    openToInitialCategory,
     toggleCategories,
-    toggleCategoriesFromLinkBar,
   } = useCategoryNavigation({
-    scrollOnNavigate: true,
     routeCategoryId: categoryListing ? categoryListing.categoryId : undefined,
   })
   const wishlistOpen = pathname === '/wishlist'
   const searchOpen = pathname === '/search'
   const searchQuery = getSearchQuery(searchParams)
   // The detail response's delivery estimate and shipping fee are only populated
-  // for a known destination, so the fetch carries one.
-  const { country } = useProductDestination()
+  // for a known destination, so the fetch carries one: the shopper's address
+  // country, or a guest's country from `GET /locale`. It waits until that is
+  // known, so the page loads once rather than again when the country arrives.
+  const { country, isResolved: isCountryResolved } = useShopperCountry()
 
   useEffect(() => {
     if (!productId) {
@@ -198,6 +193,7 @@ export function HomePage() {
 
     let cancelled = false
     setIsProductLoading(true)
+    if (!isCountryResolved) return
 
     async function loadProductDetail() {
       try {
@@ -232,7 +228,7 @@ export function HomePage() {
     return () => {
       cancelled = true
     }
-  }, [categories, country, navigate, productId, searchParams])
+  }, [categories, country, isCountryResolved, navigate, productId, searchParams])
 
   useEffect(() => {
     if (pathname.startsWith('/categories/') && params.categoryId && !categoryListing) {
@@ -643,17 +639,13 @@ export function HomePage() {
         categoriesTargetId={categoriesTargetId}
         onToggleCategories={toggleCategories}
         onCloseCategories={closeCategories}
-        onSubcategorySelect={handleSubcategorySelect}
         onOpenCart={handleOpenCart}
         onOpenWishlist={handleOpenWishlist}
         mobileActiveTab={mobileActiveTab}
         onMobileHome={handleGoHome}
-        // The link bar is part of the site header, so it shows on every view
+        // The quick links are part of the site header, so they show on every view
         // (product detail, cart, wishlist, checkout) just like the other pages.
-        showCategoryLinksBar
-        onOpenCategories={toggleCategoriesFromLinkBar}
-        activeCategoryId={activeCategoryId}
-        openToInitialCategory={openToInitialCategory}
+        showQuickNavigation
       />
       <div className="mx-auto w-full min-w-0 max-w-360 overflow-x-clip bg-bg-primary">
         {paymentReturnStep ? (

@@ -102,7 +102,7 @@ function ReviewSuccessContent({ onClose }: { onClose: () => void }) {
         type="button"
         onClick={onClose}
         aria-label="Close"
-        className="absolute right-2 top-2 flex cursor-pointer items-center rounded-full bg-bg-secondary p-2"
+        className="absolute end-2 top-2 flex cursor-pointer items-center rounded-full bg-bg-secondary p-2"
       >
         <CloseFillIcon className="size-6 text-text-secondary" aria-hidden />
       </button>
@@ -265,7 +265,7 @@ export function AddReviewModal({ review, onClose, onSubmitSuccess }: AddReviewMo
 
           <div className="overflow-y-auto">
             <div className="flex flex-col gap-4 border-b border-border-primary px-6 pb-4 pt-4 lg:flex-row lg:items-start">
-              <div className="size-29.5 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary">
+              <div className="h-44.25 w-29.5 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary">
                 <img alt="" className="size-full object-cover" src={activeReview.productImage} />
               </div>
 

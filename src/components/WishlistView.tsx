@@ -41,7 +41,7 @@ function WishlistBreadcrumbs({ onGoHome }: { onGoHome: () => void }) {
       >
         Home
       </button>
-      <ArrowRightSLineIcon className="size-6 shrink-0 text-text-tertiary" aria-hidden />
+      <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 shrink-0 text-text-tertiary" aria-hidden />
       <span className="py-2.5 text-sm font-medium leading-4 tracking-[-0.28px] text-text-primary">
         {wishlistPageTitle}
       </span>

@@ -41,6 +41,11 @@ export type Product = {
   attributes?: ProductAttribute[]
   /** False when the default variant cannot currently be bought. */
   inStock?: boolean
+  /**
+   * True when the product has more than one variant (size, colour, model), so
+   * the shopper has to choose before it can go in the cart.
+   */
+  hasVariantChoice?: boolean
 }
 
 export function getProductKey(product: Pick<Product, 'id'>): string {

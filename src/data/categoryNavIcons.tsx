@@ -28,13 +28,9 @@ const virtualIcons: Record<string, CategoryNavIcon> = {
   'all-categories': AppsLineIcon,
   featured: StarLineIcon,
   'new-releases': AlarmWarningLineIcon,
+  deals: PriceTag3LineIcon,
 }
 
 export function getCategoryNavIcon(categoryId: string): CategoryNavIcon {
   return virtualIcons[categoryId] ?? slugIcons[categoryId] ?? AppsLineIcon
 }
-
-export const linkBarFixedIcons = {
-  featured: PriceTag3LineIcon,
-  'new-releases': AlarmWarningLineIcon,
-} as const

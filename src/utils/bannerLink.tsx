@@ -9,10 +9,12 @@ export function BannerLink({
   linkUrl,
   children,
   className,
+  ariaCurrent,
 }: {
   linkUrl: string | null
   children: ReactNode
   className?: string
+  ariaCurrent?: 'page'
 }) {
   if (!linkUrl) {
     return <>{children}</>
@@ -20,14 +22,14 @@ export function BannerLink({
 
   if (isStorefrontPath(linkUrl)) {
     return (
-      <Link to={linkUrl} className={className}>
+      <Link to={linkUrl} className={className} aria-current={ariaCurrent}>
         {children}
       </Link>
     )
   }
 
   return (
-    <a href={linkUrl} className={className}>
+    <a href={linkUrl} className={className} aria-current={ariaCurrent}>
       {children}
     </a>
   )

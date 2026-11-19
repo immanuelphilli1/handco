@@ -129,7 +129,7 @@ export function MobileAccountMenu({
                     onSectionSelect(item.id)
                   }}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`flex w-full cursor-pointer items-center gap-2 rounded-lg p-3 text-left transition-colors active:bg-bg-secondary ${
+                  className={`flex w-full cursor-pointer items-center gap-2 rounded-lg p-3 text-left rtl:text-right transition-colors active:bg-bg-secondary ${
                     isActive ? 'bg-orange-light' : 'hover:bg-orange-light'
                   }`}
                 >
@@ -140,7 +140,7 @@ export function MobileAccountMenu({
                   >
                     {item.label}
                   </span>
-                  <ArrowRightSLineIcon className="size-6 shrink-0 text-text-secondary" aria-hidden />
+                  <ArrowRightSLineIcon className="rtl:-scale-x-100 size-6 shrink-0 text-text-secondary" aria-hidden />
                 </button>
               )
             })}
@@ -153,7 +153,7 @@ export function MobileAccountMenu({
                 onClose()
                 onSignOut()
               }}
-              className="mt-2 w-full cursor-pointer rounded-lg p-3 text-left text-base font-medium tracking-[-0.32px] text-text-primary transition-colors hover:bg-orange-light active:bg-bg-secondary"
+              className="mt-2 w-full cursor-pointer rounded-lg p-3 text-left rtl:text-right text-base font-medium tracking-[-0.32px] text-text-primary transition-colors hover:bg-orange-light active:bg-bg-secondary"
             >
               Sign Out
             </button>

@@ -191,7 +191,7 @@ export function NavSearchBar({
           // it lines up with the logo without needing a fragile offset: the field
           // is `w-0` while collapsed and would otherwise sit at the row's top
           // edge rather than centred on it.
-          className={`absolute inset-y-0 right-0 z-10 flex size-auto w-8 shrink-0 cursor-pointer items-center justify-center transition-all duration-300 ease-out hover:bg-bg-secondary ${
+          className={`absolute inset-y-0 end-0 z-10 flex size-auto w-8 shrink-0 cursor-pointer items-center justify-center transition-all duration-300 ease-out hover:bg-bg-secondary ${
             isExpanded
               ? 'pointer-events-none scale-75 opacity-0'
               : 'scale-100 opacity-100'
@@ -220,7 +220,7 @@ export function NavSearchBar({
           isMobile
             ? isExpanded
               ? 'w-full scale-100 opacity-100'
-              : 'pointer-events-none absolute right-0 w-0 scale-90 border-transparent bg-transparent p-0 opacity-0'
+              : 'pointer-events-none absolute end-0 w-0 scale-90 border-transparent bg-transparent p-0 opacity-0'
             : 'w-full'
         }`}
       >
@@ -283,11 +283,11 @@ export function NavSearchBar({
                       }
                       window.scrollTo({ top: 0, behavior: 'smooth' })
                     }}
-                    className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left hover:bg-bg-secondary"
+                    className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left rtl:text-right hover:bg-bg-secondary"
                   >
                     <img
                       alt=""
-                      className="size-10 shrink-0 rounded-[8px] border border-border-primary object-cover"
+                      className="h-15 w-10 shrink-0 rounded-[8px] border border-border-primary object-cover"
                       src={suggestion.imageUrl ?? resolveAssetUrl(suggestion.image)}
                     />
                     <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-[-0.28px] text-text-primary">
@@ -300,7 +300,7 @@ export function NavSearchBar({
                 <button
                   type="button"
                   onClick={() => submitSearch(query)}
-                  className="w-full cursor-pointer px-3 py-3 text-left text-sm font-medium tracking-[-0.28px] text-primary-orange"
+                  className="w-full cursor-pointer px-3 py-3 text-left rtl:text-right text-sm font-medium tracking-[-0.28px] text-primary-orange"
                 >
                   See all results for &ldquo;{query.trim()}&rdquo;
                 </button>

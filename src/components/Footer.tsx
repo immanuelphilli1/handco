@@ -101,7 +101,7 @@ const footerHeadingClass = 'text-sm font-medium tracking-[-0.28px] text-text-ter
 const footerLinkClass =
   'block py-1.5 text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary lg:py-2'
 const footerLinkButtonClass =
-  'block w-full cursor-pointer py-1.5 text-left text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary lg:py-2'
+  'block w-full cursor-pointer py-1.5 text-left rtl:text-right text-base font-medium tracking-[-0.32px] text-text-secondary hover:text-text-primary lg:py-2'
 
 /**
  * One footer link. Navigation, category-modal and placeholder links are all
@@ -237,7 +237,7 @@ export function Footer({ onOpenCategories }: FooterProps) {
             <div className="hidden lg:block">
             <img alt="H&CO." className="size-22" src={images.footer.logo} />
             </div>
-            <div className="w-full lg:ml-auto lg:w-124">
+            <div className="w-full lg:ms-auto lg:w-124">
               <p className="mb-2 text-base font-medium tracking-[-0.32px] text-text-primary lg:text-center">
                 Stay updated with H&CO. newsletters and promotions
               </p>
@@ -248,7 +248,7 @@ export function Footer({ onOpenCategories }: FooterProps) {
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    placeholder="Emaill"
+                    placeholder="Email"
                     className="min-w-0 flex-1 bg-transparent text-base font-medium tracking-[-0.32px] text-text-primary outline-none placeholder:text-text-tertiary"
                   />
                 </label>
@@ -318,7 +318,7 @@ export function Footer({ onOpenCategories }: FooterProps) {
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-4 lg:ml-auto lg:items-end lg:justify-end">
+          <div className="flex flex-col md:flex-row gap-4 lg:ms-auto lg:items-end lg:justify-end">
             <div className="flex flex-wrap items-center gap-2">
               {trustBadges.map((badge) => (
                 <img key={badge} alt="" className="h-7 object-contain" src={badge} />
@@ -348,7 +348,7 @@ export function Footer({ onOpenCategories }: FooterProps) {
         <div className="flex flex-col gap-2 p-3 lg:flex-row lg:items-center lg:justify-between lg:p-6">
           {/* <div /> */}
           {/* <img alt="Compliance badges" className="h-12 w-38 object-contain" src={images.footer.compliance} /> */}
-          <div className="lg:w-full lg:text-left">
+          <div className="lg:w-full lg:text-left lg:rtl:text-right">
             <p className="text-sm font-medium tracking-[-0.28px] text-text-tertiary">
             H&CO • Nordbær • Gridvolt • Gründen
             </p>

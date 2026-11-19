@@ -22,19 +22,69 @@ export function selectionsFromVariant(
   return selections
 }
 
+/**
+ * Opening selections for the picker: the default variant's colour is chosen so
+ * the gallery and price have something to show, but a size with more than one
+ * value is left for the shopper to pick, which keeps Add to cart disabled until
+ * they do.
+ */
+export function getInitialSelections(
+  variants: ProductDetailVariant[],
+  optionGroups: ProductOptionGroup[],
+): VariantSelections {
+  const initial = getDefaultVariant(variants)
+  if (!initial) return {}
+
+  const selections = selectionsFromVariant(initial, optionGroups)
+  const sizeGroup = optionGroups.find((group) => group.key === 'size')
+  if (sizeGroup && sizeGroup.values.length > 1) {
+    delete selections.size
+  }
+  return selections
+}
+
+/** True once every option group (e.g. colour and size) has a value. */
+export function isSelectionComplete(
+  optionGroups: ProductOptionGroup[],
+  selections: VariantSelections,
+): boolean {
+  return optionGroups.every((group) => Boolean(selections[group.key]))
+}
+
+function variantMatchesSelections(
+  variant: ProductDetailVariant,
+  optionGroups: ProductOptionGroup[],
+  selections: VariantSelections,
+): boolean {
+  return optionGroups.every((group) => {
+    const selected = selections[group.key]
+    if (!selected) return true
+    if (group.key === 'color') return variant.color === selected
+    if (group.key === 'size') return variant.size === selected
+    return variant.name === selected
+  })
+}
+
 export function findVariantForSelections(
   variants: ProductDetailVariant[],
   optionGroups: ProductOptionGroup[],
   selections: VariantSelections,
 ): ProductDetailVariant | undefined {
-  return variants.find((variant) =>
-    optionGroups.every((group) => {
-      const selected = selections[group.key]
-      if (!selected) return true
-      if (group.key === 'color') return variant.color === selected
-      if (group.key === 'size') return variant.size === selected
-      return variant.name === selected
-    }),
+  return variants.find((variant) => variantMatchesSelections(variant, optionGroups, selections))
+}
+
+/**
+ * Whether any in-stock variant matches the selections. Checks every match rather
+ * than the first, since a partial selection (a colour with no size yet) matches
+ * several variants and only some of them may be sold out.
+ */
+export function hasInStockVariant(
+  variants: ProductDetailVariant[],
+  optionGroups: ProductOptionGroup[],
+  selections: VariantSelections,
+): boolean {
+  return variants.some(
+    (variant) => variant.inStock && variantMatchesSelections(variant, optionGroups, selections),
   )
 }
 
@@ -45,9 +95,7 @@ export function isValueAvailable(
   groupKey: string,
   value: string,
 ): boolean {
-  const probe = { ...selections, [groupKey]: value }
-  const match = findVariantForSelections(variants, optionGroups, probe)
-  return match ? match.inStock : false
+  return hasInStockVariant(variants, optionGroups, { ...selections, [groupKey]: value })
 }
 
 export function slideIndexForSelection(

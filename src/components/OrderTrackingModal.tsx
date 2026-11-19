@@ -206,7 +206,7 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
             {/* Product summary: a large image with the item's details beside it.
                 Stacks above the timeline on mobile. */}
             <div className="flex shrink-0 flex-col gap-4 lg:w-64">
-              <div className="aspect-square w-full overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary">
+              <div className="aspect-[2/3] w-full overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary">
                 {mainLine?.image ? (
                   <img
                     alt={mainLine.name}
@@ -288,9 +288,9 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
                       // position within the order is one greater.
                       handleSwap(index + 1)
                     }}
-                    className="group flex w-64 shrink-0 cursor-pointer items-center gap-4 rounded-lg border border-border-primary bg-bg-primary p-2 text-left transition-colors hover:border-border-secondary hover:bg-bg-secondary"
+                    className="group flex w-64 shrink-0 cursor-pointer items-center gap-4 rounded-lg border border-border-primary bg-bg-primary p-2 text-left rtl:text-right transition-colors hover:border-border-secondary hover:bg-bg-secondary"
                   >
-                    <div className="size-14 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary">
+                    <div className="h-21 w-14 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-secondary">
                       <img alt="" className="size-full object-cover" src={line.image} />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -303,7 +303,7 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
                       </p>
                     </div>
                     <ArrowRightSLineIcon
-                      className="size-5 shrink-0 text-text-secondary transition-colors group-hover:text-primary-orange"
+                      className="rtl:-scale-x-100 size-5 shrink-0 text-text-secondary transition-colors group-hover:text-primary-orange"
                       aria-hidden
                     />
                   </button>

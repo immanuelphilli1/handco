@@ -34,7 +34,7 @@ export function FeaturesSection() {
               <div
                 key={feature.title}
                 className={`flex items-center gap-4 bg-bg-secondary px-6 py-6 lg:gap-4.25 lg:px-8 lg:py-4 ${
-                  index < features.length - 1 ? 'lg:border-r lg:border-border-primary' : ''
+                  index < features.length - 1 ? 'lg:border-e lg:border-border-primary' : ''
                 }`}
               >
                 <Icon src={feature.icon} className="size-8 shrink-0 brightness-0" />

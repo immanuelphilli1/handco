@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCartPath } from '../data/shopRoutes'
+import { getCartPath, getProductPath } from '../data/shopRoutes'
 import type { OrderLine } from '../data/orders'
 import type { Product } from '../data/products'
 import { useCatalog } from '../context/CatalogContext'
@@ -30,8 +30,8 @@ export function useBuyAgain() {
   )
 
   const addProductToCart = useCallback(
-    async (product: Product, quantity = 1) => {
-      const existingItem = findCartItemForProduct(product)
+    async (product: Product, quantity = 1, variantRid?: string) => {
+      const existingItem = findCartItemForProduct(product, variantRid)
 
       try {
         if (existingItem) {
@@ -39,7 +39,7 @@ export function useBuyAgain() {
             quantity: existingItem.quantity + quantity,
           })
         } else {
-          await addToCart(product, quantity)
+          await addToCart(product, quantity, variantRid)
         }
       } catch {
         // Cart stayed unchanged; still go to the cart so the user can see why.
@@ -66,7 +66,8 @@ export function useBuyAgain() {
       for (const line of lines) {
         const product = resolveProduct(line.productId)
         if (!product) continue
-        await addProductToCart(product, line.quantity)
+        // The line's own variant, so the same size and colour go back in.
+        await addProductToCart(product, line.quantity, line.variantRid)
       }
 
       navigate(getCartPath())
@@ -74,15 +75,23 @@ export function useBuyAgain() {
     [addProductToCart, navigate, resolveProduct],
   )
 
-  /** Adds one product from the "Buy this again" rail without leaving the page. */
+  /**
+   * Adds one product from the "Buy this again" rail without leaving the page.
+   * The rail knows only the product, so one with a size, colour or model to
+   * choose opens its product page instead of adding the default variant.
+   */
   const addBuyAgainProductToCart = useCallback(
     async (productId: string) => {
       const product = resolveProduct(productId)
       if (!product) return false
+      if (product.hasVariantChoice) {
+        navigate(getProductPath(product.id))
+        return true
+      }
       await addProductToCart(product, 1)
       return true
     },
-    [addProductToCart, resolveProduct],
+    [addProductToCart, navigate, resolveProduct],
   )
 
   return { buyProductAgain, buyOrderAgain, addBuyAgainProductToCart }

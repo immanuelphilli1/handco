@@ -13,6 +13,8 @@ import { getProductPath } from '../data/shopRoutes'
 import { useCatalog } from '../context/CatalogContext'
 import { CarouselDots } from './CarouselDots'
 import { ProductCard } from './ProductCard'
+import { useDocumentDirection } from '../hooks/useDocumentDirection'
+import { inlineDirectionSign } from '../utils/layoutDirection'
 
 const AUTO_PLAY_INTERVAL_MS = 8000
 const MOBILE_PRODUCT_COUNT = 5
@@ -29,7 +31,7 @@ const TRANSITION_MS = 700
 const carouselArrowButton =
   'group flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-2 transition-colors hover:bg-orange-light active:bg-orange-light lg:size-12 lg:px-3'
 const carouselArrowIcon =
-  'size-4 text-text-secondary transition-colors group-hover:text-primary-orange lg:size-5'
+  'size-4 text-text-secondary rtl:-scale-x-100 transition-colors group-hover:text-primary-orange lg:size-5'
 
 function buildLoopedProducts(products: Product[], cloneCount: number) {
   const prefix = products.slice(-cloneCount)
@@ -67,6 +69,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
   const isDesktop = useIsDesktop()
   const mobileTrackRef = useRef<HTMLDivElement>(null)
   const [mobileActiveIndex, setMobileActiveIndex] = useState(0)
+  const direction = useDocumentDirection()
   const trackRef = useRef<HTMLDivElement>(null)
   const slideIndexRef = useRef(DESKTOP_ITEMS_PER_VIEW)
   const startIndex = DESKTOP_ITEMS_PER_VIEW
@@ -243,7 +246,10 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
     const step = firstSlide.offsetWidth + gap
     if (!step) return
 
-    setMobileActiveIndex(Math.min(Math.round(track.scrollLeft / step), mobileProducts.length - 1))
+    // `scrollLeft` is negative in a right-to-left track, hence `Math.abs`.
+    setMobileActiveIndex(
+      Math.min(Math.round(Math.abs(track.scrollLeft) / step), mobileProducts.length - 1),
+    )
   }, [mobileProducts.length])
 
   const scrollToMobileProduct = useCallback((index: number) => {
@@ -256,7 +262,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
     const gap = Number.parseFloat(styles.gap || styles.columnGap || '8') || 8
     const step = firstSlide.offsetWidth + gap
 
-    track.scrollTo({ left: step * index, behavior: 'smooth' })
+    track.scrollTo({ left: inlineDirectionSign(track) * step * index, behavior: 'smooth' })
     setMobileActiveIndex(index)
   }, [])
 
@@ -309,7 +315,11 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
                 onTransitionEnd={handleTransitionEnd}
                 className={`flex gap-2 will-change-transform ${enableTransition ? 'transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]' : ''}`}
                 style={{
-                  transform: slideStep ? `translate3d(-${slideIndex * slideStep}px, 0, 0)` : undefined,
+                  // Right-to-left tracks overflow towards the left, so they slide the
+                  // other way.
+                  transform: slideStep
+                    ? `translate3d(${direction === 'rtl' ? '' : '-'}${slideIndex * slideStep}px, 0, 0)`
+                    : undefined,
                 }}
               >
                 {loopedProducts.map((product, index) => (

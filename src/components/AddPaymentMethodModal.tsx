@@ -81,7 +81,7 @@ function PaymentTypeSelect({
         id="payment-country-option"
         value={value}
         onChange={(event) => onChange(event.target.value as PaymentCountryOption)}
-        className="w-full appearance-none bg-transparent pr-8 text-base font-normal leading-5 tracking-[-0.32px] text-text-primary outline-none"
+        className="w-full appearance-none bg-transparent pe-8 text-base font-normal leading-5 tracking-[-0.32px] text-text-primary outline-none"
       >
         {paymentCountryOptions.map((option) => (
           <option key={option} value={option}>
@@ -90,7 +90,7 @@ function PaymentTypeSelect({
         ))}
       </select>
       <ArrowDownSLineIcon
-        className="pointer-events-none absolute right-4 top-1/2 size-6 -translate-y-1/2 text-text-secondary"
+        className="pointer-events-none absolute end-4 top-1/2 size-6 -translate-y-1/2 text-text-secondary"
         aria-hidden
       />
     </label>
@@ -114,7 +114,7 @@ function CardInputField({
 }) {
   return (
     <label htmlFor={id} className="flex h-14 min-w-0 flex-1 items-center">
-      <Icon className="ml-4 size-6 shrink-0 text-text-secondary" aria-hidden />
+      <Icon className="ms-4 size-6 shrink-0 text-text-secondary" aria-hidden />
       <input
         id={id}
         type={type}
@@ -148,7 +148,7 @@ function NetworkSelect({
         value={value}
         disabled={isLoading}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full appearance-none bg-transparent pr-8 text-base leading-5 tracking-[-0.32px] outline-none disabled:cursor-wait ${
+        className={`w-full appearance-none bg-transparent pe-8 text-base leading-5 tracking-[-0.32px] outline-none disabled:cursor-wait ${
           value ? 'font-medium text-text-primary' : 'font-normal text-text-tertiary'
         }`}
       >
@@ -162,7 +162,7 @@ function NetworkSelect({
         ))}
       </select>
       <ArrowDownSLineIcon
-        className="pointer-events-none absolute right-4 size-6 text-text-secondary"
+        className="pointer-events-none absolute end-4 size-6 text-text-secondary"
         aria-hidden
       />
       <span className="sr-only">Network</span>

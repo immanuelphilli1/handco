@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { BannerPicture } from './BannerPicture'
 import { CarouselDots } from './CarouselDots'
 import { useHomePlacements } from '../context/HomePlacementsContext'
 import { BannerLink } from '../utils/bannerLink'
@@ -34,22 +35,37 @@ export function PromoBannerSection({ onShopAllCategories: _onShopAllCategories }
 
   const activeSlide = promoSlides[currentSlide]
 
+  // Same approach as the hero: below md a mobile image sets the height through
+  // a shared grid cell (the tallest slide wins, so the frame does not jump), and
+  // from md up the fixed-height banner is unchanged.
+  const hasMobileImages = promoSlides.some((slide) => slide.mobileImageUrl)
+  const slideWrapperClass = hasMobileImages
+    ? 'relative col-start-1 row-start-1 block md:absolute md:inset-0'
+    : 'absolute inset-0 block'
+
   return (
     <section className="border-b border-border-primary p-4 lg:px-16 lg:py-6">
       <div
-        className="relative h-40 overflow-hidden rounded-[12px] lg:h-80"
+        className={
+          hasMobileImages
+            ? 'relative grid grid-cols-1 overflow-hidden rounded-[12px] md:block md:h-40 lg:h-80'
+            : 'relative h-40 overflow-hidden rounded-[12px] lg:h-80'
+        }
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
       >
         {promoSlides.map((slide, index) => {
+          const sizeClass =
+            hasMobileImages && slide.mobileImageUrl
+              ? 'block h-auto w-full md:absolute md:inset-0 md:size-full md:object-cover'
+              : 'absolute inset-0 size-full object-cover'
           const image = (
-            <img
-              alt={slide.altText}
-              aria-hidden={index !== currentSlide}
-              className={`absolute inset-0 size-full rounded-[12px] object-cover transition-opacity duration-500 ${
+            <BannerPicture
+              slide={slide}
+              isHidden={index !== currentSlide}
+              className={`${sizeClass} rounded-[12px] transition-opacity duration-500 ${
                 index === currentSlide ? 'opacity-100' : 'opacity-0'
               }`}
-              src={slide.imageUrl}
             />
           )
 
@@ -57,12 +73,12 @@ export function PromoBannerSection({ onShopAllCategories: _onShopAllCategories }
             <BannerLink
               key={slide.rid}
               linkUrl={slide.linkUrl}
-              className="absolute inset-0 block"
+              className={slideWrapperClass}
             >
               {image}
             </BannerLink>
           ) : (
-            <div key={slide.rid} className="absolute inset-0">
+            <div key={slide.rid} className={slideWrapperClass}>
               {image}
             </div>
           )
@@ -72,7 +88,9 @@ export function PromoBannerSection({ onShopAllCategories: _onShopAllCategories }
         (activeSlide.title || activeSlide.description || activeSlide.buttonText) ? (
           <div
             key={activeSlide.rid}
-            className="pointer-events-none relative flex h-full flex-col justify-center overflow-hidden px-6 py-8 transition-opacity duration-500 lg:px-20 lg:py-10"
+            className={`pointer-events-none relative flex h-full flex-col justify-center overflow-hidden px-6 py-8 transition-opacity duration-500 lg:px-20 lg:py-10 ${
+              hasMobileImages ? 'col-start-1 row-start-1' : ''
+            }`}
           >
             <div className="flex flex-col justify-center gap-4">
               {activeSlide.title ? (

@@ -31,7 +31,10 @@ export function HomePlacementsProvider({ children }: { children: ReactNode }) {
 
         const heroItems: HomeBannerPlacement[] = []
         const promoItems: HomeBannerPlacement[] = []
-        for (const item of response.items ?? []) {
+        for (const rawItem of response.items ?? []) {
+          // An empty string would slip past `??` and render a broken image, so a
+          // blank mobile image is treated the same as none.
+          const item = { ...rawItem, mobileImageUrl: rawItem.mobileImageUrl || null }
           if (item.position === 'hero') heroItems.push(item)
           else if (item.position === 'promo') promoItems.push(item)
         }

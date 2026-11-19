@@ -4,6 +4,7 @@ import HeartLineIcon from 'remixicon-react/HeartLineIcon'
 import ListCheckLineIcon from 'remixicon-react/ListCheckIcon'
 import UserLineIcon from 'remixicon-react/UserLineIcon'
 import { images } from '../assets/images'
+import { CATEGORIES_TRIGGER_ATTR } from './CategoriesMenu'
 
 export type MobileNavTab = 'home' | 'categories' | 'favourite' | 'cart' | 'account'
 
@@ -78,6 +79,9 @@ export function MobileAppNavigation({
               key={tab.id}
               type="button"
               onClick={handlers[tab.id]}
+              // The Categories tab toggles the menu itself, so the menu's
+              // outside-click handler must not treat a press on it as outside.
+              {...(tab.id === 'categories' ? { [CATEGORIES_TRIGGER_ATTR]: '' } : {})}
               className="flex w-20 flex-col items-center gap-px px-2 py-1.5"
               aria-current={isActive ? 'page' : undefined}
             >
@@ -98,12 +102,14 @@ export function MobileAppNavigation({
                   </svg>
                 )}
                 {tab.id === 'cart' && cartItemCount > 0 ? (
-                  <span className="btn-orange absolute -right-2.5 -top-1.5 flex size-5 min-w-5 items-center justify-center rounded-full border border-white px-1 text-[0.625rem] font-medium leading-none tracking-[-0.24px] text-text-inverse">
+                  <span className="btn-orange absolute -end-2.5 -top-1.5 flex size-5 min-w-5 items-center justify-center rounded-full border border-white px-1 text-[0.625rem] font-medium leading-none tracking-[-0.24px] text-text-inverse">
                     {cartItemCount}
                   </span>
                 ) : null}
               </span>
+              {/* `dir="auto"` keeps an English label's ellipsis at its end on RTL pages. */}
               <span
+                dir="auto"
                 className={`w-full truncate text-center text-xs font-medium leading-[1.3] ${
                   isActive ? 'text-text-primary' : 'text-text-tertiary'
                 }`}

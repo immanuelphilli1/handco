@@ -88,7 +88,7 @@ function SelectField({
         value={value}
         disabled={isDisabled}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full appearance-none bg-transparent pr-8 text-base leading-5 tracking-[-0.32px] outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
+        className={`w-full appearance-none bg-transparent pe-8 text-base leading-5 tracking-[-0.32px] outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
           value ? 'font-medium text-text-primary' : 'font-normal text-text-tertiary'
         }`}
       >
@@ -100,7 +100,7 @@ function SelectField({
         ))}
       </select>
       <ArrowDownSLineIcon
-        className="pointer-events-none absolute right-4 size-6 text-text-secondary"
+        className="pointer-events-none absolute end-4 size-6 text-text-secondary"
         aria-hidden
       />
       <span className="sr-only">{label}</span>
@@ -178,7 +178,7 @@ function TextFieldWithSuggestions({
                   onChange(suggestion)
                   setIsFocused(false)
                 }}
-                className="w-full cursor-pointer px-4 py-2 text-left text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary hover:bg-bg-secondary"
+                className="w-full cursor-pointer px-4 py-2 text-left rtl:text-right text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary hover:bg-bg-secondary"
               >
                 {suggestion}
               </button>

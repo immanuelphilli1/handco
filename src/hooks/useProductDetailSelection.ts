@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ProductDetail, ProductDetailVariant } from '../data/productDetail'
 import {
   findVariantForSelections,
-  getDefaultVariant,
+  getInitialSelections,
+  hasInStockVariant,
+  isSelectionComplete,
   isValueAvailable,
   resolveSelectionAfterPick,
-  selectionsFromVariant,
   slideIndexForSelection,
   type VariantSelections,
 } from '../utils/productVariantSelection'
@@ -13,17 +14,15 @@ import {
 export function useProductDetailSelection(detail: ProductDetail) {
   const { optionGroups, variants } = detail
 
-  const [selections, setSelections] = useState<VariantSelections>(() => {
-    const initial = getDefaultVariant(variants)
-    return initial ? selectionsFromVariant(initial, optionGroups) : {}
-  })
+  const [selections, setSelections] = useState<VariantSelections>(() =>
+    getInitialSelections(variants, optionGroups),
+  )
 
   const [legacyVariantIndex, setLegacyVariantIndex] = useState(0)
   const [galleryIndex, setGalleryIndex] = useState(0)
 
   useEffect(() => {
-    const initial = getDefaultVariant(variants)
-    setSelections(initial ? selectionsFromVariant(initial, optionGroups) : {})
+    setSelections(getInitialSelections(variants, optionGroups))
     setLegacyVariantIndex(0)
     setGalleryIndex(0)
   }, [detail.product.id, optionGroups, variants])
@@ -68,11 +67,28 @@ export function useProductDetailSelection(detail: ProductDetail) {
     setLegacyVariantIndex(index)
   }, [])
 
+  // A colour stays pickable while any of its sizes is in stock: picking it
+  // re-resolves the size, so judging it against the current size would lock the
+  // shopper out of colours that are only sold out in that one size.
   const isOptionDisabled = useCallback(
     (groupKey: string, value: string) =>
-      !isValueAvailable(variants, optionGroups, selections, groupKey, value),
+      !isValueAvailable(
+        variants,
+        optionGroups,
+        groupKey === 'color' ? {} : selections,
+        groupKey,
+        value,
+      ),
     [optionGroups, selections, variants],
   )
+
+  const selectionComplete = isSelectionComplete(optionGroups, selections)
+  // Until every option is picked, `selectedVariant` is only the first partial
+  // match, so stock is judged across all variants the selection still allows.
+  const inStock = selectionComplete
+    ? (selectedVariant?.inStock ?? detail.product.inStock ?? true)
+    : hasInStockVariant(variants, optionGroups, selections)
+  const missingOptionLabel = optionGroups.find((group) => !selections[group.key])?.label
 
   return {
     selectedVariant,
@@ -85,8 +101,11 @@ export function useProductDetailSelection(detail: ProductDetail) {
     setGalleryIndex,
     displayPriceAmount: selectedVariant?.priceAmount ?? detail.priceAmount,
     displayPriceCurrency: selectedVariant?.priceCurrency ?? detail.priceCurrency,
-    inStock: selectedVariant?.inStock ?? detail.product.inStock ?? true,
-    variantTitle: selectedVariant?.name,
+    inStock,
+    isSelectionComplete: selectionComplete,
+    /** Label of the first option group still unpicked (e.g. "Size"). */
+    missingOptionLabel,
+    variantTitle: selectionComplete ? selectedVariant?.name : undefined,
     showOptionGroups: optionGroups.length > 0,
     showLegacyVariantRow: optionGroups.length === 0 && variants.length > 1,
     showSingleVariant: variants.length <= 1 && optionGroups.length === 0,

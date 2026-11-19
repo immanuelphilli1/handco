@@ -25,7 +25,10 @@ function SummaryRow({
   return (
     <div className="flex items-center gap-2 text-sm leading-4.5 tracking-[-0.28px]">
       <span className="flex-1 font-medium text-text-primary">{label}</span>
-      <span className={`flex-1 text-right ${valueClassName}`}>{value}</span>
+      <span className={`flex-1 text-right rtl:text-left ${valueClassName}`}>
+        {/* Isolated so a signed amount ("- AED 12") keeps its sign in front on RTL pages. */}
+        <bdi>{value}</bdi>
+      </span>
     </div>
   )
 }
@@ -72,7 +75,9 @@ export function OrderSummaryPanel({
           {summary.tax ? <SummaryRow label="Tax:" value={summary.tax} /> : null}
           <div className="flex items-center gap-2 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary">
             <span className="flex-1">Total</span>
-            <span className="flex-1 text-right">{summary.total}</span>
+            <span className="flex-1 text-right rtl:text-left">
+              <bdi>{summary.total}</bdi>
+            </span>
           </div>
           <p className="text-xs leading-4 tracking-[-0.24px] text-text-secondary">
             {mode === 'checkout' ? (

@@ -47,7 +47,7 @@ function IconInputField({
       htmlFor={id}
       className="flex h-14 w-full items-center overflow-hidden rounded-2xl border border-border-secondary"
     >
-      <Icon className="ml-4 size-6 shrink-0 text-text-secondary" aria-hidden />
+      <Icon className="ms-4 size-6 shrink-0 text-text-secondary" aria-hidden />
       <input
         id={id}
         type={type}
@@ -56,7 +56,7 @@ function IconInputField({
         onChange={(event) => onChange(event.target.value)}
         className="min-w-0 flex-1 bg-transparent px-4 text-base font-medium leading-5 tracking-[-0.32px] text-text-primary outline-none placeholder:font-medium placeholder:text-text-secondary"
       />
-      {rightSlot ? <div className="mr-4 shrink-0">{rightSlot}</div> : null}
+      {rightSlot ? <div className="me-4 shrink-0">{rightSlot}</div> : null}
     </label>
   )
 }
@@ -373,9 +373,9 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
 
                 setStep('email')
               }}
-              className="flex cursor-pointer items-center gap-0 rounded-full py-1 pr-2"
+              className="flex cursor-pointer items-center gap-0 rounded-full py-1 pe-2"
             >
-              <ArrowLeftSLineIcon className="size-6 text-text-primary" aria-hidden />
+              <ArrowLeftSLineIcon className="rtl:-scale-x-100 size-6 text-text-primary" aria-hidden />
               <span className="text-sm font-medium leading-4.5 tracking-[-0.28px] text-text-primary">
                 Back
               </span>
@@ -388,7 +388,7 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
             onClick={handleClose}
             aria-label="Close"
             className={`flex size-6 shrink-0 cursor-pointer items-center justify-center ${
-              step === 'email' ? 'ml-auto' : ''
+              step === 'email' ? 'ms-auto' : ''
             }`}
           >
             <CloseFillIcon className="size-6 text-text-secondary" aria-hidden />
@@ -456,7 +456,7 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
                   htmlFor="sign-in-country"
                   className="flex h-14 w-full items-center overflow-hidden rounded-2xl border border-border-secondary"
                 >
-                  <GlobalLineIcon className="ml-4 size-6 shrink-0 text-text-secondary" aria-hidden />
+                  <GlobalLineIcon className="ms-4 size-6 shrink-0 text-text-secondary" aria-hidden />
                   <select
                     id="sign-in-country"
                     value={registerCountry}

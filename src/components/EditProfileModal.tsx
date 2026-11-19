@@ -128,7 +128,7 @@ export function EditProfileModal({ isOpen, fullName, onClose, onSubmit }: EditPr
             <div className="flex size-18 items-center justify-center rounded-full bg-bg-secondary text-[32px] font-medium leading-10 tracking-[-0.64px] text-text-primary">
               {initials}
             </div>
-            <div className="absolute bottom-0 right-0 flex size-7.5 items-center justify-center rounded-full border border-border-secondary bg-bg-primary p-1">
+            <div className="absolute bottom-0 end-0 flex size-7.5 items-center justify-center rounded-full border border-border-secondary bg-bg-primary p-1">
               <CameraLineIcon className="size-5 text-text-secondary" aria-hidden />
             </div>
           </div>

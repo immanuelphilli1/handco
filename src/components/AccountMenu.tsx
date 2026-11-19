@@ -40,7 +40,7 @@ const accountMenuItems: AccountMenuItem[] = [
 ]
 
 const menuItemButton =
-  'group flex w-full cursor-pointer items-center gap-2 rounded-lg p-2 text-left transition-colors hover:bg-orange-light active:bg-bg-secondary'
+  'group flex w-full cursor-pointer items-center gap-2 rounded-lg p-2 text-left rtl:text-right transition-colors hover:bg-orange-light active:bg-bg-secondary'
 
 function AccountMenuItemButton({
   item,
@@ -97,7 +97,7 @@ export function AccountMenu({
     <div
       role="menu"
       aria-label="Account menu"
-      className="fixed right-4 top-[calc(var(--nav-height,8rem)+8px)] z-50 flex w-[min(313px,calc(100vw-2rem))] flex-col gap-2 rounded-2xl bg-bg-primary p-4 shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_40px_0px_rgba(0,0,0,0.08)] lg:absolute lg:right-0 lg:top-[calc(100%+8px)] lg:w-78"
+      className="fixed end-4 top-[calc(var(--nav-height,8rem)+8px)] z-50 flex w-[min(313px,calc(100vw-2rem))] flex-col gap-2 rounded-2xl bg-bg-primary p-4 shadow-[0px_1px_4px_0px_rgba(0,0,0,0.04),0px_4px_40px_0px_rgba(0,0,0,0.08)] lg:absolute lg:end-0 lg:top-[calc(100%+8px)] lg:w-78"
     >
       <div className="flex items-center gap-4 rounded-lg bg-bg-secondary p-2">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-primary text-2xl font-medium leading-8 tracking-[-0.48px] text-text-primary">

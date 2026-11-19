@@ -55,6 +55,31 @@
     width: 100%;
     min-width: 0;
   }
+
+  /*
+   * Right-to-left (UAE) layout with English text.
+   *
+   * `dir="rtl"` mirrors the layout, but it also makes every paragraph
+   * right-to-left, so punctuation at either end of an English string jumps to
+   * the wrong side ("Address:" shows as ":Address", "interior." as
+   * ".interior"). `plaintext` takes each paragraph's text direction from its
+   * own first letter instead, so English reads left to right while `direction`
+   * (and with it flex, grid and logical spacing) stays right-to-left.
+   *
+   * `plaintext` would also align English paragraphs to the left, so the body
+   * sets an absolute `right`. Children inherit it unless they set their own
+   * alignment; `text-start`/`text-end` would now follow the text rather than
+   * the page, so components use `text-left rtl:text-right` instead.
+   *
+   * Form fields keep normal behaviour so typing and placeholders are unchanged.
+   */
+  [dir='rtl'] body {
+    text-align: right;
+  }
+
+  [dir='rtl'] body :where(*:not(input, textarea, select)) {
+    unicode-bidi: plaintext;
+  }
 }
 
 /**

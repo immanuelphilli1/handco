@@ -14,10 +14,8 @@ import {
 export function ShippingDeliveryPolicyPage() {
   const navigate = useNavigate()
   const {
-    activeCategoryId,
     categoriesTargetId,
     closeCategories,
-    handleSubcategorySelect,
     isCategoriesOpen,
     toggleCategories,
     toggleCategoriesFromLinkBar,
@@ -42,10 +40,7 @@ export function ShippingDeliveryPolicyPage() {
         categoriesTargetId={categoriesTargetId}
         onToggleCategories={toggleCategories}
         onCloseCategories={closeCategories}
-        onSubcategorySelect={handleSubcategorySelect}
-        showCategoryLinksBar
-        onOpenCategories={toggleCategoriesFromLinkBar}
-        activeCategoryId={activeCategoryId}
+        showQuickNavigation
         onOpenCart={handleOpenCart}
         onOpenWishlist={handleOpenWishlist}
         onAfterSignOut={handleGoHome}

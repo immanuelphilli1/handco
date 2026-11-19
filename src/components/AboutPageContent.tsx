@@ -70,7 +70,7 @@ function LearnMoreLink({
     >
       {children}
       <ArrowRightSLineIcon
-        className="size-5 transition-transform group-hover:translate-x-0.5"
+        className="size-5 transition-transform group-hover:translate-x-0.5 rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5"
         aria-hidden
       />
     </a>

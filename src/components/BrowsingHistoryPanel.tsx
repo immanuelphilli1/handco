@@ -84,7 +84,7 @@ function BrowsingHistoryManageBar({
       </div> */}
 
       <div className="fixed max-w-340 mx-auto inset-x-0 bottom-0 z-40 flex items-center justify-between gap-2 border-t border-border-primary bg-bg-primary p-4">
-        <div className="flex min-w-0 flex-1 items-center gap-2 lg:pl-[17em] ">
+        <div className="flex min-w-0 flex-1 items-center gap-2 lg:ps-[17em] ">
           <HistorySelectToggle
             selected={allSelected}
             onToggle={onToggleSelectAll}
@@ -168,7 +168,7 @@ function BrowsingHistorySectionBlock({
           >
             Manage
             <ArrowRightSLineIcon
-              className="size-6 text-text-secondary transition-colors group-hover:text-primary-orange"
+              className="rtl:-scale-x-100 size-6 text-text-secondary transition-colors group-hover:text-primary-orange"
               aria-hidden
             />
           </button>
@@ -181,7 +181,7 @@ function BrowsingHistorySectionBlock({
           >
             Manage
             <ArrowRightSLineIcon
-              className="size-6 text-text-secondary transition-colors group-hover:text-primary-orange"
+              className="rtl:-scale-x-100 size-6 text-text-secondary transition-colors group-hover:text-primary-orange"
               aria-hidden
             />
           </button>

@@ -10,10 +10,8 @@ import { getCartPath, getHomePath, getWishlistPath } from '../data/shopRoutes'
 export function TermsOfUsePage() {
   const navigate = useNavigate()
   const {
-    activeCategoryId,
     categoriesTargetId,
     closeCategories,
-    handleSubcategorySelect,
     isCategoriesOpen,
     toggleCategories,
     toggleCategoriesFromLinkBar,
@@ -38,10 +36,7 @@ export function TermsOfUsePage() {
         categoriesTargetId={categoriesTargetId}
         onToggleCategories={toggleCategories}
         onCloseCategories={closeCategories}
-        onSubcategorySelect={handleSubcategorySelect}
-        showCategoryLinksBar
-        onOpenCategories={toggleCategoriesFromLinkBar}
-        activeCategoryId={activeCategoryId}
+        showQuickNavigation
         onOpenCart={handleOpenCart}
         onOpenWishlist={handleOpenWishlist}
         onAfterSignOut={handleGoHome}

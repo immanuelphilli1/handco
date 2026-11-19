@@ -2,29 +2,39 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { images } from '../assets/images'
 import { AccountMenu } from './AccountMenu'
-import { CategoriesModal } from './CategoriesModal'
-import { CategoryLinksBar } from './CategoryLinksBar'
+import { CATEGORIES_TRIGGER_ATTR, CategoriesMenu } from './CategoriesMenu'
 import { MobileAccountMenu } from './MobileAccountMenu'
 import { MobileAppNavigation, type MobileNavTab } from './MobileAppNavigation'
+import { QuickNavigationBar } from './QuickNavigationBar'
 import { SignInModal } from './SignInModal'
 import {
   getAccountPath,
   parseAccountSection,
   type AccountSection,
 } from '../data/accountRoutes'
+import ArrowDownSLineIcon from 'remixicon-react/ArrowDownSLineIcon'
 import GlobalLineIcon from 'remixicon-react/GlobalLineIcon'
 import HeartLineIcon from 'remixicon-react/HeartLineIcon'
-import ListCheckLineIcon from 'remixicon-react/ListCheckIcon'
 import UserLineIcon from 'remixicon-react/UserLineIcon'
 import { NavSearchBar } from './NavSearchBar'
-import type { CategoryListingSelection } from '../data/categoryListing'
 import { getNavVideo, type SiteVideoPlacement } from '../api/services/catalog'
 import { useAuth } from '../context/AuthContext'
+import { useCatalog } from '../context/CatalogContext'
+import {
+  findMegaMenuEntryId,
+  getCategoryListingPath,
+  getCategorySlugFromLink,
+} from '../data/categoryMegaMenu'
+import type { NavigationLink } from '../data/navigationLinks'
 import { useShop } from '../context/ShopContext'
 import { BannerLink } from '../utils/bannerLink'
 
 const navIconButton =
   'group flex cursor-pointer items-center justify-center rounded-full bg-bg-secondary transition-colors hover:bg-orange-light'
+/** Hover delays for the desktop Categories menu (see `scheduleCategoriesOpen`). */
+const CATEGORIES_HOVER_OPEN_MS = 150
+const CATEGORIES_HOVER_CLOSE_MS = 250
+
 const navIcon =
   'text-text-secondary transition-colors group-hover:text-primary-orange'
 
@@ -42,16 +52,13 @@ type NavProps = {
   categoriesTargetId: string
   onToggleCategories: () => void
   onCloseCategories: () => void
-  onSubcategorySelect: (selection: CategoryListingSelection) => void
   onOpenCart?: () => void
   onOpenWishlist?: () => void
   onAfterSignOut?: () => void
   mobileActiveTab?: MobileNavTab
   onMobileHome?: () => void
-  showCategoryLinksBar?: boolean
-  onOpenCategories?: (categoryId: string, label: string) => void
-  activeCategoryId?: string
-  openToInitialCategory?: boolean
+  /** Shows the quick navigation links (New Arrivals, Best Sellers…) under the search. */
+  showQuickNavigation?: boolean
 }
 
 export function Nav({
@@ -59,16 +66,12 @@ export function Nav({
   categoriesTargetId,
   onToggleCategories,
   onCloseCategories,
-  onSubcategorySelect,
   onOpenCart,
   onOpenWishlist,
   onAfterSignOut,
   mobileActiveTab = 'home',
   onMobileHome,
-  showCategoryLinksBar = false,
-  onOpenCategories,
-  activeCategoryId = 'featured',
-  openToInitialCategory = false,
+  showQuickNavigation = false,
 }: NavProps) {
   const { authUser, signOut, signInRequestCount } = useAuth()
   const { cartItemCount } = useShop()
@@ -153,6 +156,100 @@ export function Nav({
     onToggleCategories()
     setIsAccountMenuOpen(false)
   }
+
+  // Desktop: like SHEIN, the menu opens when the mouse rests on "Categories"
+  // and closes once it leaves both the trigger and the panel. The short delays
+  // stop it flashing open when the pointer only passes over the trigger, and
+  // let the pointer cross the gap between trigger and panel.
+  const isCategoriesOpenRef = useRef(isCategoriesOpen)
+  useEffect(() => {
+    isCategoriesOpenRef.current = isCategoriesOpen
+  }, [isCategoriesOpen])
+  const categoriesHoverTimerRef = useRef<number | null>(null)
+  const clearCategoriesHover = useCallback(() => {
+    if (categoriesHoverTimerRef.current !== null) {
+      window.clearTimeout(categoriesHoverTimerRef.current)
+      categoriesHoverTimerRef.current = null
+    }
+  }, [])
+  // A quick link being hovered (Women's Dresses, Sneakers…): the menu then
+  // opens on that link's main category with the link's own category marked,
+  // so the bar reads as a set of entry points into the same menu.
+  const { categories } = useCatalog()
+  const [menuLink, setMenuLink] = useState<{
+    linkUrl: string
+    categoryId: string
+    highlightPath: string
+  } | null>(null)
+  // A closed menu forgets the hovered link, so the next opening (the
+  // Categories trigger, the mobile tab, the footer) starts from its own target.
+  const [wasCategoriesOpen, setWasCategoriesOpen] = useState(isCategoriesOpen)
+  if (wasCategoriesOpen !== isCategoriesOpen) {
+    setWasCategoriesOpen(isCategoriesOpen)
+    if (!isCategoriesOpen) setMenuLink(null)
+  }
+
+  const openCategoriesOnHover = useCallback(
+    (link: typeof menuLink) => {
+      clearCategoriesHover()
+      // Already open: follow the pointer straight away, as SHEIN does.
+      if (isCategoriesOpenRef.current) {
+        setMenuLink(link)
+        return
+      }
+      categoriesHoverTimerRef.current = window.setTimeout(() => {
+        if (isCategoriesOpenRef.current) return
+        setMenuLink(link)
+        onToggleCategories()
+        setIsAccountMenuOpen(false)
+      }, CATEGORIES_HOVER_OPEN_MS)
+    },
+    [clearCategoriesHover, onToggleCategories],
+  )
+  const scheduleCategoriesOpen = useCallback(
+    () => openCategoriesOnHover(null),
+    [openCategoriesOnHover],
+  )
+  const scheduleCategoriesClose = useCallback(() => {
+    clearCategoriesHover()
+    categoriesHoverTimerRef.current = window.setTimeout(() => {
+      if (isCategoriesOpenRef.current) onCloseCategories()
+    }, CATEGORIES_HOVER_CLOSE_MS)
+  }, [clearCategoriesHover, onCloseCategories])
+  useEffect(() => clearCategoriesHover, [clearCategoriesHover])
+
+  // The pointer type of the press that started a click on the trigger. A mouse
+  // has usually opened the menu by hovering already, so its click only opens;
+  // touch and pen (and the keyboard) toggle.
+  const categoriesPressTypeRef = useRef<string>('')
+  const handleCategoriesTriggerClick = () => {
+    clearCategoriesHover()
+    if (categoriesPressTypeRef.current === 'mouse' && isCategoriesOpen) {
+      setMenuLink(null)
+      return
+    }
+    setMenuLink(null)
+    toggleCategories()
+  }
+
+  const handleQuickLinkHover = useCallback(
+    (link: NavigationLink) => {
+      const slug = getCategorySlugFromLink(link.linkUrl)
+      const categoryId = slug ? findMegaMenuEntryId(slug, categories) : null
+      // A link outside the category tree (search, external) has no place in the
+      // menu, so it simply lets an open menu close.
+      if (!slug || !categoryId) {
+        scheduleCategoriesClose()
+        return
+      }
+      openCategoriesOnHover({
+        linkUrl: link.linkUrl,
+        categoryId: slug,
+        highlightPath: getCategoryListingPath(slug),
+      })
+    },
+    [categories, openCategoriesOnHover, scheduleCategoriesClose],
+  )
 
   const toggleAccountMenu = () => {
     setIsAccountMenuOpen((open) => !open)
@@ -290,8 +387,6 @@ export function Nav({
     return () => mediaQuery.removeEventListener('change', handleViewportChange)
   }, [closeAccountMenu])
 
-  const categoriesButtonClass =
-    'group flex h-12 w-44 shrink-0 cursor-pointer items-center gap-2 rounded-full p-4 transition-colors hover:bg-orange-light'
 
   /**
    * Mobile only: the header floats over the hero while the page is at the top
@@ -301,7 +396,8 @@ export function Nav({
    * Other routes have no hero to sit over, so they stay solid throughout; letting
    * them go transparent would leave the white logo on a white page.
    */
-  const isHeaderFloating = isMobileViewport && isHomeRoute && !isScrolled
+  // An open Categories sheet needs a solid header above it.
+  const isHeaderFloating = isMobileViewport && isHomeRoute && !isScrolled && !isCategoriesOpen
   const mobileHeaderBackdropClass = isHeaderFloating ? 'bg-transparent' : 'bg-bg-primary'
 
   return (
@@ -313,8 +409,14 @@ export function Nav({
         <div
           className={`relative mx-auto w-full min-w-0 max-w-full transition-colors duration-300 ${
             // While floating, the border would draw a hard line straight across
-            // the hero image, so it is only shown once the header is solid.
-            isHeaderFloating ? 'border-b border-transparent' : 'border-b border-border-primary'
+            // the hero image, so it is only shown once the header is solid. On
+            // mobile the quick links sit directly under the search row and draw
+            // their own bottom border, so the row's border is desktop-only then.
+            showQuickNavigation
+              ? 'border-transparent lg:border-b lg:border-border-primary'
+              : isHeaderFloating
+                ? 'border-b border-transparent'
+                : 'border-b border-border-primary'
           }`}
         >
           {(!isNavVideoLoaded || navVideo) && (
@@ -345,82 +447,15 @@ export function Nav({
               <img alt="H&CO." className="h-7 w-29.25" src={images.nav.logo} />
             </Link>
 
-            <button
-              type="button"
-              onClick={toggleCategories}
-              aria-expanded={isCategoriesOpen}
-              className={`${categoriesButtonClass} ${
-                isCategoriesOpen ? 'bg-orange-light' : 'bg-bg-secondary'
-              }`}
-            >
-              <ListCheckLineIcon
-                className={`size-6 shrink-0 transition-colors ${
-                  isCategoriesOpen
-                    ? 'text-primary-orange'
-                    : 'text-text-secondary group-hover:text-primary-orange'
-                }`}
-                aria-hidden
-              />
-              <span
-                className={`flex-1 text-left text-base font-medium tracking-[-0.32px] transition-colors ${
-                  isCategoriesOpen
-                    ? 'text-primary-orange'
-                    : 'text-text-secondary group-hover:text-primary-orange'
-                }`}
-              >
-                Categories
-              </span>
-            </button>
-
             <NavSearchBar
               variant="desktop"
               inputClassName=""
-              buttonClassName="btn-orange group flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full py-4 pl-4 pr-6 transition-opacity hover:opacity-90"
+              buttonClassName="btn-orange group flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full py-4 ps-4 pe-6 transition-opacity hover:opacity-90"
               buttonLabelClassName="text-sm font-medium tracking-[-0.28px] text-text-inverse"
               onSearchSubmit={onCloseCategories}
             />
 
             <div className="flex shrink-0 items-center gap-4">
-              <button
-                type="button"
-                className={`${navIconButton} size-12 px-3`}
-                aria-label="Language"
-              >
-                <GlobalLineIcon className={`size-6 ${navIcon}`} aria-hidden />
-              </button>
-
-              <button
-                type="button"
-                onClick={openWishlist}
-                className={`${navIconButton} size-12 px-3`}
-                aria-label="Wishlist"
-              >
-                <HeartLineIcon className={`size-6 ${navIcon}`} aria-hidden />
-              </button>
-
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={openCart}
-                  className={`${navIconButton} size-12 px-3`}
-                  aria-label="Cart"
-                >
-                  <svg
-                    className={`size-6 ${navIcon}`}
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    aria-hidden
-                  >
-                    <use href={`${images.nav.cart}#Vector`} fill="currentColor" />
-                  </svg>
-                </button>
-                <span className="btn-orange absolute -right-2.5 -top-1.5 flex size-6 min-w-6 items-center justify-center rounded-full border border-white px-1 text-xs font-medium tracking-[-0.24px] text-text-inverse">
-                  {cartItemCount}
-                </span>
-              </div>
-
               <div ref={desktopAccountRef} className="relative">
                 <button
                   type="button"
@@ -428,7 +463,7 @@ export function Nav({
                   aria-expanded={isSignedIn ? isAccountMenuOpen : undefined}
                   aria-haspopup={isSignedIn ? 'menu' : undefined}
                   className={`group ${navIconButton} h-12 gap-2 py-4 ${
-                    isSignedIn ? 'pl-5 pr-7' : 'size-12 px-3'
+                    isSignedIn ? 'ps-5 pe-7' : 'size-12 px-3'
                   } ${isSignedIn && isAccountMenuOpen ? 'bg-orange-light' : ''}`}
                   aria-label={isSignedIn ? 'Account' : 'Sign in'}
                 >
@@ -468,6 +503,46 @@ export function Nav({
                   />
                 ) : null}
               </div>
+
+              <button
+                type="button"
+                onClick={openWishlist}
+                className={`${navIconButton} size-12 px-3`}
+                aria-label="Wishlist"
+              >
+                <HeartLineIcon className={`size-6 ${navIcon}`} aria-hidden />
+              </button>
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={openCart}
+                  className={`${navIconButton} size-12 px-3`}
+                  aria-label="Cart"
+                >
+                  <svg
+                    className={`size-6 ${navIcon}`}
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden
+                  >
+                    <use href={`${images.nav.cart}#Vector`} fill="currentColor" />
+                  </svg>
+                </button>
+                <span className="btn-orange absolute -end-2.5 -top-1.5 flex size-6 min-w-6 items-center justify-center rounded-full border border-white px-1 text-xs font-medium tracking-[-0.24px] text-text-inverse">
+                  {cartItemCount}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                className={`${navIconButton} size-12 px-3`}
+                aria-label="Language"
+              >
+                <GlobalLineIcon className={`size-6 ${navIcon}`} aria-hidden />
+              </button>
             </div>
           </div>
 
@@ -501,20 +576,58 @@ export function Nav({
           </div>
         </div>
 
-        {showCategoryLinksBar && onOpenCategories ? (
-          <CategoryLinksBar
-            onOpenCategories={onOpenCategories}
-            activeCategoryId={activeCategoryId}
-            isCategoriesOpen={isCategoriesOpen}
+        {showQuickNavigation ? (
+          <QuickNavigationBar
+            isFloating={isHeaderFloating}
+            onLinkHover={handleQuickLinkHover}
+            onLinkHoverEnd={scheduleCategoriesClose}
+            menuLinkUrl={isCategoriesOpen ? (menuLink?.linkUrl ?? null) : null}
+            leading={
+              // Desktop only: on mobile the Categories tab of the bottom bar opens the menu.
+              <button
+                type="button"
+                onClick={handleCategoriesTriggerClick}
+                onPointerDown={(event) => {
+                  categoriesPressTypeRef.current = event.pointerType
+                }}
+                onPointerEnter={(event) => {
+                  if (event.pointerType === 'mouse') scheduleCategoriesOpen()
+                }}
+                onPointerLeave={(event) => {
+                  if (event.pointerType === 'mouse') scheduleCategoriesClose()
+                }}
+                onKeyDown={() => {
+                  categoriesPressTypeRef.current = 'keyboard'
+                }}
+                aria-expanded={isCategoriesOpen}
+                aria-controls="categories-menu"
+                aria-haspopup="true"
+                {...{ [CATEGORIES_TRIGGER_ATTR]: '' }}
+                className={`group hidden h-12 shrink-0 cursor-pointer items-center gap-1 rounded-lg p-4 text-base font-medium tracking-[-0.32px] transition-colors lg:flex ${
+                  isCategoriesOpen && !menuLink
+                    ? 'bg-orange-light text-primary-orange'
+                    : 'text-text-primary hover:bg-orange-light hover:text-primary-orange'
+                }`}
+              >
+                Categories
+                <ArrowDownSLineIcon
+                  className={`size-5 shrink-0 transition-transform duration-200 ${
+                    isCategoriesOpen ? 'rotate-180' : ''
+                  }`}
+                  aria-hidden
+                />
+              </button>
+            }
           />
         ) : null}
 
-        <CategoriesModal
+        <CategoriesMenu
           isOpen={isCategoriesOpen}
-          initialCategoryId={categoriesTargetId}
-          openToInitialCategory={openToInitialCategory}
+          initialCategoryId={menuLink?.categoryId ?? categoriesTargetId}
+          highlightPath={menuLink?.highlightPath ?? null}
           onClose={onCloseCategories}
-          onSubcategorySelect={onSubcategorySelect}
+          onPointerEnterPanel={clearCategoriesHover}
+          onPointerLeavePanel={scheduleCategoriesClose}
         />
 
         <SignInModal

@@ -169,10 +169,20 @@ export type ApiProductGalleryImage = {
   variantRid: Rid | null
 }
 
+export type ApiProductOptionSwatch = {
+  value: string
+  /** `#rrggbb`, or null when staff have not set a colour code for this name. */
+  hex: string | null
+  /** The photo of that colour, when the product has one. */
+  imageUrl?: string | null
+}
+
 export type ApiProductOptionGroup = {
   key: string
   label: string
   values: string[]
+  /** Colour group only: one entry per value, in the order of `values`. */
+  swatches?: ApiProductOptionSwatch[]
 }
 
 export type ApiProductVariant = {
@@ -488,6 +498,8 @@ export type ApiOrderItem = {
   rid?: Rid
   /** Product this line refers to; the key used to re-add it to the cart. */
   productRid?: Rid
+  /** The exact variant ordered, so Buy Again re-adds the same size and colour. */
+  variantRid?: Rid | null
   name: string
   image?: string
   imageUrl?: string

@@ -14,10 +14,21 @@ export type ProductDetailGalleryImage = {
   variantRid: string | null
 }
 
+export type ProductOptionSwatch = {
+  value: string
+  /** Valid CSS hex colour, e.g. `#1B2A4A`. */
+  hex: string
+}
+
 export type ProductOptionGroup = {
   key: string
   label: string
   values: string[]
+  /**
+   * Colour circles, for the values that have a colour code. A value missing
+   * here is shown as a text chip.
+   */
+  swatches?: ProductOptionSwatch[]
 }
 
 export type ProductDetailVariant = {
@@ -49,10 +60,7 @@ export type ProductDetail = {
   modelOptions: string[]
   descriptionLines: string[]
   reviews: ProductReview[]
-  shippingAddress: {
-    line1: string
-    line2: string
-  }
+  /** Formatted fee for the shopper's country, or '' when it is not known. */
   shippingFee: string
   deliveryEstimate: string
   itemsTotal: string

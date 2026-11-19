@@ -162,3 +162,12 @@ export function applyListingFilters(
     return true
   })
 }
+
+/**
+ * Whether a product is discounted (the Deals listing). The API only sends an
+ * original price and a discount percentage when the original price is above
+ * the selling price.
+ */
+export function isOnSale(product: Product): boolean {
+  return Boolean(product.discount) || Boolean(product.originalPrice && product.originalPrice !== product.price)
+}

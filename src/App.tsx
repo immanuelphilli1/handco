@@ -3,6 +3,7 @@ import { getAccountPath } from './data/accountRoutes'
 import { AuthProvider } from './context/AuthContext'
 import { CatalogProvider } from './context/CatalogContext'
 import { ShopProvider } from './context/ShopContext'
+import { DocumentDirection } from './components/DocumentDirection'
 import { ScrollToTop } from './components/ScrollToTop'
 import { RequireAuth } from './components/RequireAuth'
 import { AboutPage } from './pages/AboutPage'
@@ -60,6 +61,7 @@ function App() {
       <AuthProvider>
         <CatalogProvider>
         <ShopProvider>
+          <DocumentDirection />
           <ScrollToTop />
           <AppRoutes />
         </ShopProvider>

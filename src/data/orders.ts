@@ -30,6 +30,8 @@ export type OrderRecord = {
  */
 export type OrderLine = {
   productId: string
+  /** The exact variant ordered, when the API sends it. */
+  variantRid?: string
   name: string
   image: string
   price: string

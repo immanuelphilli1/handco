@@ -1,10 +1,11 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import AddLineIcon from 'remixicon-react/AddLineIcon'
 import HeartFillIcon from 'remixicon-react/HeartFillIcon'
 import HeartLineIcon from 'remixicon-react/HeartLineIcon'
 import StarFillIcon from 'remixicon-react/StarFillIcon'
 import { useShop } from '../context/ShopContext'
 import type { Product } from '../data/products'
+import { getProductPath } from '../data/shopRoutes'
 
 type ProductCardProps = {
   product: Product
@@ -29,6 +30,7 @@ export function ProductCard({
   selectionMode,
 }: ProductCardProps) {
   const { isLiked: isProductLiked, toggleWishlist, addToCart } = useShop()
+  const navigate = useNavigate()
   const {
     image,
     tag,
@@ -61,6 +63,15 @@ export function ProductCard({
   const handleAddToCart = (event: React.MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
+    if (product.hasVariantChoice) {
+      // A size, colour or model has to be picked first, and adding without one
+      // would put the default variant in the cart. Open the product page
+      // instead, exactly as a click on the card does.
+      onClick?.()
+      if (to) navigate(to)
+      else if (!onClick) navigate(getProductPath(product.id))
+      return
+    }
     addToCart(product)
   }
 
@@ -74,7 +85,7 @@ export function ProductCard({
 
   const cardContent = (
     <>
-      <div className="relative flex aspect-square w-full flex-col justify-between overflow-hidden rounded-lg">
+      <div className="relative flex aspect-[2/3] w-full flex-col justify-between overflow-hidden rounded-lg">
         <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg">
           <div className="absolute inset-0 rounded-lg bg-[#1da1f2]" />
           <img
@@ -168,7 +179,11 @@ export function ProductCard({
               </p>
             )}
             {discount && (
-              <span className="rounded-full bg-red-light px-2 py-1 text-xs font-medium tracking-[-0.24px] text-primary-red">
+              // `dir="ltr"` keeps the minus sign in front ("-17%") on RTL pages.
+              <span
+                dir="ltr"
+                className="rounded-full bg-red-light px-2 py-1 text-xs font-medium tracking-[-0.24px] text-primary-red"
+              >
                 {discount}
               </span>
             )}
@@ -182,7 +197,7 @@ export function ProductCard({
                 type="button"
                 onClick={handleAddToCart}
                 className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary-orange transition-[opacity,background-color] duration-300 hover:bg-primary-orange/80 lg:size-12 lg:pointer-events-none lg:opacity-0 lg:group-hover/card:pointer-events-auto lg:group-hover/card:opacity-100"
-                aria-label="Add to cart"
+                aria-label={product.hasVariantChoice ? 'Choose options' : 'Add to cart'}
               >
                 <AddLineIcon className="size-5 text-text-inverse lg:size-6" aria-hidden />
               </button>

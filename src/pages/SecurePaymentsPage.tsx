@@ -14,10 +14,8 @@ import {
 export function SecurePaymentsPage() {
   const navigate = useNavigate()
   const {
-    activeCategoryId,
     categoriesTargetId,
     closeCategories,
-    handleSubcategorySelect,
     isCategoriesOpen,
     toggleCategories,
     toggleCategoriesFromLinkBar,
@@ -42,10 +40,7 @@ export function SecurePaymentsPage() {
         categoriesTargetId={categoriesTargetId}
         onToggleCategories={toggleCategories}
         onCloseCategories={closeCategories}
-        onSubcategorySelect={handleSubcategorySelect}
-        showCategoryLinksBar
-        onOpenCategories={toggleCategoriesFromLinkBar}
-        activeCategoryId={activeCategoryId}
+        showQuickNavigation
         onOpenCart={handleOpenCart}
         onOpenWishlist={handleOpenWishlist}
         onAfterSignOut={handleGoHome}

@@ -77,6 +77,12 @@ export type ProductSearchParams = {
 export type ProductListParams = {
   page?: number
   limit?: number
+  /**
+   * `1` asks for discounted products only (original price above the price).
+   * Sent for the Deals listing; until the API supports it, the listing also
+   * filters on the discount itself.
+   */
+  onSale?: 1
   categoryId?: string
   subcategory?: string
   q?: string
@@ -348,6 +354,12 @@ export type HomeBannerPlacement = {
   rid: string
   position: 'hero' | 'promo'
   imageUrl: string
+  /**
+   * Portrait crop for phones, used below the `lg` breakpoint. Null (or absent on
+   * older API builds) when staff uploaded no mobile image, in which case the
+   * desktop `imageUrl` is used at every width.
+   */
+  mobileImageUrl?: string | null
   altText: string
   title: string | null
   description: string | null

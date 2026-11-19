@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { BannerPicture } from './BannerPicture'
 import { CarouselDots } from './CarouselDots'
 import { useHomePlacements } from '../context/HomePlacementsContext'
 import { BannerLink } from '../utils/bannerLink'
@@ -8,7 +9,7 @@ import ArrowRightSLineIcon from 'remixicon-react/ArrowRightSLineIcon'
 const heroArrowButton =
   'group flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-secondary px-3 transition-colors hover:bg-orange-light active:bg-orange-light'
 const heroArrowIcon =
-  'size-5 text-text-secondary transition-colors group-hover:text-primary-orange'
+  'size-5 text-text-secondary rtl:-scale-x-100 transition-colors group-hover:text-primary-orange'
 
 const AUTO_PLAY_INTERVAL_MS = 5000
 
@@ -45,22 +46,38 @@ export function HeroSection() {
     return null
   }
 
+  // Below md a mobile image sets its own height so nothing is cropped. The
+  // slides then share one grid cell, so the frame takes the tallest slide and
+  // does not jump as the carousel turns; a slide without a mobile image covers
+  // that frame. From md up every slide goes back to the fixed-height banner.
+  const hasMobileImages = bannerSlides.some((slide) => slide.mobileImageUrl)
+  const slideWrapperClass = hasMobileImages
+    ? 'relative col-start-1 row-start-1 block md:absolute md:inset-0'
+    : 'absolute inset-0 block'
+
   return (
     <section className="lg:px-16 lg:py-6">
       <div
-        className="relative h-52 overflow-hidden lg:h-80 lg:rounded-[12px]"
+        className={
+          hasMobileImages
+            ? 'relative grid grid-cols-1 overflow-hidden md:block md:h-52 lg:h-80 lg:rounded-[12px]'
+            : 'relative h-52 overflow-hidden lg:h-80 lg:rounded-[12px]'
+        }
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
       >
         {bannerSlides.map((slide, index) => {
+          const sizeClass =
+            hasMobileImages && slide.mobileImageUrl
+              ? 'block h-auto w-full md:absolute md:inset-0 md:size-full md:object-cover'
+              : 'absolute inset-0 size-full object-cover'
           const image = (
-            <img
-              alt={slide.altText}
-              aria-hidden={index !== currentSlide}
-              className={`absolute inset-0 size-full object-cover transition-opacity duration-500 lg:rounded-[12px] ${
+            <BannerPicture
+              slide={slide}
+              isHidden={index !== currentSlide}
+              className={`${sizeClass} transition-opacity duration-500 lg:rounded-[12px] ${
                 index === currentSlide ? 'opacity-100' : 'opacity-0'
               }`}
-              src={slide.imageUrl}
             />
           )
 
@@ -68,12 +85,12 @@ export function HeroSection() {
             <BannerLink
               key={slide.rid}
               linkUrl={slide.linkUrl}
-              className="absolute inset-0 block"
+              className={slideWrapperClass}
             >
               {image}
             </BannerLink>
           ) : (
-            <div key={slide.rid} className="absolute inset-0">
+            <div key={slide.rid} className={slideWrapperClass}>
               {image}
             </div>
           )

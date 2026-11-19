@@ -74,7 +74,7 @@ function CartItemRow({
             type="button"
             onClick={onGoToProduct}
             aria-label={`View ${item.name}`}
-            className="size-20 shrink-0 cursor-pointer overflow-hidden rounded-[11px] border border-border-primary bg-bg-secondary lg:size-36"
+            className="h-30 w-20 shrink-0 cursor-pointer overflow-hidden rounded-[11px] border border-border-primary bg-bg-secondary lg:h-54 lg:w-36"
           >
             <img alt="" className="size-full object-cover" src={item.image} />
           </button>
@@ -103,7 +103,7 @@ function CartItemRow({
             <button
               type="button"
               onClick={onGoToProduct}
-              className="min-w-0 flex-1 cursor-pointer text-left"
+              className="min-w-0 flex-1 cursor-pointer text-left rtl:text-right"
             >
               <p className="line-clamp-2 text-base leading-5 tracking-[-0.32px] text-text-secondary">
                 {item.name}
