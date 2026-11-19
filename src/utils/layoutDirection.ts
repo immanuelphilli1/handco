@@ -1,16 +1,21 @@
 /**
  * Page direction per shopper market.
  *
- * Shoppers in the UAE get the right-to-left layout. Everyone else gets the
- * default left-to-right one. Only the layout is mirrored: the copy stays in
- * English. Components therefore use logical utilities (`ms-*`, `pe-*`,
- * `start-*`, `text-start`…) and flip direction-bearing icons with
+ * Every market currently gets the left-to-right layout. The right-to-left
+ * (mirrored) layout is kept working but switched off: add a country code to
+ * `RTL_COUNTRY_CODES` (the UAE was 'AE') to turn it back on for that market.
+ * Only the layout is mirrored: the copy stays in English. Components therefore
+ * use logical utilities (`ms-*`, `pe-*`, `start-*`) and flip direction-bearing
+ * icons with
  * `rtl:-scale-x-100`, so one set of markup serves both directions.
  */
 export type LayoutDirection = 'ltr' | 'rtl'
 
-/** ISO 3166-1 alpha-2 codes of the markets that browse right-to-left. */
-const RTL_COUNTRY_CODES = new Set(['AE'])
+/**
+ * ISO 3166-1 alpha-2 codes of the markets that browse right-to-left. Empty:
+ * the UAE was moved back to the international left-to-right layout.
+ */
+const RTL_COUNTRY_CODES = new Set<string>()
 
 /** Last direction used, so the next visit starts in it instead of flashing LTR. */
 const STORED_DIRECTION_KEY = 'handco.layoutDirection'
@@ -81,9 +86,14 @@ export function readDirectionOverride(): LayoutDirection | null {
 /**
  * Applies the best direction available before React renders: the QA override,
  * else the direction of the previous visit, else left-to-right.
+ *
+ * A stored right-to-left direction is ignored while no market uses it, so a
+ * UAE shopper who visited while the mirrored layout was on does not open in it.
  */
 export function applyInitialDocumentDirection(): void {
-  applyDocumentDirection(readDirectionOverride() ?? readStoredDirection() ?? 'ltr')
+  const stored = readStoredDirection()
+  const usable = stored === 'rtl' && RTL_COUNTRY_CODES.size === 0 ? null : stored
+  applyDocumentDirection(readDirectionOverride() ?? usable ?? 'ltr')
 }
 
 /**
