@@ -206,7 +206,7 @@ export function OrderTrackingModal({ order, events, isLoading, onClose }: OrderT
             {/* Product summary: a large image with the item's details beside it.
                 Stacks above the timeline on mobile. */}
             <div className="flex shrink-0 flex-col gap-4 lg:w-64">
-              <div className="aspect-[2/3] w-full overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary">
+              <div className="aspect-[3/4] w-full overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary">
                 {mainLine?.image ? (
                   <img
                     alt={mainLine.name}

@@ -101,7 +101,7 @@ function CheckoutItemCard({ item, onSelect }: { item: CartItem; onSelect: () => 
       className="flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary text-left rtl:text-right"
     >
       <span className="block w-full overflow-hidden bg-bg-secondary">
-        <img alt="" className="aspect-[2/3] w-full object-cover" src={item.image} />
+        <img alt="" className="aspect-[3/4] w-full object-cover" src={item.image} />
       </span>
       <span className="flex flex-col gap-1 p-3">
         <span className="line-clamp-2 text-sm leading-4.5 tracking-[-0.28px] text-text-primary">

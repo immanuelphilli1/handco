@@ -85,7 +85,7 @@ export function ProductCard({
 
   const cardContent = (
     <>
-      <div className="relative flex aspect-[2/3] w-full flex-col justify-between overflow-hidden rounded-lg">
+      <div className="relative flex aspect-[3/4] w-full flex-col justify-between overflow-hidden rounded-lg">
         <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg">
           <div className="absolute inset-0 rounded-lg bg-[#1da1f2]" />
           <img

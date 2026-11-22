@@ -131,7 +131,7 @@ function ProductImageGallery({
       </div>
 
       <div className="flex w-full flex-col gap-4 lg:flex-1">
-        <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary lg:max-w-110">
+        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary lg:max-w-110">
           <img
             alt={productName}
             className="absolute inset-0 size-full object-cover"

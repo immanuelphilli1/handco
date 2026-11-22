@@ -46,10 +46,13 @@ export function HeroSection() {
     return null
   }
 
-  // Below md a mobile image sets its own height so nothing is cropped. The
-  // slides then share one grid cell, so the frame takes the tallest slide and
-  // does not jump as the carousel turns; a slide without a mobile image covers
-  // that frame. From md up every slide goes back to the fixed-height banner.
+  // Phones (below md) show the hero at 3:2 or 1:1. A mobile image sets its own
+  // height, so a 3:2 or a 1:1 upload shows whole; anything taller is cropped to
+  // a square (`max-h-[100vw]`, the hero is full width on phones). The slides
+  // share one grid cell, so the frame takes the tallest slide and does not jump
+  // as the carousel turns; a slide without a mobile image covers that frame.
+  // With no mobile images at all, the frame is 3:2. From md up every slide goes
+  // back to the fixed-height banner.
   const hasMobileImages = bannerSlides.some((slide) => slide.mobileImageUrl)
   const slideWrapperClass = hasMobileImages
     ? 'relative col-start-1 row-start-1 block md:absolute md:inset-0'
@@ -61,7 +64,7 @@ export function HeroSection() {
         className={
           hasMobileImages
             ? 'relative grid grid-cols-1 overflow-hidden md:block md:h-52 lg:h-80 lg:rounded-[12px]'
-            : 'relative h-52 overflow-hidden lg:h-80 lg:rounded-[12px]'
+            : 'relative aspect-[3/2] overflow-hidden md:aspect-auto md:h-52 lg:h-80 lg:rounded-[12px]'
         }
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
@@ -69,7 +72,7 @@ export function HeroSection() {
         {bannerSlides.map((slide, index) => {
           const sizeClass =
             hasMobileImages && slide.mobileImageUrl
-              ? 'block h-auto w-full md:absolute md:inset-0 md:size-full md:object-cover'
+              ? 'block h-auto max-h-[100vw] w-full object-cover md:absolute md:inset-0 md:size-full md:max-h-none'
               : 'absolute inset-0 size-full object-cover'
           const image = (
             <BannerPicture

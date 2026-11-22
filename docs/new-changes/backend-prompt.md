@@ -1,6 +1,6 @@
 # Backend work for the H&CO. storefront update (handco-api)
 
-The storefront (handco-web-client) has been updated for the client's UI requirements (`HCO_Website_UI_Ecommerce_Requirements.docx`): a SHEIN-style categories menu, a quick-navigation bar, mobile banners, 2:3 product images, size/colour variants, and a right-to-left layout for UAE shoppers. The frontend is finished, but several features only work fully once the API supports them. This brief lists what the storefront expects, field by field.
+The storefront (handco-web-client) has been updated for the client's UI requirements (`HCO_Website_UI_Ecommerce_Requirements.docx`): a SHEIN-style categories menu, a quick-navigation bar, mobile banners, 3:4 product images, size/colour variants, and a right-to-left layout for UAE shoppers. The frontend is finished, but several features only work fully once the API supports them. This brief lists what the storefront expects, field by field.
 
 Keep every change backward compatible. The live storefront must keep working while the work is deployed piece by piece, so add fields rather than rename or remove them. Use the same conventions as the existing public endpoints: `/api/v1`, JSON, no auth, absolute asset URLs, and the same CORS rules.
 
@@ -11,7 +11,7 @@ Keep every change backward compatible. The live storefront must keep working whi
 Phones currently crop the sides off the wide desktop banner. The storefront now uses a separate portrait image below 768 px when one exists.
 
 - Add a nullable `mobile_image` column to `inhouse_placements`.
-- In Admin > Placements, create and edit: add an optional "Mobile image" upload with the hint "Portrait, 1080 × 1350 (4:5). Shown on phones. Leave empty to use the desktop image." Staff must also be able to remove it.
+- In Admin > Placements, create and edit: add an optional "Mobile image" upload with the hint "3:2 (1080 × 720) or square (1080 × 1080). Shown on phones. Leave empty to use the desktop image." Staff must also be able to remove it.
 - Return `mobileImageUrl` on every item from `GET /api/v1/placements/home`, for both `hero` and `promo`:
   - an absolute URL, in the same form as `imageUrl`;
   - `null` when no mobile image is set (not an empty string, not omitted).
@@ -123,7 +123,7 @@ For shoppers who aren't signed in, the storefront switches to right-to-left when
    - Staff pick sizes and colours, and the form creates every missing combination with a SKU such as `{PRODUCT-SKU}-{COLOUR}-{SIZE}` and stock 0.
    - Existing rows are left alone.
    - Raise the 50-variant limit (8 sizes × 8 colours = 64).
-8. **2:3 image hint on product uploads:** "Use 2:3 portrait, e.g. 1000 × 1500". Show a warning (not a block) when an image's ratio is more than about 5% away from 2:3.
+8. **3:4 image hint on product uploads:** "Use 3:4 portrait, e.g. 1200 × 1600". Show a warning (not a block) when an image's ratio is more than about 5% away from 3:4.
 9. **Size filter:** `GET /api/v1/products?size=L`, plus `facets.sizes: string[]`, built the same way as `color` and `facets.colors`.
 
 ## When you're done, report back with

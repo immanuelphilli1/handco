@@ -1297,7 +1297,7 @@ function BuyAgainProductCard({
   return (
     <div className="overflow-hidden rounded-lg bg-bg-primary">
       <div className="overflow-hidden rounded-lg bg-bg-secondary">
-        <img alt={product.name} className="aspect-[2/3] w-full object-cover" src={product.image} />
+        <img alt={product.name} className="aspect-[3/4] w-full object-cover" src={product.image} />
       </div>
       <div className="px-1 py-2">
         <p className="truncate text-xs font-medium leading-4 tracking-[-0.24px] text-text-primary">
