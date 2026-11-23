@@ -18,7 +18,7 @@ import { inlineDirectionSign } from '../utils/layoutDirection'
 
 const AUTO_PLAY_INTERVAL_MS = 8000
 const MOBILE_PRODUCT_COUNT = 5
-const DESKTOP_ITEMS_PER_VIEW = 4
+const DESKTOP_ITEMS_PER_VIEW = 5
 const DESKTOP_MEDIA_QUERY = '(min-width: 1024px)'
 const TRANSITION_MS = 700
 
@@ -325,7 +325,7 @@ export function NewArrivalsSection({ onProductSelect }: NewArrivalsSectionProps)
                 {loopedProducts.map((product, index) => (
                   <div
                     key={`${product.id}-${index}`}
-                    className="flex w-[calc((100%-1.5rem)/4)] min-w-0 shrink-0"
+                    className="flex w-[calc((100%-2rem)/5)] min-w-0 shrink-0"
                   >
                     <ProductCard
                       product={product}

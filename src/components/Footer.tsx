@@ -234,7 +234,7 @@ export function Footer({ onOpenCategories }: FooterProps) {
       <div className="border border-border-primary px-4 lg:px-16">
         <div className="flex flex-col gap-8 border-x border-border-primary px-4 py-6 lg:gap-14 lg:px-6 lg:py-16">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-            <div className="hidden lg:block">
+            <div className="hidden">
             <img alt="H&CO." className="size-22" src={images.footer.logo} />
             </div>
             <div className="w-full lg:ms-auto lg:w-124">
@@ -308,13 +308,21 @@ export function Footer({ onOpenCategories }: FooterProps) {
 
       <div className="hidden lg:block border-b border-border-primary px-4 lg:px-16">
         <div className="flex flex-col gap-6 border-x border-border-primary p-4 lg:flex-row lg:items-end lg:gap-4 lg:p-6">
-          <div className="flex flex-col gap-6">
-            <p className="text-base font-medium tracking-[-0.32px] text-text-secondary">
-              Download the H&CO. App on
-            </p>
-            <div className="flex items-center gap-4">
-              <img alt="Download on the App Store" className="h-10 w-30" src={images.footer.appStore} />
-              <img alt="Get it on Google Play" className="h-10 w-34" src={images.footer.googlePlay} />
+          {/* The app's logo beside the store badges, like an app listing. */}
+          <div className="flex items-end gap-4">
+            <img
+              alt="H&CO. App"
+              className="size-22 shrink-0 rounded-firm-2 border border-border-primary"
+              src={images.footer.logo}
+            />
+            <div className="flex flex-col gap-6">
+              <p className="text-base font-medium tracking-[-0.32px] text-text-secondary">
+                Download the H&CO. App on
+              </p>
+              <div className="flex items-center gap-4">
+                <img alt="Download on the App Store" className="h-10 w-30" src={images.footer.appStore} />
+                <img alt="Get it on Google Play" className="h-10 w-34" src={images.footer.googlePlay} />
+              </div>
             </div>
           </div>
 

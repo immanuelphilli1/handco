@@ -6,6 +6,7 @@ import StarFillIcon from 'remixicon-react/StarFillIcon'
 import { useShop } from '../context/ShopContext'
 import type { Product } from '../data/products'
 import { getProductPath } from '../data/shopRoutes'
+import { usesSquareProductImages } from '../data/products'
 
 type ProductCardProps = {
   product: Product
@@ -34,7 +35,6 @@ export function ProductCard({
   const {
     image,
     tag,
-    category,
     name,
     price,
     originalPrice,
@@ -85,7 +85,11 @@ export function ProductCard({
 
   const cardContent = (
     <>
-      <div className="relative flex aspect-[3/4] w-full flex-col justify-between overflow-hidden rounded-lg">
+      <div
+        className={`relative flex w-full flex-col justify-between overflow-hidden rounded-lg ${
+          usesSquareProductImages(product.categoryId) ? 'aspect-square' : 'aspect-[3/4]'
+        }`}
+      >
         <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg">
           <div className="absolute inset-0 rounded-lg bg-[#1da1f2]" />
           <img
@@ -159,50 +163,53 @@ export function ProductCard({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-1.5 px-1 py-1.5 lg:gap-2 lg:py-2">
-        <p className="text-sm font-medium tracking-[-0.28px] text-text-secondary">{category}</p>
+      <div className="flex flex-1 flex-col gap-1 px-1 pt-1.5 lg:pt-2">
+        {/* <p className="text-sm font-medium tracking-[-0.28px] text-text-secondary">{category}</p> */}
         <p className="line-clamp-2 text-base font-semibold tracking-[-0.32px] text-text-primary lg:min-h-10">
           {name}
         </p>
-        <div className="mt-auto flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p
-              className={`text-base font-semibold tracking-[-0.32px] sm:text-xl sm:tracking-[-0.4px] ${
-                priceOrange || selectionMode ? 'text-primary-orange' : 'text-text-primary'
-              }`}
-            >
-              {price}
-            </p>
-            {originalPrice && (
-              <p className="text-sm font-medium tracking-[-0.28px] text-text-tertiary line-through sm:text-base sm:tracking-[-0.32px]">
-                {originalPrice}
-              </p>
-            )}
-            {discount && (
-              // `dir="ltr"` keeps the minus sign in front ("-17%") on RTL pages.
-              <span
-                dir="ltr"
-                className="rounded-full bg-red-light px-2 py-1 text-xs font-medium tracking-[-0.24px] text-primary-red"
-              >
-                {discount}
-              </span>
-            )}
-          </div>
+        <div className="mt-auto flex flex-col gap-1">
+          {/* Price on the left, the add button on its right, on one row. */}
           <div className="flex items-center justify-between gap-2">
-            <p className="min-w-0 text-sm font-medium tracking-[-0.28px] text-primary-green">
-              {delivery}
-            </p>
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <p
+                className={`text-base font-semibold tracking-[-0.32px] sm:text-xl sm:tracking-[-0.4px] ${
+                  priceOrange || selectionMode ? 'text-primary-orange' : 'text-text-primary'
+                }`}
+              >
+                {price}
+              </p>
+              {originalPrice && (
+                <p className="text-sm font-medium tracking-[-0.28px] text-text-tertiary line-through sm:text-base sm:tracking-[-0.32px]">
+                  {originalPrice}
+                </p>
+              )}
+              {discount && (
+                // `dir="ltr"` keeps the minus sign in front ("-17%") on RTL pages.
+                <span
+                  dir="ltr"
+                  className="rounded-full bg-red-light px-2 py-1 text-xs font-medium tracking-[-0.24px] text-primary-red"
+                >
+                  {discount}
+                </span>
+              )}
+            </div>
             {shouldShowAddButton && (
               <button
                 type="button"
                 onClick={handleAddToCart}
-                className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary-orange transition-[opacity,background-color] duration-300 hover:bg-primary-orange/80 lg:size-12 lg:pointer-events-none lg:opacity-0 lg:group-hover/card:pointer-events-auto lg:group-hover/card:opacity-100"
+                className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary-orange transition-[opacity,background-color] duration-300 hover:bg-primary-orange/80 lg:size-10 lg:pointer-events-none lg:opacity-0 lg:group-hover/card:pointer-events-auto lg:group-hover/card:opacity-100"
                 aria-label={product.hasVariantChoice ? 'Choose options' : 'Add to cart'}
               >
-                <AddLineIcon className="size-5 text-text-inverse lg:size-6" aria-hidden />
+                <AddLineIcon className="size-5 text-text-inverse" aria-hidden />
               </button>
             )}
           </div>
+          {delivery ? (
+            <p className="min-w-0 text-sm font-medium tracking-[-0.28px] text-primary-green">
+              {delivery}
+            </p>
+          ) : null}
         </div>
       </div>
     </>

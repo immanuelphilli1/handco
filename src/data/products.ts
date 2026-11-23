@@ -51,3 +51,20 @@ export type Product = {
 export function getProductKey(product: Pick<Product, 'id'>): string {
   return product.id
 }
+
+/**
+ * Top-level category slugs whose product images show as 1:1 squares instead of
+ * the store-wide 3:4 portrait. The client asked for this for the EV category.
+ * Staging has no category called EV, so this matches the likely slugs and
+ * Energy (solar, batteries, chargers); edit the list to match the live slug.
+ */
+const SQUARE_IMAGE_CATEGORY_SLUGS = ['ev', 'evs', 'electric-vehicles', 'energy']
+
+/**
+ * True when a product's images should be square. `categoryId` is the leaf
+ * slug (for example `energy-solar`), and child slugs start with their parent's.
+ */
+export function usesSquareProductImages(categoryId: string | null | undefined): boolean {
+  const slug = (categoryId ?? '').toLowerCase()
+  return SQUARE_IMAGE_CATEGORY_SLUGS.some((root) => slug === root || slug.startsWith(`${root}-`))
+}

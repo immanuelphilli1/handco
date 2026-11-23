@@ -27,6 +27,7 @@ import type {
 } from '../data/productDetail'
 import { useProductDetailSelection } from '../hooks/useProductDetailSelection'
 import type { Product } from '../data/products'
+import { usesSquareProductImages } from '../data/products'
 import { getProductPathForListingSelection } from '../data/shopRoutes'
 import { ProductCard } from './ProductCard'
 import { RatingStars } from './RatingStars'
@@ -91,11 +92,14 @@ function ProductDetailBreadcrumbs({
 function ProductImageGallery({
   images,
   productName,
+  isSquare = false,
   activeIndex: controlledIndex,
   onActiveIndexChange,
 }: {
   images: string[]
   productName: string
+  /** Square (1:1) images instead of 3:4 portrait, for the EV category. */
+  isSquare?: boolean
   activeIndex?: number
   onActiveIndexChange?: (index: number) => void
 }) {
@@ -119,7 +123,7 @@ function ProductImageGallery({
             key={`${image}-${index}`}
             type="button"
             onClick={() => setActiveIndex(index)}
-            className={`relative h-27 w-18 shrink-0 cursor-pointer overflow-hidden rounded-lg border bg-bg-secondary ${
+            className={`relative w-18 shrink-0 ${isSquare ? 'h-18' : 'h-24'} cursor-pointer overflow-hidden rounded-lg border bg-bg-secondary ${
               index === activeIndex ? 'border-text-primary' : 'border-border-primary'
             }`}
             aria-label={`View image ${index + 1}`}
@@ -131,7 +135,7 @@ function ProductImageGallery({
       </div>
 
       <div className="flex w-full flex-col gap-4 lg:flex-1">
-        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary lg:max-w-110">
+        <div className={`relative w-full overflow-hidden rounded-2xl ${isSquare ? 'aspect-square' : 'aspect-[3/4]'} border border-border-primary bg-bg-secondary lg:max-w-110`}>
           <img
             alt={productName}
             className="absolute inset-0 size-full object-cover"
@@ -163,7 +167,7 @@ function ProductImageGallery({
               key={`mobile-${image}-${index}`}
               type="button"
               onClick={() => setActiveIndex(index)}
-              className={`relative h-27 w-18 shrink-0 cursor-pointer overflow-hidden rounded-lg border bg-bg-secondary ${
+              className={`relative w-18 shrink-0 ${isSquare ? 'h-18' : 'h-24'} cursor-pointer overflow-hidden rounded-lg border bg-bg-secondary ${
                 index === activeIndex ? 'border-text-primary' : 'border-border-primary'
               }`}
               aria-label={`View image ${index + 1}`}
@@ -837,6 +841,7 @@ export function ProductDetailView({
             <ProductImageGallery
               images={detail.images}
               productName={product.name}
+              isSquare={usesSquareProductImages(product.categoryId)}
               activeIndex={variantState.galleryIndex}
               onActiveIndexChange={variantState.setGalleryIndex}
             />

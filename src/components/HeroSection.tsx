@@ -101,7 +101,7 @@ export function HeroSection() {
 
         {bannerSlides.length > 1 ? (
           <>
-            <div className="relative hidden h-full w-full items-center justify-between px-12 lg:flex">
+            <div className="relative hidden h-full w-full items-end justify-between px-4 pb-2.5 opacity-50 lg:flex">
               <button
                 type="button"
                 onClick={showPreviousSlide}
