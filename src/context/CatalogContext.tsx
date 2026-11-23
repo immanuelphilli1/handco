@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -9,7 +10,7 @@ import {
 import { catalogApi } from '../api'
 import { emptyFacets, mapApiProduct, mapApiProductFacets } from '../api/mappers'
 import type { ApiCategory, ProductFacets } from '../api/types'
-import type { Product } from '../data/products'
+import { collectSquareImageSlugs, type Product } from '../data/products'
 import { useProductDestination } from '../hooks/useProductDestination'
 
 type CatalogContextValue = {
@@ -25,6 +26,11 @@ type CatalogContextValue = {
   /** Live facet values (brands, colors, delivery, screen sizes) from the API. */
   facets: ProductFacets
   isReady: boolean
+  /**
+   * True when a product in this category shows square (1:1) images instead of
+   * 3:4 portrait: EV and everything under it. See `SQUARE_IMAGE_ROOT_SLUGS`.
+   */
+  isSquareImageCategory: (categoryId: string | null | undefined) => boolean
 }
 
 const CatalogContext = createContext<CatalogContextValue | null>(null)
@@ -91,6 +97,13 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     // load uses the default country and is superseded once the address is known.
   }, [destination, isDestinationLoading])
 
+  const squareImageSlugs = useMemo(() => collectSquareImageSlugs(categories), [categories])
+  const isSquareImageCategory = useCallback(
+    (categoryId: string | null | undefined) =>
+      squareImageSlugs.has((categoryId ?? '').toLowerCase()),
+    [squareImageSlugs],
+  )
+
   const value = useMemo(
     () => ({
       categories,
@@ -99,8 +112,17 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       allProducts,
       facets,
       isReady,
+      isSquareImageCategory,
     }),
-    [allProducts, categories, facets, featuredProducts, isReady, newArrivalProducts],
+    [
+      allProducts,
+      categories,
+      facets,
+      featuredProducts,
+      isReady,
+      isSquareImageCategory,
+      newArrivalProducts,
+    ],
   )
 
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>

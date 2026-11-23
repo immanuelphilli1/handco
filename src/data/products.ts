@@ -53,18 +53,39 @@ export function getProductKey(product: Pick<Product, 'id'>): string {
 }
 
 /**
- * Top-level category slugs whose product images show as 1:1 squares instead of
- * the store-wide 3:4 portrait. The client asked for this for the EV category.
- * Staging has no category called EV, so this matches the likely slugs and
- * Energy (solar, batteries, chargers); edit the list to match the live slug.
+ * Category slugs whose product images show as 1:1 squares instead of the
+ * store-wide 3:4 portrait, together with every category under them. The client
+ * asked for this for EV (`/categories/ev`: Cars, Electric Bikes, Scooters).
  */
-const SQUARE_IMAGE_CATEGORY_SLUGS = ['ev', 'evs', 'electric-vehicles', 'energy']
+export const SQUARE_IMAGE_ROOT_SLUGS = ['ev']
+
+type CategoryTreeNode = { slug?: string; children?: CategoryTreeNode[] }
 
 /**
- * True when a product's images should be square. `categoryId` is the leaf
- * slug (for example `energy-solar`), and child slugs start with their parent's.
+ * Every slug that takes square images: each root above plus all of its
+ * descendants in the category tree. Subcategory slugs do not carry their
+ * parent's prefix (EV's children are `cars`, `used`, `scooters`), so the tree is
+ * the only way to tell which products sit under EV.
  */
-export function usesSquareProductImages(categoryId: string | null | undefined): boolean {
-  const slug = (categoryId ?? '').toLowerCase()
-  return SQUARE_IMAGE_CATEGORY_SLUGS.some((root) => slug === root || slug.startsWith(`${root}-`))
+export function collectSquareImageSlugs(categories: CategoryTreeNode[]): Set<string> {
+  const slugs = new Set<string>(SQUARE_IMAGE_ROOT_SLUGS)
+
+  const addAll = (nodes: CategoryTreeNode[] | undefined) => {
+    for (const node of nodes ?? []) {
+      if (node.slug) slugs.add(node.slug.toLowerCase())
+      addAll(node.children)
+    }
+  }
+  const visit = (nodes: CategoryTreeNode[] | undefined) => {
+    for (const node of nodes ?? []) {
+      if (node.slug && SQUARE_IMAGE_ROOT_SLUGS.includes(node.slug.toLowerCase())) {
+        addAll(node.children)
+      } else {
+        visit(node.children)
+      }
+    }
+  }
+
+  visit(categories)
+  return slugs
 }

@@ -27,7 +27,6 @@ import type {
 } from '../data/productDetail'
 import { useProductDetailSelection } from '../hooks/useProductDetailSelection'
 import type { Product } from '../data/products'
-import { usesSquareProductImages } from '../data/products'
 import { getProductPathForListingSelection } from '../data/shopRoutes'
 import { ProductCard } from './ProductCard'
 import { RatingStars } from './RatingStars'
@@ -716,7 +715,7 @@ export function ProductDetailView({
 }: ProductDetailViewProps) {
   const { detail, selection } = context
   const { product } = detail
-  const { categories } = useCatalog()
+  const { categories, isSquareImageCategory } = useCatalog()
   const navigate = useNavigate()
   const {
     isLiked: isProductLiked,
@@ -841,7 +840,7 @@ export function ProductDetailView({
             <ProductImageGallery
               images={detail.images}
               productName={product.name}
-              isSquare={usesSquareProductImages(product.categoryId)}
+              isSquare={isSquareImageCategory(product.categoryId)}
               activeIndex={variantState.galleryIndex}
               onActiveIndexChange={variantState.setGalleryIndex}
             />

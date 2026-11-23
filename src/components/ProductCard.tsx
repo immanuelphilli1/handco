@@ -6,7 +6,7 @@ import StarFillIcon from 'remixicon-react/StarFillIcon'
 import { useShop } from '../context/ShopContext'
 import type { Product } from '../data/products'
 import { getProductPath } from '../data/shopRoutes'
-import { usesSquareProductImages } from '../data/products'
+import { useCatalog } from '../context/CatalogContext'
 
 type ProductCardProps = {
   product: Product
@@ -32,6 +32,7 @@ export function ProductCard({
 }: ProductCardProps) {
   const { isLiked: isProductLiked, toggleWishlist, addToCart } = useShop()
   const navigate = useNavigate()
+  const { isSquareImageCategory } = useCatalog()
   const {
     image,
     tag,
@@ -87,7 +88,7 @@ export function ProductCard({
     <>
       <div
         className={`relative flex w-full flex-col justify-between overflow-hidden rounded-lg ${
-          usesSquareProductImages(product.categoryId) ? 'aspect-square' : 'aspect-[3/4]'
+          isSquareImageCategory(product.categoryId) ? 'aspect-square' : 'aspect-[3/4]'
         }`}
       >
         <div aria-hidden className="pointer-events-none absolute inset-0 rounded-lg">
